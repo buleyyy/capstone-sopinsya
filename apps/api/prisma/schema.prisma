@@ -1,0 +1,278 @@
+// Schema audit internal ISO 37001 / SMAP (Checklist Audit, Register Temuan, Pustaka SOP).
+//
+// Prinsip:
+//  - Banyak standar dan versi checklist boleh dipakai bersamaan (AuditStandard -> ChecklistVersion).
+//    Versi PUBLISHED tidak boleh diubah (ditegakkan di service); perubahan = versi baru.
+//  - Satu AuditSession terikat pada satu ChecklistVersion yang tetap (checklistVersionId).
+//  - MaterialCategory (kamar materi) TERPISAH dari Department (unit yang diaudit).
+//  - Auditor TIDAK punya departemen asal. Self-audit dicegah lewat AuditorExclusion
+//    (unit yang dilarang diaudit oleh auditor tertentu, dideklarasikan Admin saat membuat undangan).
+//  - Akses lewat undangan per auditor: hanya hash yang disimpan (inviteHash, tokenHash).
+//  - Semua relasi rantai audit memakai onDelete: Restrict (tidak ada penghapusan beruntun).
+//  - Invarian lintas tabel dijaga foreign key komposit (lihat komentar @@unique "target FK").
+//  - Modul RD lama (pelatihan, pre/post-test, kuis) sengaja TIDAK ada di schema ini.
+//  - Belum dimodelkan (menunggu konfirmasi klien): tindak lanjut/verifikasi temuan lanjutan,
+//    banyak tautan bukti, skor/persentase audit.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enum (nilai harus identik dengan src/domain/auditSchemas.ts; dijaga tests/auditSchemas.test.ts) ----------
+
+enum AnswerResult {
+  YA
+  TIDAK
+}
+
+enum FindingClass {
+  MAJOR
+  MINOR
+  OBSERVASI
+}
+
+enum FindingStatus {
+  OPEN
+  CLOSED
+}
+
+enum SessionStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum ChecklistVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+// ---------- Master data ----------
+
+model Department {
+  id           Int                @id @default(autoincrement())
+  name         String             @unique @db.VarChar(120)
+  createdAt    DateTime           @default(now())
+  items        ChecklistItem[]
+  assignments  AuditAssignment[]
+  sopDocuments SopDocument[]
+  exclusions   AuditorExclusion[]
+}
+
+// "Kamar"/unit materi (notulensi: 13 unit). Bukan departemen.
+model MaterialCategory {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique @db.VarChar(160)
+  sortOrder    Int           @default(0)
+  sopDocuments SopDocument[]
+}
+
+model SopDocument {
+  id             Int              @id @default(autoincrement())
+  code           String           @unique @db.VarChar(60)
+  title          String           @db.VarChar(255)
+  categoryId     Int
+  departmentId   Int? // pemilik SOP; null untuk materi umum
+  pdfUrl         String?          @db.VarChar(1024) // hanya https; risiko akses dokumen internal dicatat di docs
+  category       MaterialCategory @relation(fields: [categoryId], references: [id])
+  department     Department?      @relation(fields: [departmentId], references: [id])
+  checklistItems ChecklistItem[]
+
+  @@index([categoryId])
+  @@index([departmentId])
+}
+
+// ---------- Standar dan versi checklist ----------
+
+model AuditStandard {
+  id        Int                @id @default(autoincrement())
+  code      String             @unique @db.VarChar(40) // mis. ISO37001
+  name      String             @db.VarChar(160)
+  createdAt DateTime           @default(now())
+  versions  ChecklistVersion[]
+}
+
+model ChecklistVersion {
+  id           Int                    @id @default(autoincrement())
+  standardId   Int
+  versionLabel String                 @db.VarChar(40)
+  status       ChecklistVersionStatus @default(DRAFT)
+  publishedAt  DateTime?
+  retiredAt    DateTime?
+  createdAt    DateTime               @default(now())
+  standard     AuditStandard          @relation(fields: [standardId], references: [id], onDelete: Restrict)
+  items        ChecklistItem[]
+  sessions     AuditSession[]
+
+  @@unique([standardId, versionLabel])
+}
+
+model ChecklistItem {
+  id           Int               @id @default(autoincrement())
+  versionId    Int
+  departmentId Int // unit yang diaudit
+  sopId        Int?
+  criteria     String            @db.Text
+  reference    String?           @db.VarChar(255)
+  sortOrder    Int               @default(0)
+  version      ChecklistVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  department   Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  sop          SopDocument?      @relation(fields: [sopId], references: [id])
+  answers      ChecklistAnswer[]
+
+  @@unique([id, departmentId]) // target FK: jawaban hanya boleh memakai item dari unit penugasannya
+  @@index([versionId, departmentId, sortOrder])
+  @@index([sopId])
+}
+
+// ---------- Sesi, auditor, penugasan ----------
+
+model AuditSession {
+  id                 Int               @id @default(autoincrement())
+  title              String            @db.VarChar(160)
+  checklistVersionId Int // versi checklist tetap untuk sesi ini
+  status             SessionStatus     @default(DRAFT)
+  expiresAt          DateTime // batas waktu PENULISAN
+  closedAt           DateTime?
+  auditorAccessUntil DateTime? // jendela akses auditor setelah CLOSED; null = tidak ada akses
+  findingSeq         Int               @default(0) // penghitung nomor temuan per sesi
+  createdAt          DateTime          @default(now())
+  checklistVersion   ChecklistVersion  @relation(fields: [checklistVersionId], references: [id], onDelete: Restrict)
+  auditors           Auditor[]
+  assignments        AuditAssignment[]
+
+  @@index([status, expiresAt])
+  @@index([checklistVersionId])
+}
+
+// Auditor = penerima undangan per sesi. Nama BUKAN identitas.
+// Invarian (dijaga service):
+//  I1 tokenHash terisi => claimedAt terisi dan revokedAt kosong
+//  I2 revokedAt terisi => tokenHash kosong
+//  I3 undangan dapat diklaim hanya bila claimedAt kosong, revokedAt kosong, dan inviteExpiresAt > sekarang
+model Auditor {
+  id              Int                     @id @default(autoincrement())
+  sessionId       Int
+  name            String                  @db.VarChar(120)
+  inviteHash      String                  @unique @db.VarChar(64) // SHA-256 token undangan
+  inviteExpiresAt DateTime
+  claimedAt       DateTime?
+  revokedAt       DateTime?
+  tokenHash       String?                 @unique @db.VarChar(64) // SHA-256 token sesi (cookie); null = tidak ada sesi login
+  createdAt       DateTime                @default(now())
+  session         AuditSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  assignments     AuditAssignment[]
+  exclusions      AuditorExclusion[]
+  statusChanges   FindingStatusHistory[]
+
+  @@unique([id, sessionId]) // target FK: penugasan hanya boleh menunjuk auditor dari sesi yang sama
+  @@index([sessionId])
+}
+
+// Pencegahan self-audit tanpa departemen asal: unit yang tidak boleh diaudit oleh auditor ini.
+model AuditorExclusion {
+  auditorId    Int
+  departmentId Int
+  createdAt    DateTime   @default(now())
+  auditor      Auditor    @relation(fields: [auditorId], references: [id], onDelete: Restrict)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@id([auditorId, departmentId])
+  @@index([departmentId])
+}
+
+model AuditAssignment {
+  id           Int               @id @default(autoincrement())
+  sessionId    Int
+  auditorId    Int
+  departmentId Int // unit yang diaudit
+  createdAt    DateTime          @default(now())
+  session      AuditSession      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  auditor      Auditor           @relation(fields: [auditorId, sessionId], references: [id, sessionId], onDelete: Restrict)
+  department   Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  answers      ChecklistAnswer[]
+  findings     Finding[]
+
+  @@unique([sessionId, auditorId, departmentId])
+  @@unique([id, departmentId]) // target FK: jawaban membawa unit penugasan
+  @@unique([id, sessionId]) // target FK: temuan membawa sesi penugasan
+  @@index([auditorId, sessionId])
+  @@index([departmentId])
+}
+
+// ---------- Hasil audit ----------
+
+model ChecklistAnswer {
+  id           Int             @id @default(autoincrement())
+  assignmentId Int
+  itemId       Int
+  departmentId Int // salinan unit penugasan; FK komposit memastikan item dan penugasan satu unit
+  result       AnswerResult? // null = belum dijawab
+  note         String?         @db.Text
+  evidenceUrl  String?         @db.VarChar(1024) // satu tautan bukti; multi-bukti menunggu konfirmasi
+  itemSnapshot Json // salinan isi item saat jawaban pertama kali dibuat
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  assignment   AuditAssignment @relation(fields: [assignmentId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  item         ChecklistItem   @relation(fields: [itemId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  findings     Finding[]
+
+  @@unique([assignmentId, itemId]) // satu jawaban per item per penugasan (upsert)
+  @@unique([id, assignmentId]) // target FK: temuan hanya boleh menaut ke jawaban di penugasan yang sama
+  @@index([itemId, departmentId])
+  @@index([assignmentId, result])
+}
+
+model Finding {
+  id                Int                    @id @default(autoincrement())
+  sessionId         Int
+  assignmentId      Int
+  answerId          Int? // opsional: temuan boleh berdiri sendiri (menunggu konfirmasi klien)
+  seq               Int // nomor urut per sesi; kode tampil T-{sessionId}-{seq} diturunkan, tidak disimpan
+  clientRequestId   String                 @db.VarChar(64) // kunci idempotensi dari klien
+  payloadHash       String                 @db.Char(64) // SHA-256 isi ternormalisasi
+  classification    FindingClass
+  problem           String                 @db.Text // PLOR: Problem
+  location          String                 @db.Text // PLOR: Location
+  objectiveEvidence String                 @db.Text // PLOR: Objective Evidence
+  reference         String                 @db.Text // PLOR: Reference
+  note              String?                @db.Text
+  evidenceUrl       String?                @db.VarChar(1024)
+  status            FindingStatus          @default(OPEN)
+  closedAt          DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  // FK komposit: penugasan harus berada di sesi yang sama dengan temuan.
+  assignment        AuditAssignment        @relation(fields: [assignmentId, sessionId], references: [id, sessionId], onDelete: Restrict)
+  // FK komposit: jika answerId terisi, jawaban itu wajib berada di assignmentId yang sama.
+  answer            ChecklistAnswer?       @relation(fields: [answerId, assignmentId], references: [id, assignmentId], onDelete: Restrict)
+  history           FindingStatusHistory[]
+
+  @@unique([assignmentId, clientRequestId])
+  @@unique([sessionId, seq])
+  @@index([sessionId, status])
+  @@index([assignmentId])
+  @@index([answerId, assignmentId])
+  @@index([classification])
+}
+
+model FindingStatusHistory {
+  id                 Int            @id @default(autoincrement())
+  findingId          Int
+  fromStatus         FindingStatus? // null pada entri awal
+  toStatus           FindingStatus
+  changedByAuditorId Int
+  note               String?        @db.Text
+  createdAt          DateTime       @default(now())
+  finding            Finding        @relation(fields: [findingId], references: [id], onDelete: Restrict)
+  changedBy          Auditor        @relation(fields: [changedByAuditorId], references: [id], onDelete: Restrict)
+
+  @@index([findingId, createdAt])
+  @@index([changedByAuditorId])
+}
