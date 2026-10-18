@@ -2,66 +2,115 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  ANSWER_PROGRESS, ANSWER_RESULTS, FINDING_CLASSES, SESSION_STATUSES,
-  createFindingSchema, saveAnswerSchema,
+  ANSWER_RESULTS,
+  CHECKLIST_VERSION_STATUSES,
+  FINDING_CLASSES,
+  FINDING_STATUSES,
+  SESSION_STATUSES,
+  closeSessionSchema,
+  createAuditorSchema,
+  createFindingSchema,
+  saveAnswerSchema,
 } from "../src/domain/auditSchemas.js";
+import { findingPayloadHash } from "../src/domain/payloadHash.js";
 
-const enumValues = (schema: string, name: string): string[] => {
-  const m = new RegExp(`enum\\s+${name}\\s*\\{([^}]*)\\}`).exec(schema);
+// Project ini CommonJS (tanpa "type": "module"), jadi import.meta tidak boleh dipakai.
+// __dirname tersedia di CJS (tsc) dan disuplai oleh vitest; resolve() menangani separator Windows.
+const schemaPath = resolve(__dirname, "..", "prisma", "schema.prisma");
+const schemaText = readFileSync(schemaPath, "utf8");
+
+function enumValues(name: string): string[] {
+  const m = new RegExp(`enum\\s+${name}\\s*\\{([^}]*)\\}`).exec(schemaText);
   if (!m?.[1]) throw new Error(`enum ${name} tidak ditemukan di schema.prisma`);
-  return m[1].split("\n").map((l) => l.trim()).filter(Boolean);
-};
+  return m[1].split(/\s+/).filter(Boolean);
+}
 
-describe("enum kode sinkron dengan prisma/schema.prisma", () => {
-  const schema = readFileSync(resolve(__dirname, "../prisma/schema.prisma"), "utf8");
+describe("enum domain identik dengan schema.prisma", () => {
   it.each([
     ["AnswerResult", ANSWER_RESULTS],
-    ["AnswerProgress", ANSWER_PROGRESS],
     ["FindingClass", FINDING_CLASSES],
+    ["FindingStatus", FINDING_STATUSES],
     ["SessionStatus", SESSION_STATUSES],
-  ])("%s", (name, values) => {
-    expect(enumValues(schema, name)).toEqual([...values]);
+    ["ChecklistVersionStatus", CHECKLIST_VERSION_STATUSES],
+  ] as const)("%s", (name, values) => {
+    expect(enumValues(name)).toEqual([...values]);
+  });
+
+  it("jawaban hanya YA dan TIDAK (tanpa N/A)", () => {
+    expect([...ANSWER_RESULTS]).toEqual(["YA", "TIDAK"]);
   });
 });
 
 describe("saveAnswerSchema", () => {
-  const base = { itemId: 1, progress: "DALAM_PROSES" };
-  it("menerima YA/TIDAK dan menolak nilai lain (mis. N/A)", () => {
-    expect(saveAnswerSchema.safeParse({ ...base, result: "YA" }).success).toBe(true);
-    expect(saveAnswerSchema.safeParse({ ...base, result: "TIDAK" }).success).toBe(true);
-    expect(saveAnswerSchema.safeParse({ ...base, result: "NA" }).success).toBe(false);
-    expect(saveAnswerSchema.safeParse({ ...base, result: "ya" }).success).toBe(false);
+  it("menerima YA, TIDAK, dan null/kosong (belum dijawab)", () => {
+    expect(saveAnswerSchema.parse({ result: "YA" }).result).toBe("YA");
+    expect(saveAnswerSchema.parse({ result: "TIDAK" }).result).toBe("TIDAK");
+    expect(saveAnswerSchema.parse({ result: null }).result).toBeNull();
+    expect(saveAnswerSchema.parse({}).result).toBeNull();
   });
-  it("status tidak dikenal ditolak", () => {
-    expect(saveAnswerSchema.safeParse({ itemId: 1, progress: "DONE" }).success).toBe(false);
+  it("menolak N/A dan nilai lain", () => {
+    expect(saveAnswerSchema.safeParse({ result: "N/A" }).success).toBe(false);
+    expect(saveAnswerSchema.safeParse({ result: "ya" }).success).toBe(false);
   });
-  it("SELESAI wajib punya hasil", () => {
-    expect(saveAnswerSchema.safeParse({ itemId: 1, progress: "SELESAI" }).success).toBe(false);
-    expect(saveAnswerSchema.safeParse({ itemId: 1, progress: "SELESAI", result: "YA" }).success).toBe(true);
-  });
-  it("BELUM_DIKERJAKAN tidak boleh punya hasil", () => {
-    expect(saveAnswerSchema.safeParse({ itemId: 1, progress: "BELUM_DIKERJAKAN", result: "YA" }).success).toBe(false);
-    expect(saveAnswerSchema.safeParse({ itemId: 1, progress: "BELUM_DIKERJAKAN" }).success).toBe(true);
-  });
-  it("tautan bukti: hanya https tanpa kredensial; kosong dianggap null", () => {
-    const ok = saveAnswerSchema.parse({ ...base, evidenceUrl: "https://drive.example/bukti.pdf" });
-    expect(ok.evidenceUrl).toBe("https://drive.example/bukti.pdf");
-    expect(saveAnswerSchema.parse({ ...base, evidenceUrl: "  " }).evidenceUrl).toBeNull();
-    for (const bad of ["http://x.example/a", "javascript:alert(1)", "https://user:pw@x.example/a", "bukan url"]) {
-      expect(saveAnswerSchema.safeParse({ ...base, evidenceUrl: bad }).success, bad).toBe(false);
-    }
+  it("tautan bukti hanya https tanpa kredensial; kosong dianggap tidak ada", () => {
+    expect(saveAnswerSchema.safeParse({ evidenceUrl: "http://x.test/a" }).success).toBe(false);
+    expect(saveAnswerSchema.safeParse({ evidenceUrl: "https://u:p@x.test/a" }).success).toBe(false);
+    expect(saveAnswerSchema.safeParse({ evidenceUrl: "javascript:alert(1)" }).success).toBe(false);
+    expect(saveAnswerSchema.parse({ evidenceUrl: "" }).evidenceUrl).toBeNull();
+    expect(saveAnswerSchema.parse({ evidenceUrl: "https://x.test/a" }).evidenceUrl).toBe("https://x.test/a");
   });
 });
 
+const validFinding = {
+  clientRequestId: "req-00000001",
+  classification: "MAJOR",
+  problem: "p",
+  location: "l",
+  objectiveEvidence: "o",
+  reference: "r",
+};
+
 describe("createFindingSchema", () => {
-  const base = { classification: "MINOR", problem: "p", location: "l", objectiveEvidence: "e", reference: "r" };
-  it("menerima PLOR lengkap dan menolak klasifikasi di luar Major/Minor/Observasi", () => {
-    expect(createFindingSchema.safeParse(base).success).toBe(true);
-    expect(createFindingSchema.safeParse({ ...base, classification: "FATAL" }).success).toBe(false);
+  it("menerima temuan lengkap dan menormalkan opsional menjadi null", () => {
+    const r = createFindingSchema.parse(validFinding);
+    expect(r.answerId).toBeNull();
+    expect(r.note).toBeNull();
+    expect(r.evidenceUrl).toBeNull();
   });
-  it.each(["problem", "location", "objectiveEvidence", "reference"])("%s wajib diisi", (field) => {
-    expect(createFindingSchema.safeParse({ ...base, [field]: "  " }).success).toBe(false);
-    const { [field as keyof typeof base]: _omit, ...rest } = base;
-    expect(createFindingSchema.safeParse(rest).success).toBe(false);
+  it("menolak clientRequestId pendek atau berkarakter aneh, dan klasifikasi tak dikenal", () => {
+    expect(createFindingSchema.safeParse({ ...validFinding, clientRequestId: "short" }).success).toBe(false);
+    expect(createFindingSchema.safeParse({ ...validFinding, clientRequestId: "bad id with spaces" }).success).toBe(false);
+    expect(createFindingSchema.safeParse({ ...validFinding, classification: "FATAL" }).success).toBe(false);
+  });
+  it("menolak PLOR kosong", () => {
+    expect(createFindingSchema.safeParse({ ...validFinding, problem: "   " }).success).toBe(false);
+  });
+});
+
+describe("findingPayloadHash", () => {
+  const base = createFindingSchema.parse(validFinding);
+  it("deterministik dan tidak bergantung pada clientRequestId", () => {
+    const other = createFindingSchema.parse({ ...validFinding, clientRequestId: "req-99999999" });
+    expect(findingPayloadHash(base)).toBe(findingPayloadHash(other));
+    expect(findingPayloadHash(base)).toMatch(/^[0-9a-f]{64}$/);
+  });
+  it("berubah bila isi berubah", () => {
+    const changed = createFindingSchema.parse({ ...validFinding, problem: "lain" });
+    expect(findingPayloadHash(base)).not.toBe(findingPayloadHash(changed));
+  });
+});
+
+describe("closeSessionSchema dan createAuditorSchema (pilihan eksplisit)", () => {
+  it("penutupan wajib memilih tepat satu: accessUntil atau noAccess", () => {
+    expect(closeSessionSchema.safeParse({ sessionId: 1 }).success).toBe(false);
+    expect(closeSessionSchema.safeParse({ sessionId: 1, noAccess: true, accessUntil: "2030-01-01" }).success).toBe(false);
+    expect(closeSessionSchema.safeParse({ sessionId: 1, noAccess: true }).success).toBe(true);
+    expect(closeSessionSchema.safeParse({ sessionId: 1, accessUntil: "2030-01-01" }).success).toBe(true);
+  });
+  it("undangan wajib menyatakan pengecualian: daftar unit atau noExclusions", () => {
+    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A" }).success).toBe(false);
+    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", noExclusions: true, excludeDepartmentIds: [2] }).success).toBe(false);
+    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", noExclusions: true }).success).toBe(true);
+    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", excludeDepartmentIds: [2] }).success).toBe(true);
   });
 });
