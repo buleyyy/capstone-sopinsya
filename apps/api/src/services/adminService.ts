@@ -146,6 +146,18 @@ export async function activateSession(store: AuditStore, raw: unknown, now: Date
   });
 }
 
+/** Mengatur ulang batas tulis sesi DRAFT sebelum aktivasi. */
+export async function updateDraftSessionDeadline(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
+  const { sessionId, to } = parseInput(extendSessionSchema, raw);
+  const session = await store.findSession(sessionId);
+  if (!session) throw notFound("Sesi");
+  if (session.status !== "DRAFT") throw stateError("Batas waktu hanya dapat diubah saat sesi masih DRAFT");
+  if (to.getTime() <= now.getTime()) {
+    throw new AppError(422, "EXPIRES_IN_PAST", "Batas waktu tulis harus berada di masa depan");
+  }
+  if (!(await store.updateDraftSessionDeadline(sessionId, to))) throw stateError("Batas waktu sesi draf tidak dapat diperbarui");
+}
+
 /** Memperpanjang batas tulis. Hanya sesi ACTIVE, hanya ke masa depan. Tidak pernah membuka sesi CLOSED. */
 export async function extendSession(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
   const { sessionId, to } = parseInput(extendSessionSchema, raw);
