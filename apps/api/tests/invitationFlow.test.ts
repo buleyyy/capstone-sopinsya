@@ -43,7 +43,8 @@ describe("individual auditor invitation flow", () => {
     const cookie = sessionCookie!.split(";")[0];
 
     // A one-time invite cannot create a second auditor session.
-    await request(app).post(invitationPath).expect(404);
+    const replay = await request(app).post(invitationPath).expect(410);
+    expect(replay.text).toContain("Minta Admin menerbitkan ulang undangan");
 
     const dashboard = await request(app).get("/auditor").set("Cookie", cookie).expect(200);
     expect(dashboard.text).toContain("Dashboard Audit");
