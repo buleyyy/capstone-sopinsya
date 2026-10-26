@@ -2,12 +2,11 @@ import { Router, type Response } from "express";
 import { resolvePasswordLogin } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
-import { SESSION_COOKIE } from "../middleware/sessionAccess.js";
 import { trimmed } from "./helpers.js";
 
 /**
  * Gerbang kredensial role Admin dan Auditor. Email hanya memilih role; password terpisah per role.
- * Sesi Auditor dibuat server-side setelah password benar; tautan undangan tidak dipakai untuk login.
+ * Setelah password role benar, server menerbitkan cookie Auditor bertanda tangan; tautan undangan tidak dipakai untuk login.
  * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang staf.
  */
 export function createLoginRouter(deps: WebDeps): Router {
@@ -28,11 +27,13 @@ export function createLoginRouter(deps: WebDeps): Router {
 
   router.get("/", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
+    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     res.redirect(303, "/masuk");
   });
 
   router.get("/masuk", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
+    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     renderGate(res, 200);
   });
 
