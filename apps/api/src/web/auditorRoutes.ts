@@ -1,9 +1,9 @@
 import { Router, type RequestHandler, type Response } from "express";
 import type { AnswerResult } from "../domain/auditSchemas.js";
-import { getAuditContext, readCookie, SESSION_COOKIE } from "../middleware/sessionAccess.js";
+import { getAuditContext } from "../middleware/sessionAccess.js";
 import { toHttpsUrl } from "../routes/publicContent.js";
 import {
-  authenticate,
+  authenticateById,
   closeFinding,
   createFinding,
   getChecklist,
@@ -14,7 +14,6 @@ import {
   listMyAssignments,
   saveAnswer,
   saveFindingFollowUp,
-  logout as logoutAuditor,
   type AuditContext,
   type ChecklistEntry,
 } from "../services/auditService.js";
@@ -33,21 +32,21 @@ export function createAuditorRouter(deps: WebDeps): Router {
   const router = Router();
   const { sec } = deps;
 
-  // Akses Auditor hanya melalui token sesi yang diterbitkan setelah undangan individual diklaim.
+  // Akses Auditor memakai email + password role; cookie sesi bertanda tangan memuat id Auditor terpilih.
 
   // ---------- Area Auditor (wajib sesi) ----------
 
   const auth: RequestHandler = async (req, res, next) => {
     try {
       const store = requireStore(deps);
-      const token = readCookie(req.header("cookie"), SESSION_COOKIE);
-      if (!token) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-      // Undangan individual menghasilkan token acak; hanya hash-nya yang tersimpan di database.
-      // Status sesi, auditor, dan masa akses diperiksa ulang pada setiap request.
-      const ctx: AuditContext = await authenticate(store, token, new Date());
+      const binding = sec.auditorBinding(req);
+      if (!binding) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
+      // Role password sudah diverifikasi pada /masuk. Id Auditor disimpan pada cookie yang ditandatangani.
+      // Hak akses, status pencabutan, dan sesi dicek ulang terhadap database di setiap request.
+      const ctx: AuditContext = await authenticateById(store, binding.auditorId, new Date());
       res.locals["audit"] = ctx;
-      res.locals["csrfBinding"] = token;
-      res.locals["csrf"] = sec.csrfToken(token);
+      res.locals["csrfBinding"] = binding.binding;
+      res.locals["csrf"] = sec.csrfToken(binding.binding);
       res.locals["sessionTitle"] = ctx.session.title;
       next();
     } catch (err) {
@@ -336,10 +335,7 @@ export function createAuditorRouter(deps: WebDeps): Router {
 
   // ----- Keluar -----
 
-  router.post("/auditor/keluar", sec.checkOrigin, sec.requireCsrf, async (_req, res) => {
-    const store = requireStore(deps);
-    const ctx = getAuditContext(res);
-    await logoutAuditor(store, ctx);
+  router.post("/auditor/keluar", sec.checkOrigin, sec.requireCsrf, (_req, res) => {
     sec.clearAuditorCookie(res);
     res.redirect(303, "/masuk");
   });
