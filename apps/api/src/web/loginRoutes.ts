@@ -1,12 +1,13 @@
 import { Router, type Response } from "express";
-import { claimInvitation } from "../services/auditService.js";
+import { startPasswordSession } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { SESSION_COOKIE } from "../middleware/sessionAccess.js";
 import { trimmed } from "./helpers.js";
 
 /**
- * Gerbang kredensial Admin. Auditor masuk dengan tautan undangan individual sekali pakai.
+ * Gerbang kredensial role Admin dan Auditor. Email hanya memilih role; password terpisah per role.
+ * Sesi Auditor dibuat server-side setelah password benar; tautan undangan tidak dipakai untuk login.
  * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang staf.
  */
 export function createLoginRouter(deps: WebDeps): Router {
@@ -19,7 +20,9 @@ export function createLoginRouter(deps: WebDeps): Router {
       error: o.error ?? null,
       email: o.email ?? "",
       adminEnabled: sec.adminEnabled,
+      auditorEnabled: sec.auditorEnabled,
       adminEmail: loginEmails.admin,
+      auditorEmail: loginEmails.auditor,
     });
   };
 
@@ -36,31 +39,9 @@ export function createLoginRouter(deps: WebDeps): Router {
   // Bookmark lama Admin tetap diarahkan ke gerbang masuk Admin.
   router.get("/admin/masuk", (_req, res) => res.redirect(303, "/masuk"));
 
-  // GET tidak menghanguskan token; undangan hanya diklaim setelah Auditor menekan tombol.
-  router.get("/undangan/:token", (req, res) => {
-    res.set("Cache-Control", "no-store");
-    res.render("undangan", { title: "Aktifkan akses Auditor", token: req.params["token"], error: null });
-  });
-
-  // Token sesi hanya disimpan sebagai hash oleh service. Cookie HttpOnly berisi token acak yang sama.
-  router.post("/undangan/:token", sec.checkOrigin, async (req, res) => {
-    try {
-      const claimed = await claimInvitation(requireStore(deps), { token: req.params["token"] });
-      res.cookie(SESSION_COOKIE, claimed.token, sec.cookieOptions(12 * 3_600_000));
-      res.set("Cache-Control", "no-store");
-      res.redirect(303, "/auditor");
-    } catch (err) {
-      if (err instanceof AppError && (err.statusCode === 403 || err.statusCode === 404)) {
-        res.status(410).set("Cache-Control", "no-store").render("undangan", {
-          title: "Undangan tidak dapat digunakan",
-          token: null,
-          error: "Tautan ini sudah digunakan, kedaluwarsa, atau sesi audit tidak lagi dapat diakses. Minta Admin menerbitkan ulang undangan untuk Anda.",
-        });
-        return;
-      }
-      throw err;
-    }
-  });
+  // URL undangan lama tidak lagi mengaktifkan akses; semua Auditor masuk melalui email + kata sandi.
+  router.get("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
+  router.post("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
 
   router.post("/masuk", sec.checkOrigin, async (req, res) => {
     const ip = req.ip ?? "unknown";
@@ -83,6 +64,31 @@ export function createLoginRouter(deps: WebDeps): Router {
       }
       if (verdict === "disabled") {
         renderGate(res, 503, { error: "Login Admin belum diaktifkan (ADMIN_PASSWORD belum diatur di server).", email });
+        return;
+      }
+      renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
+      return;
+    }
+
+    if (email === loginEmails.auditor) {
+      const verdict = sec.checkAuditorPassword(secret, ip);
+      if (verdict === "ok") {
+        try {
+          const { token } = await startPasswordSession(requireStore(deps));
+          res.cookie(SESSION_COOKIE, token, sec.cookieOptions(12 * 3_600_000));
+          res.set("Cache-Control", "no-store");
+          res.redirect(303, "/auditor");
+          return;
+        } catch (err) {
+          if (err instanceof AppError && err.statusCode === 409) {
+            renderGate(res, 409, { error: err.message, email });
+            return;
+          }
+          throw err;
+        }
+      }
+      if (verdict === "disabled") {
+        renderGate(res, 503, { error: "Login Auditor belum diaktifkan (AUDITOR_PASSWORD belum diatur di server).", email });
         return;
       }
       renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
