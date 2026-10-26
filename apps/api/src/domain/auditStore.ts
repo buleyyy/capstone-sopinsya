@@ -185,8 +185,6 @@ export interface AuditStore {
    * pada sesi ACTIVE terbaru. null bila tidak ada sesi ACTIVE atau auditor.
    */
   findPasswordLoginAuditor(): Promise<AuthRecord | null>;
-  /** Buat sesi login setelah password role Auditor lolos validasi; satu sesi aktif per identitas Auditor. */
-  createPasswordSession(auditorId: number, tokenHash: string, now: Date): Promise<boolean>;
   /** Klaim undangan legacy; tidak dipakai oleh login password role Auditor. */
   claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null>;
   clearAuditorToken(auditorId: number): Promise<void>;
