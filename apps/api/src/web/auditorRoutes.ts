@@ -33,7 +33,7 @@ export function createAuditorRouter(deps: WebDeps): Router {
   const router = Router();
   const { sec } = deps;
 
-  // Masuk (email + kata sandi) ditangani gerbang bersama di loginRoutes.ts.
+  // Akses Auditor hanya melalui token sesi yang diterbitkan setelah undangan individual diklaim.
 
   // ---------- Area Auditor (wajib sesi) ----------
 
