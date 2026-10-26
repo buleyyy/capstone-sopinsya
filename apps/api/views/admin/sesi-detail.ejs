@@ -89,6 +89,7 @@
   <form method="post" action="/admin/sesi/<%= session.id %>/auditor" class="card">
     <h3>Tambah auditor</h3>
     <p class="muted small">Akses web menggunakan email <code>auditor@sopinsya</code> dan kata sandi dari environment server. Daftar ini mengatur penugasan serta pencabutan akses auditor pada sesi audit.</p>
+    <div class="alert info" role="note">Login Auditor bersama saat ini membuka identitas auditor pertama yang belum dicabut pada sesi aktif terbaru. Untuk penggunaan dengan beberapa auditor yang harus memiliki identitas login berbeda, setiap auditor perlu akun dan kata sandi individual.</div>
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label for="name">Nama auditor</label>
     <input id="name" type="text" name="name" required maxlength="120">
