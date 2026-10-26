@@ -70,18 +70,6 @@ export async function claimInvitation(store: AuditStore, rawInput: unknown, now:
   return { auditor, session: found.session, token };
 }
 
-/** Login dengan password role Auditor; token sesi dibuat server-side, bukan berasal dari tautan undangan. */
-export async function startPasswordSession(
-  store: AuditStore,
-  now: Date = new Date(),
-): Promise<{ context: AuditContext; token: string }> {
-  const context = await resolvePasswordLogin(store, now);
-  const token = generateSessionToken();
-  const created = await store.createPasswordSession(context.auditorId, sha256Hex(token), now);
-  if (!created) throw new AppError(401, "UNAUTHENTICATED", "Akun Auditor tidak dapat memulai sesi login");
-  return { context, token };
-}
-
 /** Mengenali pemanggil dari token sesi HttpOnly. Token ini adalah sesi normal setelah password berhasil, bukan token undangan. */
 export async function authenticate(store: AuditStore, sessionToken: string, now: Date = new Date()): Promise<AuditContext> {
   const found = await store.findAuthByTokenHash(sha256Hex(sessionToken));
