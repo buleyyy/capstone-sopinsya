@@ -87,7 +87,7 @@ Jangan gunakan kata sandi contoh untuk server yang dapat diakses jaringan. Janga
 ```powershell
 npm run db:generate
 npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-npm run db:seed
+npm run db:seed -w @sopinsya/api
 ```
 
 Seed berisi data **contoh** untuk development, bukan data resmi klien. Jangan menjalankan seed tanpa memeriksa efeknya pada database yang digunakan.
