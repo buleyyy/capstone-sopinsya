@@ -58,7 +58,17 @@ Buka dua terminal dari root:
 - Terminal 1: `npm run dev:api` → `http://localhost:4000`
 - Terminal 2: `npm run dev:web` → `http://localhost:3000`
 
-## 3. Flow Admin — persiapan sesi audit
+## 3. UAT dari perangkat lain melalui LAN
+
+Jika Admin, Auditor, dan peserta membuka aplikasi dari perangkat berbeda, jangan gunakan `localhost` untuk alamat server. Ganti placeholder berikut dengan IP/LAN hostname komputer server, lalu restart kedua aplikasi setelah mengubah environment:
+
+- `apps/api/.env`: `APP_ORIGIN=http://192.168.1.20:4000`
+- `apps/api/.env`: `CORS_ORIGINS=http://192.168.1.20:3000` (origin browser portal peserta; pisahkan dengan koma bila ada origin tambahan)
+- `apps/web/.env.local`: `NEXT_PUBLIC_API_BASE_URL=http://192.168.1.20:4000`
+
+Alamat IP tersebut hanya contoh. Pastikan firewall mengizinkan port UAT dan auditor dapat membuka URL staff yang diberikan. `APP_ORIGIN` harus mengarah ke host staff yang akan menyusun tautan undangan. Untuk deployment publik gunakan HTTPS dan origin produksi, bukan HTTP atau nilai contoh.
+
+## 4. Flow Admin — persiapan sesi audit
 
 1. Masuk sebagai Admin di `http://localhost:4000/masuk`.
 2. Buka **Departemen** dan tambahkan semua unit yang akan diaudit.
@@ -71,7 +81,7 @@ Buka dua terminal dari root:
 
 Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian status sesi, auditor, dan penugasan.
 
-## 4. Flow Auditor — mengerjakan audit
+## 5. Flow Auditor — mengerjakan audit
 
 1. Buka tautan undangan personal dari Admin.
 2. Periksa informasi halaman aktivasi, lalu tekan **Terima undangan dan masuk**. Sekadar membuka halaman tidak menghabiskan undangan; token baru diklaim saat formulir dikirim.
@@ -82,7 +92,7 @@ Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian stat
 7. Pustaka SOP hanya menampilkan program dan dokumen yang dipublikasikan.
 8. Saat logout, token sesi di database dibatalkan. Untuk masuk kembali, minta Admin menerbitkan ulang undangan.
 
-## 5. Checklist UAT
+## 6. Checklist UAT
 
 | No. | Skenario | Hasil yang diharapkan |
 |---:|---|---|
@@ -109,7 +119,7 @@ Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian stat
 
 Rekam hasil aktual, browser/perangkat, akun uji, dan bukti untuk setiap kasus. Jangan menyatakan UAT lulus hanya karena halaman dapat dibuka.
 
-## 6. Batasan dan pemulihan
+## 7. Batasan dan pemulihan
 
 - Undangan mulai menghitung masa berlaku sejak auditor dibuat (default 7 hari). Jika setup sesi lama tertunda hingga undangan kedaluwarsa, Admin perlu menerbitkan ulang.
 - Tautan undangan adalah rahasia sekali pakai. Bagikan hanya kepada auditor yang dituju dan melalui kanal yang disetujui.
