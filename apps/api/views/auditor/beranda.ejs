@@ -2,7 +2,14 @@
 <div class="page-head">
   <div>
     <span class="eyebrow plain">Ruang Kerja Auditor</span>
+    <div class="page-head">
+  <div>
+    <span class="eyebrow plain">Ruang Kerja Auditor</span>
     <h1>Dashboard Audit</h1>
+    <p>Ringkasan kemajuan checklist, kesesuaian unit, dan temuan pada sesi <strong><%= me.sessionTitle %></strong>.</p>
+  </div>
+  <span class="badge <%= me.sessionStatus.toLowerCase() %>"><%= sessionLabel[me.sessionStatus] %></span>
+</div>
     <p>Ringkasan kemajuan checklist, kesesuaian unit, dan temuan pada sesi <strong><%= me.sessionTitle %></strong>.</p>
   </div>
   <span class="badge <%= me.sessionStatus.toLowerCase() %>"><%= sessionLabel[me.sessionStatus] %></span>
