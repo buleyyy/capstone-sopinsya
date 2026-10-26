@@ -20,6 +20,9 @@
     <span class="eyebrow">Undangan Auditor</span>
     <h1 id="invite-title">Aktifkan akses audit</h1>
     <p class="muted">Gunakan tombol di bawah untuk menerima undangan dan membuka Dashboard Audit. Tautan ini hanya berlaku sekali dan hanya dapat dipakai selama sesi audit dapat diakses.</p>
+    <% if (error) { %>
+      <div class="alert error" role="alert"><svg class="icon"><use href="#i-alert"/></svg><div><%= error %></div></div>
+    <% } else { %>
     <div class="alert info" role="note">
       <svg class="icon"><use href="#i-info"/></svg>
       <div><strong>Periksa sebelum melanjutkan</strong>
@@ -30,6 +33,7 @@
       <button class="btn block" type="submit">Terima undangan dan masuk <svg class="icon sm"><use href="#i-arrow"/></svg></button>
     </form>
     <p class="muted small">Jangan teruskan tautan ini kepada orang lain. Setelah diaktifkan, akses akan terikat pada perangkat dan browser ini.</p>
+    <% } %>
   </div>
 </section>
 <%- include('partials/footer') %>
