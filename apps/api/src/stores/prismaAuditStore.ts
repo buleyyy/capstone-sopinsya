@@ -194,6 +194,14 @@ export class PrismaAuditStore implements AuditStore {
     return r.count === 1;
   }
 
+  async updateDraftSessionDeadline(sessionId: number, to: Date): Promise<boolean> {
+    const r = await this.db.auditSession.updateMany({
+      where: { id: sessionId, status: "DRAFT" },
+      data: { expiresAt: to },
+    });
+    return r.count === 1;
+  }
+
   async extendSession(sessionId: number, to: Date): Promise<boolean> {
     const r = await this.db.auditSession.updateMany({
       where: { id: sessionId, status: "ACTIVE", expiresAt: { lt: to } },
