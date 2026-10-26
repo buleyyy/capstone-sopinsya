@@ -19,7 +19,7 @@
   <div class="gate-form">
     <span class="eyebrow">Otentikasi Kepatuhan</span>
     <h1>Masuk ke Portal Audit SMAP</h1>
-    <p class="muted">Halaman ini khusus untuk Admin. Auditor masuk melalui tautan undangan individual yang diterbitkan dari detail sesi audit. Peserta pelatihan tidak perlu masuk.</p>
+    <p class="muted">Masuk dengan akun staf yang sesuai. Admin menggunakan <code>admin@sopinsya</code>, sedangkan Auditor menggunakan <code>auditor@sopinsya</code>. Peserta pelatihan tidak perlu masuk.</p>
 
     <% if (error) { %>
       <div class="alert error" role="alert"><svg class="icon"><use href="#i-alert"/></svg><div><%= error %></div></div>
@@ -29,7 +29,7 @@
       <label for="email">Email</label>
       <div class="field-icon">
         <svg class="icon"><use href="#i-mail"/></svg>
-        <input id="email" type="text" name="email" required maxlength="120" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="<%= adminEmail %>">
+        <input id="email" type="text" name="email" required maxlength="120" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="admin@sopinsya atau auditor@sopinsya">
       </div>
       <label for="secret">Kata sandi</label>
       <div class="field-icon">
@@ -47,8 +47,8 @@
       </section>
       <section>
         <h3><svg class="icon sm"><use href="#i-checklist"/></svg>Auditor</h3>
-        <p>Gunakan tautan undangan unik yang diberikan Admin untuk mengakses dashboard, checklist, temuan, dan laporan sesuai penugasan.</p>
-        <p class="hint">Tautan hanya dapat diaktifkan satu kali. Bila tidak berlaku atau akses hilang, minta Admin menerbitkan ulang undangan.</p>
+        <p>Email <code><%= auditorEmail %></code> dan kata sandi Auditor. Setelah berhasil, sistem membuka Dashboard Audit.</p>
+        <% if (!auditorEnabled) { %><p class="hint">Login Auditor belum diaktifkan. Admin perlu mengatur <code>AUDITOR_PASSWORD</code> pada environment server.</p><% } %>
       </section>
 
     </div>
