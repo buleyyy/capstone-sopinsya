@@ -71,7 +71,7 @@ export function createWebRouter(deps: WebDeps): Router {
   router.use(securityHeaders);
   router.use(express.urlencoded({ extended: false, limit: "200kb" }));
 
-  // Gerbang Admin dan rute undangan Auditor dipasang lebih dulu sebelum area staf terproteksi.
+  // Gerbang password Admin/Auditor dipasang lebih dulu sebelum area staf terproteksi.
   router.use(createLoginRouter(deps));
   router.use(createAuditorRouter(deps));
   router.use(createAdminRouter(deps));
