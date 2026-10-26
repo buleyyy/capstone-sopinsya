@@ -41,6 +41,8 @@ export interface SessionRow {
   standardCode: string;
   auditorCount: number;
   assignmentCount: number;
+  eligibleAuditorCount: number;
+  eligibleAssignmentCount: number;
 }
 export interface AuditorRow {
   id: number;
@@ -203,6 +205,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
     checklistVersionId: number;
     checklistVersion: { versionLabel: string; standard: { code: string } };
     _count: { auditors: number; assignments: number };
+    auditors: { revokedAt: Date | null }[];
+    assignments: { departmentId: number; auditor: { revokedAt: Date | null } }[];
   }): SessionRow {
     return {
       id: r.id,
@@ -216,6 +220,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
       standardCode: r.checklistVersion.standard.code,
       auditorCount: r._count.auditors,
       assignmentCount: r._count.assignments,
+      eligibleAuditorCount: r.auditors.filter((a) => a.revokedAt === null).length,
+      eligibleAssignmentCount: r.assignments.filter((a) => a.auditor.revokedAt === null).length,
     };
   }
 
@@ -225,9 +231,18 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
+        auditors: { select: { revokedAt: true } },
+        assignments: { select: { departmentId: true, auditor: { select: { revokedAt: true } } } },
       },
     });
-    return rows.map((r) => this.toSessionRow(r));
+    return Promise.all(rows.map(async (r) => {
+      const row = this.toSessionRow(r);
+      const activeAssignments = r.assignments.filter((a) => a.auditor.revokedAt === null);
+      const checklistCounts = await Promise.all(activeAssignments.map((a) =>
+        this.db.checklistItem.count({ where: { versionId: r.checklistVersionId, departmentId: a.departmentId } }),
+      ));
+      return { ...row, eligibleAssignmentCount: checklistCounts.filter((count) => count > 0).length };
+    }));
   }
 
   async getSession(sessionId: number, now: Date = new Date()) {
