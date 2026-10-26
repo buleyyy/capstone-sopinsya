@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import { resolvePasswordLogin } from "../services/auditService.js";
+import { claimInvitation, resolvePasswordLogin } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { trimmed } from "./helpers.js";
@@ -36,12 +36,26 @@ export function createLoginRouter(deps: WebDeps): Router {
 
   router.get("/masuk", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
+    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     renderGate(res, 200);
   });
 
-  // Rute lama dipertahankan agar bookmark dan tautan undangan lama tetap mendarat di halaman masuk.
+  // Bookmark lama Admin tetap diarahkan ke gerbang masuk bersama.
   router.get("/admin/masuk", (_req, res) => res.redirect(303, "/masuk"));
-  router.get("/undangan/:token", (_req, res) => res.redirect(303, "/masuk"));
+
+  // GET tidak menghanguskan token; undangan hanya diklaim setelah Auditor menekan tombol.
+  router.get("/undangan/:token", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.render("undangan", { title: "Aktifkan akses Auditor", token: req.params["token"] });
+  });
+
+  // Token undangan berentropi tinggi, sekali pakai, dan divalidasi kembali oleh service.
+  router.post("/undangan/:token", sec.checkOrigin, async (req, res) => {
+    const claimed = await claimInvitation(requireStore(deps), { token: req.params["token"] });
+    sec.issueAuditorCookie(res, claimed.auditor.id);
+    res.set("Cache-Control", "no-store");
+    res.redirect(303, "/auditor");
+  });
 
   router.post("/masuk", sec.checkOrigin, async (req, res) => {
     const ip = req.ip ?? "unknown";
