@@ -215,7 +215,7 @@ export async function createAuditor(store: AuditStore, raw: unknown, now: Date =
   return { auditor, inviteToken };
 }
 
-/** Terbit ulang: token lama dan sesi login hangus. Hanya selama sesi dapat diakses (canAccess). */
+/** Terbit ulang: token undangan dan sesi login lama hangus. DRAFT diperbolehkan untuk pemulihan; klaim tetap menunggu akses sesi. */
 export async function reissueInvitation(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<InvitationResult> {
   const input = parseInput(auditorRefSchema, raw);
   const session = await requireSession(store, input.sessionId);
