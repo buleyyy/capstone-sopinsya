@@ -35,10 +35,11 @@ const envSchema = z
     CSRF_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, "CSRF_SECRET minimal 32 karakter").optional()),
     // Kata sandi Admin untuk halaman /admin (satu akun untuk UAT). Kosong = halaman Admin dinonaktifkan.
     ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "ADMIN_PASSWORD minimal 8 karakter").optional()),
-    // Identitas gerbang masuk bersama. Email hanya memilih peran; kredensialnya berbeda
-    // (Admin: ADMIN_PASSWORD, Auditor: AUDITOR_PASSWORD). Bawaan: admin@sopinsya dan auditor@sopinsya.
+    // Variabel legacy untuk login Auditor bersama. Route web saat ini tidak menggunakannya;
+    // Auditor hanya masuk melalui undangan individual. Dipertahankan sementara agar env lama tidak langsung rusak.
     AUDITOR_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "AUDITOR_PASSWORD minimal 8 karakter").optional()),
     ADMIN_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
+    // Email Auditor legacy; tidak dipakai untuk akses pada flow undangan individual.
     AUDITOR_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
   })
   .superRefine((v, ctx) => {
