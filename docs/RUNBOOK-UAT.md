@@ -103,6 +103,8 @@ Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian stat
 | 5 | Buat sesi dari checklist yang belum terbit | Ditolak |
 | 6 | Aktifkan sesi tanpa auditor | Ditolak dengan instruksi yang dapat ditindaklanjuti |
 | 7 | Aktifkan sesi tanpa penugasan valid atau tanpa poin checklist untuk unit yang ditugaskan | Ditolak |
+| 7a | Coba aktivasi ketika tenggat sesi DRAFT sudah lewat | Dialihkan ke editor batas waktu; setelah diperbarui ke masa depan, aktivasi dapat dicoba kembali |
+| 7b | Tambahkan beberapa auditor lalu perlu mengambil ulang link salah satu auditor saat DRAFT | Admin dapat menerbitkan ulang link individual; token lama tidak berlaku |
 | 8 | Penugasan ke unit pengecualian auditor | Ditolak (self-audit) |
 | 9 | Buka halaman undangan via GET | Halaman aktivasi tampil; token belum diklaim |
 | 10 | Klaim undangan yang masih valid satu kali | Cookie sesi terbit dan Dashboard Auditor terbuka |
@@ -121,7 +123,8 @@ Rekam hasil aktual, browser/perangkat, akun uji, dan bukti untuk setiap kasus. J
 
 ## 7. Batasan dan pemulihan
 
-- Undangan mulai menghitung masa berlaku sejak auditor dibuat (default 7 hari). Jika setup sesi lama tertunda hingga undangan kedaluwarsa, Admin perlu menerbitkan ulang.
+- Undangan mulai menghitung masa berlaku sejak auditor dibuat (default 7 hari). Admin dapat menerbitkan ulang tautan selama sesi masih DRAFT maupun saat sesi dapat diakses; tautan lama menjadi tidak berlaku.
+- Bila tenggat sesi DRAFT lewat, Admin dapat memperbarui batas tulis dari bagian Status Sesi. Aktivasi tetap diblokir sampai batas tulis masa depan, auditor yang belum dicabut, dan penugasan dengan poin checklist siap.
 - Tautan undangan adalah rahasia sekali pakai. Bagikan hanya kepada auditor yang dituju dan melalui kanal yang disetujui.
 - URL PDF/bukti adalah referensi eksternal; akses dokumennya tetap ditentukan penyedia URL. Jangan memakai tautan publik untuk dokumen rahasia.
 - Web peserta menyimpan pilihan “Ikuti Pelatihan” di browser saat ini; status pendaftaran belum menjadi enrollment persisten di server. Hasil tes peserta disimpan oleh API, tetapi alur registrasi/akun peserta bukan bagian dari gerbang Admin/Auditor.
