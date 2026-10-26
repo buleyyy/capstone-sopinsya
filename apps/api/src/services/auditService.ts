@@ -70,7 +70,7 @@ export async function claimInvitation(store: AuditStore, rawInput: unknown, now:
   return { auditor, session: found.session, token };
 }
 
-/** Mengenali pemanggil dari token sesi (cookie). Dipakai middleware pada setiap request. */
+/** Mengenali pemanggil dari token sesi HttpOnly. Token ini adalah sesi normal setelah password berhasil, bukan token undangan. */
 export async function authenticate(store: AuditStore, sessionToken: string, now: Date = new Date()): Promise<AuditContext> {
   const found = await store.findAuthByTokenHash(sha256Hex(sessionToken));
   const unauthenticated = () => new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");

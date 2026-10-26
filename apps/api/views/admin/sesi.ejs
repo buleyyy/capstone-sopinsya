@@ -1,5 +1,12 @@
 <%- include('../partials/header') %>
-<h1>Sesi Audit</h1>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Administrasi SMAP</span>
+    <h1>Sesi Audit</h1>
+    <p>Kelola siklus audit, batas waktu pengisian, auditor, dan penugasan unit. Sesi hanya bisa diaktifkan jika persiapan auditor dan checklist valid.</p>
+  </div>
+  <a class="btn" href="#buat-sesi">Buat sesi audit</a>
+</div>
 <% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
 
 <div class="card tablewrap">
@@ -20,7 +27,7 @@
   </table>
 </div>
 
-<h2>Buat sesi baru</h2>
+<h2 id="buat-sesi">Buat sesi baru</h2>
 <% if (versions.length === 0) { %>
   <div class="alert info">Belum ada versi checklist yang diterbitkan. <a href="/admin/checklist">Siapkan checklist</a> terlebih dahulu.</div>
 <% } else { %>

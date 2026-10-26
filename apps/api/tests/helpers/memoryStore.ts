@@ -183,6 +183,12 @@ export class MemoryStore implements AuditStore {
     s.status = "ACTIVE";
     return true;
   }
+  async updateDraftSessionDeadline(id: number, to: Date) {
+    const s = this.sessions.find((x) => x.id === id);
+    if (!s || s.status !== "DRAFT") return false;
+    s.expiresAt = to;
+    return true;
+  }
   async extendSession(id: number, to: Date) {
     const s = this.sessions.find((x) => x.id === id);
     if (!s || s.status !== "ACTIVE" || s.expiresAt.getTime() >= to.getTime()) return false;

@@ -146,6 +146,18 @@ export async function activateSession(store: AuditStore, raw: unknown, now: Date
   });
 }
 
+/** Mengatur ulang batas tulis sesi DRAFT sebelum aktivasi. */
+export async function updateDraftSessionDeadline(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
+  const { sessionId, to } = parseInput(extendSessionSchema, raw);
+  const session = await store.findSession(sessionId);
+  if (!session) throw notFound("Sesi");
+  if (session.status !== "DRAFT") throw stateError("Batas waktu hanya dapat diubah saat sesi masih DRAFT");
+  if (to.getTime() <= now.getTime()) {
+    throw new AppError(422, "EXPIRES_IN_PAST", "Batas waktu tulis harus berada di masa depan");
+  }
+  if (!(await store.updateDraftSessionDeadline(sessionId, to))) throw stateError("Batas waktu sesi draf tidak dapat diperbarui");
+}
+
 /** Memperpanjang batas tulis. Hanya sesi ACTIVE, hanya ke masa depan. Tidak pernah membuka sesi CLOSED. */
 export async function extendSession(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
   const { sessionId, to } = parseInput(extendSessionSchema, raw);
@@ -203,11 +215,12 @@ export async function createAuditor(store: AuditStore, raw: unknown, now: Date =
   return { auditor, inviteToken };
 }
 
-/** Terbit ulang: token lama dan sesi login hangus. Hanya selama sesi dapat diakses (canAccess). */
+/** Terbit ulang: token undangan dan sesi login lama hangus. DRAFT diperbolehkan untuk pemulihan; klaim tetap menunggu akses sesi. */
 export async function reissueInvitation(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<InvitationResult> {
   const input = parseInput(auditorRefSchema, raw);
   const session = await requireSession(store, input.sessionId);
-  assertCanAccess(session, now);
+  // DRAFT: Admin boleh memperbarui tautan yang belum dibagikan; klaim tetap ditolak sampai sesi dapat diakses.
+  if (session.status !== "DRAFT") assertCanAccess(session, now);
   const auditor = await store.findAuditor(session.id, input.auditorId);
   if (!auditor) throw notFound("Auditor");
   const inviteToken = generateInviteToken();

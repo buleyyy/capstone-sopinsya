@@ -151,10 +151,12 @@ export interface AuditStore {
   // --- Sesi ---
   createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord>;
   findSession(sessionId: number): Promise<SessionRecord | null>;
-  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Sama dengan sesi yang dipilih findPasswordLoginAuditor. */
+  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Dipertahankan untuk kompatibilitas helper login lama. */
   findLatestActiveSession(): Promise<SessionRecord | null>;
   /** DRAFT -> ACTIVE. false bila bukan DRAFT. */
   activateSession(sessionId: number): Promise<boolean>;
+  /** Mengganti batas waktu hanya untuk sesi DRAFT; to harus divalidasi service agar berada di masa depan. */
+  updateDraftSessionDeadline(sessionId: number, to: Date): Promise<boolean>;
   /** Hanya ACTIVE dan hanya ke masa depan (to > expiresAt saat ini). */
   extendSession(sessionId: number, to: Date): Promise<boolean>;
   /** ACTIVE -> CLOSED. false bila bukan ACTIVE. */
@@ -183,7 +185,7 @@ export interface AuditStore {
    * pada sesi ACTIVE terbaru. null bila tidak ada sesi ACTIVE atau auditor.
    */
   findPasswordLoginAuditor(): Promise<AuthRecord | null>;
-  /** Klaim atomik. null bila undangan tidak (lagi) dapat diklaim. */
+  /** Klaim undangan legacy; tidak dipakai oleh login password role Auditor. */
   claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null>;
   clearAuditorToken(auditorId: number): Promise<void>;
   reissueInvitation(auditorId: number, inviteHash: string, inviteExpiresAt: Date): Promise<void>;

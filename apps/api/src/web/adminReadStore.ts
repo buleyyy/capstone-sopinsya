@@ -9,7 +9,7 @@ import { AppError } from "../utils/errors.js";
 
 export type VersionStatus = "DRAFT" | "PUBLISHED" | "RETIRED";
 export type SessionStatusRow = "DRAFT" | "ACTIVE" | "CLOSED";
-export type InviteState = "BELUM_DIKLAIM" | "AKTIF" | "DICABUT" | "KEDALUWARSA";
+export type InviteState = "AKSES_TERSEDIA" | "DICABUT";
 
 export interface DepartmentRow { id: number; name: string }
 export interface StandardRow { id: number; code: string; name: string }
@@ -41,6 +41,8 @@ export interface SessionRow {
   standardCode: string;
   auditorCount: number;
   assignmentCount: number;
+  eligibleAuditorCount: number;
+  eligibleAssignmentCount: number;
 }
 export interface AuditorRow {
   id: number;
@@ -203,6 +205,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
     checklistVersionId: number;
     checklistVersion: { versionLabel: string; standard: { code: string } };
     _count: { auditors: number; assignments: number };
+    auditors: { revokedAt: Date | null }[];
+    assignments: { departmentId: number; auditor: { revokedAt: Date | null } }[];
   }): SessionRow {
     return {
       id: r.id,
@@ -216,6 +220,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
       standardCode: r.checklistVersion.standard.code,
       auditorCount: r._count.auditors,
       assignmentCount: r._count.assignments,
+      eligibleAuditorCount: r.auditors.filter((a) => a.revokedAt === null).length,
+      eligibleAssignmentCount: r.assignments.filter((a) => a.auditor.revokedAt === null).length,
     };
   }
 
@@ -225,9 +231,18 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
+        auditors: { select: { revokedAt: true } },
+        assignments: { select: { departmentId: true, auditor: { select: { revokedAt: true } } } },
       },
     });
-    return rows.map((r) => this.toSessionRow(r));
+    return Promise.all(rows.map(async (r) => {
+      const row = this.toSessionRow(r);
+      const activeAssignments = r.assignments.filter((a) => a.auditor.revokedAt === null);
+      const checklistCounts = await Promise.all(activeAssignments.map((a) =>
+        this.db.checklistItem.count({ where: { versionId: r.checklistVersionId, departmentId: a.departmentId } }),
+      ));
+      return { ...row, eligibleAssignmentCount: checklistCounts.filter((count) => count > 0).length };
+    }));
   }
 
   async getSession(sessionId: number, now: Date = new Date()) {
@@ -243,11 +258,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
     if (!s) return null;
 
     const auditors: AuditorRow[] = s.auditors.map((a) => {
-      let state: InviteState;
-      if (a.revokedAt) state = "DICABUT";
-      else if (a.claimedAt) state = "AKTIF";
-      else if (a.inviteExpiresAt.getTime() <= now.getTime()) state = "KEDALUWARSA";
-      else state = "BELUM_DIKLAIM";
+      const state: InviteState = a.revokedAt ? "DICABUT" : "AKSES_TERSEDIA";
       return {
         id: a.id,
         name: a.name,

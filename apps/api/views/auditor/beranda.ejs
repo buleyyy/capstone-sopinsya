@@ -1,5 +1,12 @@
 <%- include('../partials/header') %>
-<h1>Dashboard Audit</h1>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Ruang Kerja Auditor</span>
+    <h1>Dashboard Audit</h1>
+    <p>Ringkasan kemajuan checklist, kesesuaian unit, dan temuan pada sesi <strong><%= me.sessionTitle %></strong>.</p>
+  </div>
+  <span class="badge <%= me.sessionStatus.toLowerCase() %>"><%= sessionLabel[me.sessionStatus] %></span>
+</div>
 
 <% if (!me.canWrite) { %>
   <div class="alert info">
@@ -69,12 +76,4 @@
   </div>
 <% } %>
 
-<h2>Keluar</h2>
-<div class="card">
-  <p class="muted">Keluar menghapus sesi login di perangkat ini. Anda dapat masuk lagi kapan saja dengan email dan kata sandi Auditor.</p>
-  <form method="post" action="/auditor/keluar">
-    <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <button class="btn danger" type="submit">Keluar</button>
-  </form>
-</div>
 <%- include('../partials/footer') %>

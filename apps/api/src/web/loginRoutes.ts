@@ -3,13 +3,11 @@ import { resolvePasswordLogin } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { trimmed } from "./helpers.js";
-import { UNBOUND_AUDITOR_ID } from "./security.js";
 
 /**
- * Gerbang masuk bersama untuk web Admin + Auditor. Bentuknya sama: email + kata sandi.
- *  - Email hanya memilih peran (bawaan: admin@sopinsya / auditor@sopinsya).
- *  - Admin memakai ADMIN_PASSWORD; Auditor memakai AUDITOR_PASSWORD. Tanpa kode undangan.
- * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang ini.
+ * Gerbang kredensial role Admin dan Auditor. Email hanya memilih role; password terpisah per role.
+ * Setelah password role benar, server menerbitkan cookie Auditor bertanda tangan; tautan undangan tidak dipakai untuk login.
+ * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang staf.
  */
 export function createLoginRouter(deps: WebDeps): Router {
   const router = Router();
@@ -29,19 +27,22 @@ export function createLoginRouter(deps: WebDeps): Router {
 
   router.get("/", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
-    // Sesi Auditor yang tidak sah akan dialihkan kembali ke /masuk oleh area Auditor (tanpa perulangan).
     if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     res.redirect(303, "/masuk");
   });
 
   router.get("/masuk", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
+    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     renderGate(res, 200);
   });
 
-  // Rute lama dipertahankan agar bookmark dan tautan undangan lama tetap mendarat di halaman masuk.
+  // Bookmark lama Admin tetap diarahkan ke gerbang masuk Admin.
   router.get("/admin/masuk", (_req, res) => res.redirect(303, "/masuk"));
-  router.get("/undangan/:token", (_req, res) => res.redirect(303, "/masuk"));
+
+  // URL undangan lama tidak lagi mengaktifkan akses; semua Auditor masuk melalui email + kata sandi.
+  router.get("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
+  router.post("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
 
   router.post("/masuk", sec.checkOrigin, async (req, res) => {
     const ip = req.ip ?? "unknown";
@@ -72,29 +73,27 @@ export function createLoginRouter(deps: WebDeps): Router {
 
     if (email === loginEmails.auditor) {
       const verdict = sec.checkAuditorPassword(secret, ip);
+      if (verdict === "ok") {
+        try {
+          const context = await resolvePasswordLogin(requireStore(deps));
+          sec.issueAuditorCookie(res, context.auditorId);
+          res.set("Cache-Control", "no-store");
+          res.redirect(303, "/auditor");
+          return;
+        } catch (err) {
+          if (err instanceof AppError && err.statusCode === 409) {
+            renderGate(res, 409, { error: err.message, email });
+            return;
+          }
+          throw err;
+        }
+      }
       if (verdict === "disabled") {
         renderGate(res, 503, { error: "Login Auditor belum diaktifkan (AUDITOR_PASSWORD belum diatur di server).", email });
         return;
       }
-      if (verdict !== "ok") {
-        renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
-        return;
-      }
-      try {
-        const ctx = await resolvePasswordLogin(requireStore(deps));
-        sec.issueAuditorCookie(res, ctx.auditorId);
-        res.redirect(303, "/auditor");
-        return;
-      } catch (err) {
-        // Kata sandi benar tetapi belum ada sesi aktif/auditor: tetap masuk (seperti Admin). Halaman Auditor
-        // menampilkan keadaan "menunggu sesi" dan otomatis terhubung begitu Admin mengaktifkan sesi.
-        if (err instanceof AppError && (err.statusCode === 403 || err.statusCode === 409)) {
-          sec.issueAuditorCookie(res, UNBOUND_AUDITOR_ID);
-          res.redirect(303, "/auditor");
-          return;
-        }
-        throw err;
-      }
+      renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
+      return;
     }
 
     sec.recordLoginFailure(ip);
