@@ -155,6 +155,8 @@ export interface AuditStore {
   findLatestActiveSession(): Promise<SessionRecord | null>;
   /** DRAFT -> ACTIVE. false bila bukan DRAFT. */
   activateSession(sessionId: number): Promise<boolean>;
+  /** Mengganti batas waktu hanya untuk sesi DRAFT; to harus divalidasi service agar berada di masa depan. */
+  updateDraftSessionDeadline(sessionId: number, to: Date): Promise<boolean>;
   /** Hanya ACTIVE dan hanya ke masa depan (to > expiresAt saat ini). */
   extendSession(sessionId: number, to: Date): Promise<boolean>;
   /** ACTIVE -> CLOSED. false bila bukan ACTIVE. */
