@@ -49,9 +49,6 @@ const envSchema = z
       if (v.ADMIN_PASSWORD && v.ADMIN_PASSWORD.length < 12) {
         ctx.addIssue({ code: "custom", path: ["ADMIN_PASSWORD"], message: "ADMIN_PASSWORD minimal 12 karakter di production" });
       }
-      if (v.AUDITOR_PASSWORD && v.AUDITOR_PASSWORD.length < 12) {
-        ctx.addIssue({ code: "custom", path: ["AUDITOR_PASSWORD"], message: "AUDITOR_PASSWORD minimal 12 karakter di production" });
-      }
     }
   });
 
