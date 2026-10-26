@@ -24,7 +24,7 @@ const db: Database = {
 
 describe("individual auditor invitation flow", () => {
   it("does not consume an invitation on GET, claims once, authenticates and revokes the session on logout", async () => {
-    const seeded = await seed();
+    const seeded = await seed(new Date());
     const app = createApp({
       env,
       db,
