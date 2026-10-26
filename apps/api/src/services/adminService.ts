@@ -207,7 +207,8 @@ export async function createAuditor(store: AuditStore, raw: unknown, now: Date =
 export async function reissueInvitation(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<InvitationResult> {
   const input = parseInput(auditorRefSchema, raw);
   const session = await requireSession(store, input.sessionId);
-  assertCanAccess(session, now);
+  // DRAFT: Admin boleh memperbarui tautan yang belum dibagikan; klaim tetap ditolak sampai sesi dapat diakses.
+  if (session.status !== "DRAFT") assertCanAccess(session, now);
   const auditor = await store.findAuditor(session.id, input.auditorId);
   if (!auditor) throw notFound("Auditor");
   const inviteToken = generateInviteToken();
