@@ -1,5 +1,7 @@
 <%- include('../partials/header') %>
-<p><a href="/admin/sesi">&larr; Semua sesi</a></p>
+<% var now = new Date(); %>
+<% var canConfigure = session.status === 'DRAFT' || (session.status === 'ACTIVE' && new Date(session.expiresAt).getTime() > now.getTime()); %>
+<p><a href="/admin/sesi" class="backlink">&larr; Semua sesi</a></p>
 <h1><%= session.title %> <span class="badge <%= session.status.toLowerCase() %>"><%= sessionLabel[session.status] %></span></h1>
 <p class="muted">
   Checklist <%= session.standardCode %> <%= session.versionLabel %> &middot; Batas tulis: <%= fmt(session.expiresAt) %>
@@ -67,10 +69,12 @@
           <td><%= fmt(a.inviteExpiresAt) %></td>
           <td class="nowrap">
             <% if (a.state !== 'DICABUT') { %>
+              <% if (session.status !== 'CLOSED' || (session.auditorAccessUntil && new Date(session.auditorAccessUntil).getTime() > now.getTime())) { %>
               <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/terbit-ulang">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <button class="btn small secondary" type="submit">Terbitkan ulang</button>
               </form>
+              <% } %>
               <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/cabut">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <button class="btn small danger" type="submit">Cabut akses</button>
@@ -84,7 +88,7 @@
   </table>
 </div>
 
-<% if (session.status !== 'CLOSED') { %>
+<% if (canConfigure) { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/auditor" class="card">
     <h3>Tambah auditor</h3>
     <p class="muted small">Setiap auditor menggunakan tautan undangan unik. Setelah menambahkan auditor, salin dan kirim tautan yang ditampilkan di atas; penerima mengaktifkan akses dari tautan itu. Tautan hanya dapat diklaim sekali. Gunakan “Terbitkan ulang” bila tautan hilang, kedaluwarsa, atau auditor perlu masuk kembali.</p>
@@ -129,7 +133,7 @@
   </table>
 </div>
 
-<% if (session.status !== 'CLOSED' && auditors.length > 0) { %>
+<% if (canConfigure && auditors.length > 0) { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/penugasan" class="card">
     <h3>Tambah penugasan</h3>
     <input type="hidden" name="_csrf" value="<%= csrf %>">
