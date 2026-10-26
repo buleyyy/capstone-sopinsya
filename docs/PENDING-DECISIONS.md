@@ -16,7 +16,7 @@ Belum boleh diasumsikan di kode. Dampaknya pada fase berikutnya:
 ## Fokus audit internal ISO 37001 / SMAP (notulensi terbaru)
 
 Keputusan sementara tim (belum final dari klien): akses trial memakai kode sesi tanpa email/password;
-kategori materi (13 kamar) dipisah dari departemen; PDF berupa URL; modul RD lama tidak dihapus
+kategori materi (13 Program) dipisah dari departemen; PDF berupa URL; modul RD lama tidak dihapus
 sampai scope final dikonfirmasi.
 
 | Kode | Keputusan yang dibutuhkan | Dampak jika berubah |
@@ -25,7 +25,7 @@ sampai scope final dikonfirmasi.
 | A-2 | Arti "status pengerjaan" (sementara: `BELUM_DIKERJAKAN`, `DALAM_PROSES`, `SELESAI`) dan aturan konsistensinya dengan hasil | Enum `AnswerProgress`, `saveAnswerSchema` |
 | A-3 | Apakah satu auditor hanya punya satu departemen asal? | Aturan audit-sendiri, `Auditor.departmentId` |
 | A-4 | Siapa menentukan penugasan: auditor memilih sendiri atau trainer menugaskan? | Endpoint dan hak akses `AuditAssignment` |
-| A-5 | Daftar departemen dan isi 13 kamar materi (data dari Mas Iki); apakah SOP dimiliki satu departemen saja | Seed data; `SopDocument.departmentId` |
+| A-5 | Daftar departemen dan isi 13 Program (data dari Mas Iki); apakah SOP dimiliki satu departemen saja | Seed data; `SopDocument.departmentId` |
 | A-6 | Apakah poin checklist selalu terkait satu SOP | `ChecklistItem.sopId` wajib atau opsional |
 | A-7 | Perlakuan sesi setelah `CLOSED` (jawaban/temuan terkunci? masih boleh dibaca untuk laporan?) | Middleware sesi (saat ini menolak semua akses bila sesi tidak ACTIVE) |
 | A-8 | Retensi data sesi setelah training (boleh dihapus?) | `onDelete`, kebijakan backup |

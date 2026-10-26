@@ -1,20 +1,55 @@
+import path from "node:path";
 import cors from "cors";
 import express, { type Express } from "express";
 import type { Env } from "./config/env.js";
+import type { AuditStore } from "./domain/auditStore.js";
+import type { PublicContentStore } from "./domain/publicContent.js";
+import type { ParticipantTestStore } from "./domain/participantTest.js";
 import type { Database } from "./lib/database.js";
 import { createErrorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { createHealthRouter } from "./routes/health.js";
+import { createPublicRouter } from "./routes/publicContent.js";
+import { createParticipantTestRouter } from "./routes/participantTests.js";
+import type { AdminReadStore } from "./web/adminReadStore.js";
+import {
+  CLASS_LABEL,
+  formatDateTime,
+  INVITE_LABEL,
+  percent,
+  SESSION_LABEL,
+  VERSION_LABEL,
+} from "./web/helpers.js";
+import { createWebRouter } from "./web/router.js";
+import { WebSecurity } from "./web/security.js";
 
 export interface AppDeps {
   env: Env;
   db: Database;
+  /** Sumber konten publik peserta. Bila kosong, /api/public/* menjawab 503. */
+  publicContent?: PublicContentStore;
+  /** Pre/Post-test peserta. Bila kosong, /api/public/.../tests menjawab 503. */
+  participantTests?: ParticipantTestStore;
+  /** Penyimpanan audit untuk antarmuka web. Bila kosong, halaman Auditor/Admin menjawab 503. */
+  audit?: { store: AuditStore; admin: AdminReadStore };
 }
 
 /** Membangun aplikasi Express tanpa membuka port, sehingga mudah diuji dengan supertest. */
-export function createApp({ env, db }: AppDeps): Express {
+export function createApp({ env, db, publicContent, participantTests, audit }: AppDeps): Express {
   const app = express();
 
   app.disable("x-powered-by");
+  if (env.APP_ORIGIN?.startsWith("https://")) app.set("trust proxy", 1); // di belakang reverse proxy (IP klien dan skema asli)
+
+  // Tampilan EJS: apps/api/views (sama untuk tsx di src/ dan hasil build di dist/).
+  app.set("view engine", "ejs");
+  app.set("views", path.resolve(__dirname, "../views"));
+  app.locals["fmt"] = formatDateTime;
+  app.locals["percent"] = percent;
+  app.locals["sessionLabel"] = SESSION_LABEL;
+  app.locals["versionLabel"] = VERSION_LABEL;
+  app.locals["inviteLabel"] = INVITE_LABEL;
+  app.locals["classLabel"] = CLASS_LABEL;
+
   app.use(
     cors({
       origin(origin, callback) {
@@ -27,6 +62,29 @@ export function createApp({ env, db }: AppDeps): Express {
   app.use(express.json({ limit: "1mb" }));
 
   app.use("/api/health", createHealthRouter(db));
+  app.use("/api/public", createPublicRouter(publicContent));
+  app.use("/api/public", createParticipantTestRouter(participantTests));
+
+  const sec = new WebSecurity({
+    secret: env.CSRF_SECRET,
+    adminPassword: env.ADMIN_PASSWORD,
+    auditorPassword: env.AUDITOR_PASSWORD,
+    appOrigin: env.APP_ORIGIN,
+    production: env.NODE_ENV === "production",
+  });
+  app.use(
+    createWebRouter({
+      store: audit?.store,
+      admin: audit?.admin,
+      publicContent,
+      sec,
+      appOrigin: env.APP_ORIGIN,
+      loginEmails: {
+        admin: env.ADMIN_LOGIN_EMAIL ?? "admin@sopinsya",
+        auditor: env.AUDITOR_LOGIN_EMAIL ?? "auditor@sopinsya",
+      },
+    }),
+  );
 
   app.use(notFoundHandler);
   app.use(createErrorHandler({ exposeInternal: env.NODE_ENV !== "production" }));

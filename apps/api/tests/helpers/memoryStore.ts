@@ -11,6 +11,8 @@ import {
   type ChecklistVersionRecord,
   type DepartmentRecord,
   type FindingCount,
+  type FindingFollowUp,
+  type FindingFollowUpRecord,
   type FindingHistoryRecord,
   type FindingRecord,
   type NewFinding,
@@ -53,6 +55,7 @@ export class MemoryStore implements AuditStore {
   answers: AnswerRow[] = [];
   findings: FindingRecord[] = [];
   history: FindingHistoryRecord[] = [];
+  private followUps = new Map<number, FindingFollowUp>();
   private seq = 1;
 
   private capture(): State {
@@ -228,6 +231,15 @@ export class MemoryStore implements AuditStore {
   }
   async findAuthByInviteHash(h: string) { return this.auth(this.auditors.find((a) => a.inviteHash === h)); }
   async findAuthByTokenHash(h: string) { return this.auth(this.auditors.find((a) => a.tokenHash !== null && a.tokenHash === h)); }
+  async findAuthByAuditorId(id: number) { return this.auth(this.auditors.find((a) => a.id === id)); }
+  async findPasswordLoginAuditor() {
+    const session = [...this.sessions].filter((s) => s.status === "ACTIVE").sort((a, b) => b.id - a.id)[0];
+    if (!session) return null;
+    const row = this.auditors
+      .filter((a) => a.sessionId === session.id && a.revokedAt === null)
+      .sort((a, b) => a.id - b.id)[0];
+    return this.auth(row);
+  }
   async claimInvitation(inviteHash: string, tokenHash: string, now: Date) {
     const a = this.auditors.find((x) => x.inviteHash === inviteHash);
     if (!a || a.claimedAt !== null || a.revokedAt !== null || a.inviteExpiresAt.getTime() <= now.getTime()) return null;
@@ -373,5 +385,27 @@ export class MemoryStore implements AuditStore {
       else map.set(key, { classification: f.classification, status: f.status, count: 1 });
     }
     return [...map.values()];
+  }
+
+  async saveFindingFollowUp(findingId: number, data: FindingFollowUp) {
+    this.followUps.set(findingId, { ...data });
+  }
+  async listFindingFollowUps(assignmentId: number): Promise<FindingFollowUpRecord[]> {
+    const empty: FindingFollowUp = {
+      rootCause: null,
+      correction: null,
+      correctionPic: null,
+      correctionTarget: null,
+      correctiveAction: null,
+      correctiveActionPic: null,
+      correctiveActionTarget: null,
+      improvementAction: null,
+      improvementPic: null,
+      improvementTarget: null,
+    };
+    return this.findings
+      .filter((f) => f.assignmentId === assignmentId)
+      .sort((a, b) => a.seq - b.seq)
+      .map((f) => ({ findingId: f.id, ...(this.followUps.get(f.id) ?? empty) }));
   }
 }

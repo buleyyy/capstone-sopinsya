@@ -1,0 +1,22 @@
+<%- include('partials/header') %>
+<div class="card error-card">
+  <span class="tile error xl-tile"><svg class="icon lg"><use href="#i-alert"/></svg></span>
+  <div class="error-code"><%= status %></div>
+  <h1><%= title %></h1>
+  <div class="alert error" role="alert">
+    <svg class="icon"><use href="#i-info"/></svg>
+    <div>
+      <strong><%= message %></strong>
+      <% if (details && details.length) { %>
+        <ul>
+          <% details.forEach(function (d) { %>
+            <li><% if (d.path) { %><code><%= d.path %></code>: <% } %><%= d.message %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+  <p class="muted">Gunakan tombol kembali pada browser untuk memperbaiki isian, atau kembali ke halaman utama.</p>
+  <p><a class="btn" href="<%= home %>">Ke halaman utama <svg class="icon sm"><use href="#i-arrow"/></svg></a></p>
+</div>
+<%- include('partials/footer') %>

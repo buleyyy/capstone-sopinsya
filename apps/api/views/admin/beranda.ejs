@@ -1,0 +1,121 @@
+<%- include('../partials/header', { nav: 'dashboard' }) %>
+<%
+  var now = new Date();
+  var aktif = sessions.filter(function (s) { return s.status === 'ACTIVE'; });
+  var draf = sessions.filter(function (s) { return s.status === 'DRAFT'; });
+  var tutup = sessions.filter(function (s) { return s.status === 'CLOSED'; });
+  var lewat = aktif.filter(function (s) { return new Date(s.expiresAt) < now; });
+  var terbit = versions.filter(function (v) { return v.status === 'PUBLISHED'; });
+  var program = rooms.filter(function (r) { return r.isPublished; });
+  var auditorTotal = aktif.reduce(function (t, s) { return t + s.auditorCount; }, 0);
+  var tugasTotal = aktif.reduce(function (t, s) { return t + s.assignmentCount; }, 0);
+  var steps = [
+    { done: departments.length > 0, title: 'Tambah departemen yang akan diaudit', desc: departments.length + ' departemen terdaftar.', href: '/admin/departemen', cta: 'Departemen' },
+    { done: terbit.length > 0, title: 'Siapkan dan terbitkan checklist', desc: terbit.length + ' dari ' + versions.length + ' versi sudah terbit.', href: '/admin/checklist', cta: 'Checklist' },
+    { done: sessions.length > 0, title: 'Buat sesi audit', desc: sessions.length + ' sesi dibuat.', href: '/admin/sesi', cta: 'Sesi audit' },
+    { done: aktif.length > 0, title: 'Undang auditor, buat penugasan, lalu aktifkan sesi', desc: aktif.length + ' sesi sedang aktif.', href: sessions.length ? '/admin/sesi/' + sessions[0].id : '/admin/sesi', cta: 'Buka sesi' }
+  ];
+  var nextIdx = steps.findIndex(function (s) { return !s.done; });
+%>
+
+<section class="welcome">
+  <div class="welcome-in">
+    <div>
+      <div class="pill-row">
+        <span class="pill"><span class="dot pulse"></span>Portal Administrasi &amp; Tata Kelola SMAP</span>
+        <span class="pill blue"><svg class="icon sm"><use href="#i-shield"/></svg>ISO 37001:2016</span>
+      </div>
+      <h1>Selamat datang kembali, Administrator</h1>
+      <p>Pusat kendali audit internal Sistem Manajemen Anti-Penyuapan: departemen, checklist, sesi audit, dan Pustaka SOP.</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/admin/sesi"><svg class="icon sm"><use href="#i-plus"/></svg>Buat Sesi Audit Baru</a>
+      <a class="btn secondary" href="/admin/checklist"><svg class="icon sm"><use href="#i-checklist"/></svg>Kelola Master Checklist</a>
+      <a class="btn soft" href="/admin/sop"><svg class="icon sm"><use href="#i-folder"/></svg>Pustaka SOP</a>
+    </div>
+  </div>
+</section>
+
+<div class="grid cols-4">
+  <div class="card kpi">
+    <div class="kpi-top"><div><span class="kpi-label">Total Sesi Audit</span><span class="stat"><%= sessions.length %></span></div><span class="tile"><svg class="icon lg"><use href="#i-calendar"/></svg></span></div>
+    <div class="kpi-foot"><span><%= aktif.length %> aktif &middot; <%= draf.length %> draf &middot; <%= tutup.length %> ditutup</span><a href="/admin/sesi">Kelola</a></div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-top"><div><span class="kpi-label">Sesi Aktif</span><span class="stat primary"><%= aktif.length %></span></div><span class="tile secondary"><svg class="icon lg"><use href="#i-play"/></svg></span></div>
+    <div class="kpi-foot primary-tint"><span><%= auditorTotal %> auditor &middot; <%= tugasTotal %> penugasan</span></div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-top"><div><span class="kpi-label">Checklist Terbit</span><span class="stat"><%= terbit.length %><small> / <%= versions.length %></small></span></div><span class="tile neutral"><svg class="icon lg"><use href="#i-checklist"/></svg></span></div>
+    <div class="kpi-foot"><span>Versi terbit / seluruh versi</span><a href="/admin/checklist">Kelola</a></div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-top"><div><span class="kpi-label">Departemen</span><span class="stat"><%= departments.length %></span></div><span class="tile neutral"><svg class="icon lg"><use href="#i-building"/></svg></span></div>
+    <div class="kpi-foot"><span><%= program.length %> dari <%= rooms.length %> program SOP terbit</span><a href="/admin/departemen">Kelola</a></div>
+  </div>
+</div>
+
+<% if (lewat.length > 0) { %>
+  <div class="alert warn" role="status">
+    <svg class="icon"><use href="#i-clock"/></svg>
+    <div><strong><%= lewat.length %> sesi aktif sudah melewati batas tulis.</strong> Auditor hanya dapat melihat data. Buka sesi untuk memperpanjang atau menutupnya:
+      <% lewat.forEach(function (s, i) { %><a href="/admin/sesi/<%= s.id %>"><%= s.title %></a><%= i < lewat.length - 1 ? ', ' : '' %><% }) %>.
+    </div>
+  </div>
+<% } %>
+
+<div class="split">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="card-title">
+        <span class="tile sm"><svg class="icon"><use href="#i-calendar"/></svg></span>
+        <div><h3>Sesi Audit Terkini</h3><p>Delapan sesi terbaru lintas unit</p></div>
+      </div>
+      <a class="btn tonal small" href="/admin/sesi">Semua sesi <svg class="icon sm"><use href="#i-arrow"/></svg></a>
+    </div>
+    <% if (sessions.length === 0) { %>
+      <div class="empty">
+        <span class="tile"><svg class="icon lg"><use href="#i-calendar"/></svg></span>
+        <h3>Belum ada sesi audit</h3>
+        <p>Buat sesi pertama setelah checklist diterbitkan.</p>
+        <a class="btn" href="/admin/sesi">Buat sesi</a>
+      </div>
+    <% } else { %>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Sesi</th><th>Status</th><th>Batas tulis</th><th class="center">Auditor</th><th class="center">Penugasan</th><th></th></tr></thead>
+          <tbody>
+            <% sessions.slice(0, 8).forEach(function (s) { var late = s.status === 'ACTIVE' && new Date(s.expiresAt) < now; %>
+              <tr>
+                <td><a class="title" href="/admin/sesi/<%= s.id %>"><%= s.title %></a><span class="code-tag"><%= s.standardCode %> <%= s.versionLabel %></span></td>
+                <td><span class="badge <%= s.status.toLowerCase() %>"><%= sessionLabel[s.status] %></span></td>
+                <td class="nowrap"><%= fmt(s.expiresAt) %><% if (late) { %> <span class="chip minor">Lewat</span><% } %></td>
+                <td class="center"><%= s.auditorCount %></td>
+                <td class="center"><%= s.assignmentCount %></td>
+                <td class="right"><a class="btn tonal small" href="/admin/sesi/<%= s.id %>">Detail <svg class="icon sm"><use href="#i-arrow"/></svg></a></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="tile sm"><svg class="icon"><use href="#i-trend"/></svg></span><h3>Kesiapan Penyiapan Audit</h3></div>
+      </div>
+      <ol class="steps">
+        <% steps.forEach(function (s, i) { %>
+          <li class="<%= s.done ? 'done' : (i === nextIdx ? 'next' : '') %>">
+            <div><b><%= s.title %></b><span><%= s.desc %></span></div>
+            <% if (!s.done) { %><a class="btn small <%= i === nextIdx ? '' : 'soft' %>" href="<%= s.href %>"><%= s.cta %></a><% } %>
+          </li>
+        <% }) %>
+      </ol>
+    </div>
+    <%- include('../partials/panduan-klasifikasi') %>
+  </div>
+</div>
+<%- include('../partials/footer') %>

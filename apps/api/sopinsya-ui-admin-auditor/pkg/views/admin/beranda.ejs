@@ -1,0 +1,52 @@
+<%- include('../partials/header', { nav: 'dashboard' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Portal Administrasi &amp; Tata Kelola SMAP</span>
+    <h1>Dashboard Admin</h1>
+    <p>Pusat kendali audit internal ISO 37001: departemen, checklist, Program, dan sesi audit.</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/admin/sesi">Buat Sesi Audit</a>
+    <a class="btn secondary" href="/admin/checklist">Kelola Master Checklist</a>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card kpi"><div class="kpi-top"><div><div class="kpi-label">Departemen</div><div class="stat"><%= departments.length %></div></div><span class="kpi-icon"><svg class="icon"><use href="#i-building"/></svg></span></div><div class="kpi-foot"><a href="/admin/departemen">Kelola</a></div></div>
+  <div class="card kpi"><div class="kpi-top"><div><div class="kpi-label">Versi checklist</div><div class="stat"><%= versions.length %></div></div><span class="kpi-icon"><svg class="icon"><use href="#i-checklist"/></svg></span></div><div class="kpi-foot"><a href="/admin/checklist">Kelola</a></div></div>
+  <div class="card kpi"><div class="kpi-top"><div><div class="kpi-label">Program</div><div class="stat"><%= rooms.length %></div></div><span class="kpi-icon"><svg class="icon"><use href="#i-folder"/></svg></span></div><div class="kpi-foot"><a href="/admin/sop">Kelola</a></div></div>
+  <div class="card kpi"><div class="kpi-top"><div><div class="kpi-label">Sesi audit</div><div class="stat"><%= sessions.length %></div></div><span class="kpi-icon"><svg class="icon"><use href="#i-calendar"/></svg></span></div><div class="kpi-foot"><a href="/admin/sesi">Kelola</a></div></div>
+</div>
+
+<div class="card">
+  <h3>Urutan penyiapan audit</h3>
+  <ol class="steps">
+    <li><span>Tambah <a href="/admin/departemen">departemen</a> yang akan diaudit.</span></li>
+    <li><span>Buat standar dan versi <a href="/admin/checklist">checklist</a>, isi poinnya, lalu terbitkan.</span></li>
+    <li><span>Buat <a href="/admin/sesi">sesi audit</a> dengan versi yang sudah terbit.</span></li>
+    <li><span>Di halaman sesi: undang auditor (tentukan unit terlarang), buat penugasan, lalu aktifkan sesi.</span></li>
+  </ol>
+</div>
+
+<h2>Sesi terbaru</h2>
+<% if (sessions.length === 0) { %>
+  <div class="card muted">Belum ada sesi.</div>
+<% } else { %>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Sesi</th><th>Status</th><th>Batas tulis</th><th>Auditor</th><th>Penugasan</th></tr></thead>
+      <tbody>
+        <% sessions.slice(0, 8).forEach(function (s) { %>
+          <tr>
+            <td><a href="/admin/sesi/<%= s.id %>"><%= s.title %></a><div class="code-tag"><%= s.standardCode %> <%= s.versionLabel %></div></td>
+            <td><span class="badge <%= s.status.toLowerCase() %>"><%= sessionLabel[s.status] %></span></td>
+            <td><%= fmt(s.expiresAt) %></td>
+            <td><%= s.auditorCount %></td>
+            <td><%= s.assignmentCount %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

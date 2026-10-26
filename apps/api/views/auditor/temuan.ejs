@@ -1,0 +1,167 @@
+<%- include('../partials/header') %>
+<p><a href="/auditor">&larr; Dashboard</a> &middot; <a href="/auditor/penugasan/<%= assignment.id %>">Checklist unit ini</a></p>
+<h1>Register Temuan: <%= assignment.departmentName %></h1>
+
+<% if (created) { %><div class="alert ok">Temuan <strong><%= created %></strong> tersimpan.</div><% } %>
+<% if (closed) { %><div class="alert ok">Temuan <strong><%= closed %></strong> ditutup.</div><% } %>
+<% if (updated) { %><div class="alert ok">Tindak lanjut temuan <strong><%= updated %></strong> tersimpan.</div><% } %>
+
+<p class="actions"><a class="btn small secondary" href="/auditor/penugasan/<%= assignment.id %>/laporan">Lihat laporan untuk dicetak</a></p>
+
+<h2>Daftar temuan</h2>
+<% if (findings.length === 0) { %>
+  <div class="card muted">Belum ada temuan untuk unit ini.</div>
+<% } else { %>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Kode</th><th>Klasifikasi</th><th>Masalah</th><th>Lokasi</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% findings.forEach(function (f) { %>
+          <tr>
+            <td class="nowrap"><strong><%= f.code %></strong></td>
+            <td><span class="badge <%= f.classification.toLowerCase() %>"><%= classLabel[f.classification] %></span></td>
+            <td>
+              <%= f.problem %>
+              <div class="muted small">Bukti: <%= f.objectiveEvidence %></div>
+              <div class="muted small">Rujukan: <%= f.reference %></div>
+              <% if (f.evidenceUrl) { %><div class="small"><a href="<%= f.evidenceUrl %>" rel="noopener noreferrer" target="_blank">Tautan bukti</a></div><% } %>
+            </td>
+            <td><%= f.location %></td>
+            <td><span class="badge <%= f.status.toLowerCase() %>"><%= f.status === 'OPEN' ? 'Terbuka' : 'Ditutup' %></span></td>
+            <td>
+              <% if (f.status === 'OPEN') { %>
+                <form method="post" action="/auditor/temuan/<%= f.id %>/tutup">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <label class="small" for="close_<%= f.id %>">Catatan penutupan</label>
+                  <input id="close_<%= f.id %>" type="text" name="note" maxlength="2000">
+                  <button class="btn small secondary" type="submit">Tutup temuan</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
+<% if (findings.length > 0) { %>
+  <h2>Tindak lanjut temuan</h2>
+  <p class="muted small">Isi akar penyebab, koreksi, dan tindakan korektif (Major/Minor) atau tindakan peningkatan (Observasi) sesuai penjelasan auditee. Hasil verifikasi diisi dengan menutup temuan pada tabel di atas. Semua kolom boleh dikosongkan dan diisi bertahap.</p>
+  <% findings.forEach(function (f) { var u = followUps[f.id] || {}; %>
+    <details class="card">
+      <summary><strong><%= f.code %></strong> <span class="badge <%= f.classification.toLowerCase() %>"><%= classLabel[f.classification] %></span> <span class="muted small"><%= f.problem.length > 90 ? f.problem.slice(0, 90) + '...' : f.problem %></span></summary>
+      <form method="post" action="/auditor/temuan/<%= f.id %>/tindak-lanjut">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <% if (f.classification === 'OBSERVASI') { %>
+          <p class="muted small">Observasi tidak memerlukan akar penyebab dan tindakan korektif; cukup tindakan peningkatan.</p>
+          <label for="improvementAction_<%= f.id %>">Rencana tindakan peningkatan</label>
+          <textarea id="improvementAction_<%= f.id %>" name="improvementAction" maxlength="4000"><%= u.improvementAction || '' %></textarea>
+          <div class="grid">
+            <div>
+              <label for="improvementPic_<%= f.id %>">Pelaksana (PIC)</label>
+              <input id="improvementPic_<%= f.id %>" type="text" name="improvementPic" maxlength="160" value="<%= u.improvementPic || '' %>">
+            </div>
+            <div>
+              <label for="improvementTarget_<%= f.id %>">Target selesai</label>
+              <input id="improvementTarget_<%= f.id %>" type="text" name="improvementTarget" maxlength="80" value="<%= u.improvementTarget || '' %>" placeholder="mis. Desember 2026">
+            </div>
+          </div>
+        <% } else { %>
+          <label for="rootCause_<%= f.id %>">Akar penyebab</label>
+          <textarea id="rootCause_<%= f.id %>" name="rootCause" maxlength="4000"><%= u.rootCause || '' %></textarea>
+
+          <fieldset>
+            <legend>Perbaikan / koreksi (tindakan langsung)</legend>
+            <label for="correction_<%= f.id %>">Uraian koreksi</label>
+            <textarea id="correction_<%= f.id %>" name="correction" maxlength="4000"><%= u.correction || '' %></textarea>
+            <div class="grid">
+              <div>
+                <label for="correctionPic_<%= f.id %>">Pelaksana (PIC)</label>
+                <input id="correctionPic_<%= f.id %>" type="text" name="correctionPic" maxlength="160" value="<%= u.correctionPic || '' %>">
+              </div>
+              <div>
+                <label for="correctionTarget_<%= f.id %>">Target selesai</label>
+                <input id="correctionTarget_<%= f.id %>" type="text" name="correctionTarget" maxlength="80" value="<%= u.correctionTarget || '' %>" placeholder="mis. Desember 2026">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Tindakan korektif (mencegah berulang)</legend>
+            <label for="correctiveAction_<%= f.id %>">Uraian tindakan korektif</label>
+            <textarea id="correctiveAction_<%= f.id %>" name="correctiveAction" maxlength="4000"><%= u.correctiveAction || '' %></textarea>
+            <div class="grid">
+              <div>
+                <label for="correctiveActionPic_<%= f.id %>">Pelaksana (PIC)</label>
+                <input id="correctiveActionPic_<%= f.id %>" type="text" name="correctiveActionPic" maxlength="160" value="<%= u.correctiveActionPic || '' %>">
+              </div>
+              <div>
+                <label for="correctiveActionTarget_<%= f.id %>">Target selesai</label>
+                <input id="correctiveActionTarget_<%= f.id %>" type="text" name="correctiveActionTarget" maxlength="80" value="<%= u.correctiveActionTarget || '' %>" placeholder="mis. Januari 2027">
+              </div>
+            </div>
+          </fieldset>
+        <% } %>
+        <p><button class="btn" type="submit">Simpan tindak lanjut</button></p>
+      </form>
+    </details>
+  <% }) %>
+<% } %>
+
+<h2>Catat temuan baru</h2>
+<% if (!me.canWrite) { %>
+  <div class="alert info">Sesi tidak menerima perubahan lagi, sehingga temuan baru tidak dapat dicatat.</div>
+<% } else { %>
+  <% if (errors.length > 0) { %>
+    <div class="alert error">
+      <strong>Temuan belum tersimpan:</strong>
+      <ul><% errors.forEach(function (er) { %><li><% if (er.path) { %><code><%= er.path %></code>: <% } %><%= er.message %></li><% }) %></ul>
+    </div>
+  <% } %>
+  <% if (linked) { %>
+    <div class="alert info">Terkait poin checklist: <strong><%= linked.criteria %></strong></div>
+  <% } %>
+  <form method="post" action="/auditor/penugasan/<%= assignment.id %>/temuan" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="clientRequestId" value="<%= form.clientRequestId %>">
+
+    <label for="answerId">Terkait poin checklist (opsional)</label>
+    <select id="answerId" name="answerId">
+      <option value="">Tidak terkait poin tertentu</option>
+      <% answerOptions.forEach(function (a) { %>
+        <option value="<%= a.answerId %>" <%= String(form.answerId) === String(a.answerId) ? 'selected' : '' %>><%= a.criteria.length > 90 ? a.criteria.slice(0, 90) + '...' : a.criteria %></option>
+      <% }) %>
+    </select>
+    <p class="muted small">Hanya poin yang dijawab TIDAK yang muncul di sini.</p>
+
+    <label for="classification">Klasifikasi</label>
+    <select id="classification" name="classification" required>
+      <option value="">Pilih...</option>
+      <option value="MAJOR" <%= form.classification === 'MAJOR' ? 'selected' : '' %>>Major: SOP tidak ada atau sama sekali tidak dikerjakan</option>
+      <option value="MINOR" <%= form.classification === 'MINOR' ? 'selected' : '' %>>Minor: dikerjakan tetapi tidak konsisten/tidak rutin</option>
+      <option value="OBSERVASI" <%= form.classification === 'OBSERVASI' ? 'selected' : '' %>>Observasi: sudah dikerjakan, dapat dioptimalkan</option>
+    </select>
+
+    <label for="problem">Masalah (Problem)</label>
+    <textarea id="problem" name="problem" required maxlength="4000"><%= form.problem %></textarea>
+
+    <label for="location">Lokasi (Location)</label>
+    <input id="location" type="text" name="location" required maxlength="1000" value="<%= form.location %>">
+
+    <label for="objectiveEvidence">Bukti objektif (Objective Evidence)</label>
+    <textarea id="objectiveEvidence" name="objectiveEvidence" required maxlength="4000"><%= form.objectiveEvidence %></textarea>
+
+    <label for="reference">Rujukan (Reference), mis. klausul atau nomor SOP</label>
+    <input id="reference" type="text" name="reference" required maxlength="1000" value="<%= form.reference %>">
+
+    <label for="note">Catatan tambahan (opsional)</label>
+    <textarea id="note" name="note" maxlength="4000"><%= form.note %></textarea>
+
+    <label for="evidenceUrl">Tautan bukti (opsional, https://)</label>
+    <input id="evidenceUrl" type="url" name="evidenceUrl" maxlength="1024" value="<%= form.evidenceUrl %>">
+
+    <p><button class="btn" type="submit">Simpan temuan</button></p>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>

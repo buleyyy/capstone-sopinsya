@@ -1,0 +1,49 @@
+<%- include('../partials/header') %>
+<h1>Master Checklist Audit</h1>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<h2>Versi checklist</h2>
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Standar</th><th>Versi</th><th>Status</th><th>Poin</th><th></th></tr></thead>
+    <tbody>
+      <% versions.forEach(function (v) { %>
+        <tr>
+          <td><%= v.standardCode %></td>
+          <td><%= v.versionLabel %></td>
+          <td><span class="badge <%= v.status.toLowerCase() %>"><%= versionLabel[v.status] %></span></td>
+          <td><%= v.itemCount %></td>
+          <td><a class="btn small secondary" href="/admin/checklist/<%= v.id %>">Buka</a></td>
+        </tr>
+      <% }) %>
+      <% if (versions.length === 0) { %><tr><td colspan="5" class="muted">Belum ada versi checklist.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<div class="grid">
+  <form method="post" action="/admin/checklist/standar" class="card">
+    <h3>Tambah standar</h3>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="code">Kode</label>
+    <input id="code" type="text" name="code" required maxlength="40" placeholder="ISO37001">
+    <label for="sname">Nama standar</label>
+    <input id="sname" type="text" name="name" required maxlength="160" placeholder="Sistem Manajemen Anti Penyuapan">
+    <p><button class="btn" type="submit">Tambah standar</button></p>
+  </form>
+
+  <form method="post" action="/admin/checklist/versi" class="card">
+    <h3>Buat versi baru (draf)</h3>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="standardId">Standar</label>
+    <select id="standardId" name="standardId" required>
+      <option value="">Pilih...</option>
+      <% standards.forEach(function (s) { %><option value="<%= s.id %>"><%= s.code %> - <%= s.name %></option><% }) %>
+    </select>
+    <label for="versionLabel">Label versi</label>
+    <input id="versionLabel" type="text" name="versionLabel" required maxlength="40" placeholder="v1">
+    <p><button class="btn" type="submit">Buat versi</button></p>
+  </form>
+</div>
+<p class="muted small">Versi yang sudah diterbitkan tidak dapat diubah. Perubahan dilakukan dengan membuat versi baru.</p>
+<%- include('../partials/footer') %>

@@ -1,0 +1,16 @@
+<%- include('../partials/header') %>
+<h1>Dashboard Audit</h1>
+<div class="card muted">
+  <p><strong>Selamat datang, Auditor.</strong></p>
+  <p>Belum ada sesi audit yang aktif, jadi Checklist Audit dan Register Temuan belum tersedia. Keduanya akan muncul di halaman ini setelah Admin mengaktifkan sesi dan menugaskan Anda. Muat ulang halaman setelah itu, tanpa perlu masuk lagi.</p>
+  <p class="small">Sementara itu, Pustaka SOP sudah dapat dibuka.</p>
+</div>
+<p>
+  <a class="btn" href="/auditor/sop">Buka Pustaka SOP</a>
+  <a class="btn secondary" href="/auditor">Muat ulang</a>
+</p>
+<form method="post" action="/auditor/keluar" class="inline">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <button class="btn secondary small" type="submit"><svg class="icon sm"><use href="#i-logout"/></svg>Keluar</button>
+</form>
+<%- include('../partials/footer') %>

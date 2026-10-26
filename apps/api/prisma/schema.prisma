@@ -4,13 +4,15 @@
 //  - Banyak standar dan versi checklist boleh dipakai bersamaan (AuditStandard -> ChecklistVersion).
 //    Versi PUBLISHED tidak boleh diubah (ditegakkan di service); perubahan = versi baru.
 //  - Satu AuditSession terikat pada satu ChecklistVersion yang tetap (checklistVersionId).
-//  - MaterialCategory (kamar materi) TERPISAH dari Department (unit yang diaudit).
+//  - MaterialCategory (Program) TERPISAH dari Department (unit yang diaudit).
 //  - Auditor TIDAK punya departemen asal. Self-audit dicegah lewat AuditorExclusion
 //    (unit yang dilarang diaudit oleh auditor tertentu, dideklarasikan Admin saat membuat undangan).
 //  - Akses lewat undangan per auditor: hanya hash yang disimpan (inviteHash, tokenHash).
 //  - Semua relasi rantai audit memakai onDelete: Restrict (tidak ada penghapusan beruntun).
 //  - Invarian lintas tabel dijaga foreign key komposit (lihat komentar @@unique "target FK").
-//  - Modul RD lama (pelatihan, pre/post-test, kuis) sengaja TIDAK ada di schema ini.
+//  - Pre-test/Post-test peserta (Test, TestQuestion, TestOption, TestAttempt, TestAttemptAnswer) ada di schema ini.
+//    Program dan pertemuan masih statis di web, jadi Test diikat lewat programSlug + meetingNo.
+//    Modul RD lama lainnya (katalog pelatihan di basis data, kuis) sengaja TIDAK ada.
 //  - Belum dimodelkan (menunggu konfirmasi klien): tindak lanjut/verifikasi temuan lanjutan,
 //    banyak tautan bukti, skor/persentase audit.
 
@@ -53,6 +55,89 @@ enum ChecklistVersionStatus {
   RETIRED
 }
 
+// ---------- Pre-test / Post-test peserta (publik, tanpa login) ----------
+
+enum TestType {
+  PRE
+  POST
+}
+
+// Satu tes per jenis per pertemuan. Program/pertemuan belum ada di basis data, jadi diikat lewat slug + nomor.
+model Test {
+  id          Int            @id @default(autoincrement())
+  programSlug String         @db.VarChar(80)
+  meetingNo   Int
+  type        TestType
+  title       String         @db.VarChar(160)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  questions   TestQuestion[]
+  attempts    TestAttempt[]
+
+  @@unique([programSlug, meetingNo, type])
+}
+
+// Soal tidak dihapus fisik bila sudah punya jawaban; cukup isActive = false agar riwayat konsisten.
+model TestQuestion {
+  id       Int                 @id @default(autoincrement())
+  testId   Int
+  orderNo  Int
+  text     String              @db.Text
+  isActive Boolean             @default(true)
+  test     Test                @relation(fields: [testId], references: [id], onDelete: Restrict)
+  options  TestOption[]
+  answers  TestAttemptAnswer[]
+
+  @@index([testId, orderNo])
+}
+
+// Opsi A-D. isCorrect (kunci jawaban) tidak pernah dikirim ke peserta.
+model TestOption {
+  id         Int                 @id @default(autoincrement())
+  questionId Int
+  label      String              @db.VarChar(1)
+  text       String              @db.VarChar(500)
+  isCorrect  Boolean             @default(false)
+  question   TestQuestion        @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  answers    TestAttemptAnswer[]
+
+  @@unique([questionId, label])
+}
+
+// Satu baris per percobaan. Identitas peserta berupa nama + instansi (tanpa akun login).
+model TestAttempt {
+  id                     Int                 @id @default(autoincrement())
+  testId                 Int
+  participantName        String              @db.VarChar(120)
+  participantInstitution String              @db.VarChar(160)
+  clientRequestId        String              @db.VarChar(64) // kunci idempotensi: klik Selesai ganda = satu percobaan
+  correctCount           Int
+  totalQuestions         Int
+  score                  Int // (correctCount / totalQuestions) * 100, dibulatkan
+  submittedAt            DateTime            @default(now())
+  test                   Test                @relation(fields: [testId], references: [id], onDelete: Restrict)
+  answers                TestAttemptAnswer[]
+
+  @@unique([testId, clientRequestId])
+  @@index([testId, submittedAt])
+}
+
+model TestAttemptAnswer {
+  id         Int           @id @default(autoincrement())
+  attemptId  Int
+  questionId Int
+  optionId   Int? // null = soal tidak dijawab (dihitung salah)
+  isCorrect  Boolean
+  attempt    TestAttempt   @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  question   TestQuestion  @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  option     TestOption?   @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+  @@index([optionId])
+}
+
 // ---------- Master data ----------
 
 model Department {
@@ -65,11 +150,14 @@ model Department {
   exclusions   AuditorExclusion[]
 }
 
-// "Kamar"/unit materi (notulensi: 13 unit). Bukan departemen.
+// "Program"/unit materi (notulensi: 13 unit). Bukan departemen.
 model MaterialCategory {
   id           Int           @id @default(autoincrement())
   name         String        @unique @db.VarChar(160)
+  description  String?       @db.Text
   sortOrder    Int           @default(0)
+  // Hanya Programyang dipublikasikan yang tampil di halaman publik peserta.
+  isPublished  Boolean       @default(false)
   sopDocuments SopDocument[]
 }
 
@@ -80,11 +168,13 @@ model SopDocument {
   categoryId     Int
   departmentId   Int? // pemilik SOP; null untuk materi umum
   pdfUrl         String?          @db.VarChar(1024) // hanya https; risiko akses dokumen internal dicatat di docs
+  // Dokumen baru TIDAK publik secara bawaan; harus dipublikasikan eksplisit agar SOP internal tidak bocor.
+  isPublished    Boolean          @default(false)
   category       MaterialCategory @relation(fields: [categoryId], references: [id])
   department     Department?      @relation(fields: [departmentId], references: [id])
   checklistItems ChecklistItem[]
 
-  @@index([categoryId])
+  @@index([categoryId, isPublished])
   @@index([departmentId])
 }
 
@@ -246,6 +336,18 @@ model Finding {
   evidenceUrl       String?                @db.VarChar(1024)
   status            FindingStatus          @default(OPEN)
   closedAt          DateTime?
+  // Tindak lanjut (formulir Laporan Ketidaksesuaian dan Tindakan Korektif). Diisi Auditor atas nama auditee.
+  // Major/Minor: rootCause, correction*, correctiveAction*. Observasi: improvement*. Semua opsional.
+  rootCause              String?           @db.Text
+  correction             String?           @db.Text
+  correctionPic          String?           @db.VarChar(160)
+  correctionTarget       String?           @db.VarChar(80)
+  correctiveAction       String?           @db.Text
+  correctiveActionPic    String?           @db.VarChar(160)
+  correctiveActionTarget String?           @db.VarChar(80)
+  improvementAction      String?           @db.Text
+  improvementPic         String?           @db.VarChar(160)
+  improvementTarget      String?           @db.VarChar(80)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   // FK komposit: penugasan harus berada di sesi yang sama dengan temuan.

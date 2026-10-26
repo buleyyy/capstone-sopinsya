@@ -1,0 +1,96 @@
+<%- include('../partials/header') %>
+<h1>Pustaka SOP</h1>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<h2>Program (<%= rooms.length %>)</h2>
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Urut</th><th>Nama</th><th>Dokumen</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <% rooms.forEach(function (r) { %>
+        <tr>
+          <td><%= r.sortOrder %></td>
+          <td><%= r.name %><% if (r.description) { %><div class="muted small"><%= r.description %></div><% } %></td>
+          <td><%= r.documentCount %></td>
+          <td><span class="badge <%= r.isPublished ? 'published' : 'draft' %>"><%= r.isPublished ? 'Terbit' : 'Draf' %></span></td>
+          <td>
+            <form method="post" action="/admin/sop/Program/<%= r.id %>/publikasi" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="hidden" name="value" value="<%= r.isPublished ? '0' : '1' %>">
+              <button class="btn secondary small" type="submit"><%= r.isPublished ? 'Tarik dari publik' : 'Terbitkan' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (rooms.length === 0) { %><tr><td colspan="5" class="muted">Belum ada Program.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="/admin/sop/Program" class="card">
+  <h3>Tambah Program</h3>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="room-name">Nama Program</label>
+  <input id="room-name" type="text" name="name" required maxlength="160" placeholder="mis. Kebijakan Anti Penyuapan">
+  <label for="room-description">Deskripsi (opsional)</label>
+  <textarea id="room-description" name="description" rows="3" maxlength="4000"></textarea>
+  <label for="room-sort">Nomor urut</label>
+  <input id="room-sort" type="number" name="sortOrder" min="0" max="100000" value="<%= rooms.length * 10 %>">
+  <label><input type="checkbox" name="isPublished" value="1"> Langsung terbitkan</label>
+  <p><button class="btn" type="submit">Tambah Program</button></p>
+</form>
+
+<h2>Dokumen SOP (<%= documents.length %>)</h2>
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Kode</th><th>Judul</th><th>Program</th><th>Unit</th><th>PDF</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <% documents.forEach(function (d) { %>
+        <tr>
+          <td class="nowrap"><%= d.code %></td>
+          <td><%= d.title %></td>
+          <td><%= d.roomName %></td>
+          <td><%= d.departmentName || '-' %></td>
+          <td><% if (d.pdfUrl) { %><a href="<%= d.pdfUrl %>" target="_blank" rel="noopener noreferrer">Buka</a><% } else { %><span class="muted small">Belum ada</span><% } %></td>
+          <td><span class="badge <%= d.isPublished ? 'published' : 'draft' %>"><%= d.isPublished ? 'Terbit' : 'Draf' %></span></td>
+          <td>
+            <form method="post" action="/admin/sop/dokumen/<%= d.id %>/publikasi" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="hidden" name="value" value="<%= d.isPublished ? '0' : '1' %>">
+              <button class="btn secondary small" type="submit"><%= d.isPublished ? 'Tarik dari publik' : 'Terbitkan' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (documents.length === 0) { %><tr><td colspan="7" class="muted">Belum ada dokumen SOP.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<% if (rooms.length === 0) { %>
+  <div class="alert info">Tambahkan minimal satu Program sebelum menambah dokumen SOP.</div>
+<% } else { %>
+  <form method="post" action="/admin/sop/dokumen" class="card">
+    <h3>Tambah dokumen SOP</h3>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="doc-code">Kode dokumen</label>
+    <input id="doc-code" type="text" name="code" required maxlength="60" placeholder="mis. SOP-HCGA-001">
+    <label for="doc-title">Judul</label>
+    <input id="doc-title" type="text" name="title" required maxlength="255">
+    <label for="doc-room">Program</label>
+    <select id="doc-room" name="categoryId" required>
+      <option value="">Pilih...</option>
+      <% rooms.forEach(function (r) { %><option value="<%= r.id %>"><%= r.name %></option><% }) %>
+    </select>
+    <label for="doc-dept">Unit terkait (opsional)</label>
+    <select id="doc-dept" name="departmentId">
+      <option value="">Tidak ada</option>
+      <% departments.forEach(function (d) { %><option value="<%= d.id %>"><%= d.name %></option><% }) %>
+    </select>
+    <label for="doc-pdf">Tautan PDF (https://, opsional)</label>
+    <input id="doc-pdf" type="url" name="pdfUrl" maxlength="1024" placeholder="https://drive.google.com/drive/folders/1AmQvrqtKZ5GD_TvkCW9aId20lagPufvQ">
+    <label><input type="checkbox" name="isPublished" value="1"> Langsung terbitkan</label>
+    <p><button class="btn" type="submit">Tambah dokumen</button></p>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>

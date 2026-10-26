@@ -1,0 +1,62 @@
+<%- include('../partials/header') %>
+<p><a href="/admin/checklist">&larr; Semua versi</a></p>
+<h1>Checklist <%= version.standardCode %> <%= version.versionLabel %>
+  <span class="badge <%= version.status.toLowerCase() %>"><%= versionLabel[version.status] %></span></h1>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<% if (version.status === 'DRAFT') { %>
+  <form method="post" action="/admin/checklist/<%= version.id %>/item" class="card">
+    <h2>Tambah poin</h2>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+
+    <label for="departmentId">Unit yang diaudit</label>
+    <select id="departmentId" name="departmentId" required>
+      <option value="">Pilih...</option>
+      <% departments.forEach(function (d) { %><option value="<%= d.id %>"><%= d.name %></option><% }) %>
+    </select>
+
+    <label for="criteria">Poin pemeriksaan (satu baris = satu poin)</label>
+    <textarea id="criteria" name="criteria" required rows="6" placeholder="Klausul 5.2 | Apakah kebijakan anti penyuapan tersedia dan dikomunikasikan?"></textarea>
+    <p class="muted small">Format baris: <code>Rujukan | Pertanyaan</code>. Rujukan boleh dikosongkan (tulis pertanyaannya saja). Maksimal 200 baris per kiriman. Jawaban auditor hanya YA atau TIDAK.</p>
+
+    <label for="sopId">Dokumen SOP terkait (opsional, berlaku untuk semua poin dalam kiriman ini)</label>
+    <select id="sopId" name="sopId">
+      <option value="">Tidak ada</option>
+      <% documents.forEach(function (d) { %><option value="<%= d.id %>"><%= d.code %> - <%= d.title %></option><% }) %>
+    </select>
+
+    <label for="sortOrder">Nomor urut awal</label>
+    <input id="sortOrder" type="number" name="sortOrder" min="0" max="100000" value="<%= items.length * 10 %>">
+
+    <p><button class="btn" type="submit">Tambahkan poin</button></p>
+  </form>
+<% } else { %>
+  <div class="alert info">Versi ini sudah <%= versionLabel[version.status].toLowerCase() %> dan tidak dapat diubah. Buat versi baru bila perlu perubahan.</div>
+<% } %>
+
+<h2>Poin (<%= items.length %>)</h2>
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Unit</th><th>Rujukan</th><th>Pertanyaan</th><th>SOP</th></tr></thead>
+    <tbody>
+      <% items.forEach(function (i) { %>
+        <tr>
+          <td><%= i.departmentName %></td>
+          <td><%= i.reference || '-' %></td>
+          <td><%= i.criteria %></td>
+          <td><%= i.sopCode || '-' %></td>
+        </tr>
+      <% }) %>
+      <% if (items.length === 0) { %><tr><td colspan="4" class="muted">Belum ada poin.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<% if (version.status === 'DRAFT' && items.length > 0) { %>
+  <form method="post" action="/admin/checklist/<%= version.id %>/terbit" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <p><strong>Terbitkan versi ini?</strong> Setelah terbit, poin tidak dapat diubah dan versi dapat dipakai untuk sesi audit.</p>
+    <button class="btn" type="submit">Terbitkan</button>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>

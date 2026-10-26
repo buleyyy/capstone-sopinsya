@@ -1,0 +1,41 @@
+<%- include('../partials/header') %>
+<h1>Sesi Audit</h1>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Sesi</th><th>Status</th><th>Batas tulis</th><th>Auditor</th><th>Penugasan</th></tr></thead>
+    <tbody>
+      <% sessions.forEach(function (s) { %>
+        <tr>
+          <td><a href="/admin/sesi/<%= s.id %>"><%= s.title %></a><div class="muted small"><%= s.standardCode %> <%= s.versionLabel %></div></td>
+          <td><span class="badge <%= s.status.toLowerCase() %>"><%= sessionLabel[s.status] %></span></td>
+          <td><%= fmt(s.expiresAt) %></td>
+          <td><%= s.auditorCount %></td>
+          <td><%= s.assignmentCount %></td>
+        </tr>
+      <% }) %>
+      <% if (sessions.length === 0) { %><tr><td colspan="5" class="muted">Belum ada sesi.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<h2>Buat sesi baru</h2>
+<% if (versions.length === 0) { %>
+  <div class="alert info">Belum ada versi checklist yang diterbitkan. <a href="/admin/checklist">Siapkan checklist</a> terlebih dahulu.</div>
+<% } else { %>
+  <form method="post" action="/admin/sesi" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="title">Judul sesi</label>
+    <input id="title" type="text" name="title" required maxlength="160" placeholder="UAT Audit Internal ISO 37001">
+    <label for="checklistVersionId">Versi checklist (terbit)</label>
+    <select id="checklistVersionId" name="checklistVersionId" required>
+      <% versions.forEach(function (v) { %><option value="<%= v.id %>"><%= v.standardCode %> <%= v.versionLabel %> (<%= v.itemCount %> poin)</option><% }) %>
+    </select>
+    <label for="expiresAt">Batas waktu pengisian (WIB)</label>
+    <input id="expiresAt" type="datetime-local" name="expiresAt" required>
+    <p class="muted small">Setelah batas ini auditor hanya dapat melihat data. Anda dapat memperpanjangnya selama sesi aktif.</p>
+    <p><button class="btn" type="submit">Buat sesi (draf)</button></p>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>

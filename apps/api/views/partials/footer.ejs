@@ -1,0 +1,12 @@
+<%
+  var fRole = (locals.audit || locals.auditorNoSession) ? 'auditor' : (locals.csrfBinding ? 'admin' : null);
+%><% if (fRole) { %>
+    </main>
+  </div>
+</div>
+<% } else { %>
+</div>
+</main>
+<% } %>
+</body>
+</html>

@@ -3,6 +3,7 @@ import {
   claimSchema,
   closeFindingSchema,
   createFindingSchema,
+  followUpSchema,
   idSchema,
   parseInput,
   saveAnswerSchema,
@@ -16,6 +17,8 @@ import type {
   AuditorRecord,
   ChecklistItemDetail,
   ChecklistItemRecord,
+  FindingFollowUp,
+  FindingFollowUpRecord,
   FindingHistoryRecord,
   FindingRecord,
   SessionRecord,
@@ -79,6 +82,38 @@ export async function authenticate(store: AuditStore, sessionToken: string, now:
     checklistVersionId: found.session.checklistVersionId,
     session: found.session,
   };
+}
+
+const toContext = (found: { auditor: AuditorRecord; session: SessionRecord }): AuditContext => ({
+  sessionId: found.session.id,
+  auditorId: found.auditor.id,
+  checklistVersionId: found.session.checklistVersionId,
+  session: found.session,
+});
+
+/**
+ * Login kata sandi bersama (tanpa undangan): kata sandi sudah diverifikasi pemanggil (WebSecurity).
+ * Memilih akun Auditor pada sesi ACTIVE terbaru. Tidak ada sesi ACTIVE atau auditor -> 409 dengan petunjuk untuk Admin.
+ */
+export async function resolvePasswordLogin(store: AuditStore, now: Date = new Date()): Promise<AuditContext> {
+  const found = await store.findPasswordLoginAuditor();
+  if (!found) {
+    throw new AppError(
+      409,
+      "NO_ACTIVE_AUDIT_SESSION",
+      "Belum ada sesi audit aktif dengan akun Auditor. Minta Admin mengaktifkan sesi dan menambahkan auditor.",
+    );
+  }
+  assertCanAccess(found.session, now);
+  return toContext(found);
+}
+
+/** Mengenali pemanggil dari id auditor pada cookie bertanda tangan. Status sesi dibaca ulang pada setiap request. */
+export async function authenticateById(store: AuditStore, auditorId: number, now: Date = new Date()): Promise<AuditContext> {
+  const found = await store.findAuthByAuditorId(auditorId);
+  if (!found || found.auditor.revokedAt !== null) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
+  assertCanAccess(found.session, now);
+  return toContext(found);
 }
 
 /** Logout (L2): token dikosongkan; auditor butuh undangan baru dari Admin untuk masuk lagi. */
@@ -320,6 +355,66 @@ export async function closeFinding(
   const finding = await store.findFindingOwned(ctx.sessionId, ctx.auditorId, id);
   if (!finding) throw notFound();
   return { finding, changed };
+}
+
+const FOLLOW_UP_CAPA_FIELDS = [
+  "rootCause",
+  "correction",
+  "correctionPic",
+  "correctionTarget",
+  "correctiveAction",
+  "correctiveActionPic",
+  "correctiveActionTarget",
+] as const;
+const FOLLOW_UP_IMPROVEMENT_FIELDS = ["improvementAction", "improvementPic", "improvementTarget"] as const;
+
+/**
+ * Menyimpan tindak lanjut temuan milik sendiri (menimpa seluruh kolom tindak lanjut).
+ * Aturan formulir: Major/Minor memakai akar penyebab, koreksi, dan tindakan korektif; Observasi hanya
+ * tindakan peningkatan. Berlaku selama sesi dapat diakses (canAccess), seperti menutup temuan.
+ */
+export async function saveFindingFollowUp(
+  store: AuditStore,
+  ctx: AuditContext,
+  findingId: number,
+  rawInput: unknown,
+  now: Date = new Date(),
+): Promise<FindingFollowUp> {
+  const input = parseInput(followUpSchema, rawInput ?? {});
+  const id = parseInput(idSchema, findingId);
+  assertCanAccess(ctx.session, now);
+
+  const existing = await store.findFindingOwned(ctx.sessionId, ctx.auditorId, id);
+  if (!existing) throw notFound();
+
+  const hasCapa = FOLLOW_UP_CAPA_FIELDS.some((k) => input[k] !== null);
+  const hasImprovement = FOLLOW_UP_IMPROVEMENT_FIELDS.some((k) => input[k] !== null);
+  if (existing.classification === "OBSERVASI" && hasCapa) {
+    throw new AppError(
+      422,
+      "FOLLOWUP_NOT_ALLOWED",
+      "Temuan Observasi tidak memakai akar penyebab, koreksi, dan tindakan korektif. Isi tindakan peningkatan saja.",
+    );
+  }
+  if (existing.classification !== "OBSERVASI" && hasImprovement) {
+    throw new AppError(
+      422,
+      "FOLLOWUP_NOT_ALLOWED",
+      "Tindakan peningkatan hanya untuk temuan Observasi. Temuan Major/Minor memakai akar penyebab, koreksi, dan tindakan korektif.",
+    );
+  }
+
+  await store.saveFindingFollowUp(existing.id, input);
+  return input;
+}
+
+export async function listFindingFollowUps(
+  store: AuditStore,
+  ctx: AuditContext,
+  assignmentId: number,
+): Promise<FindingFollowUpRecord[]> {
+  const assignment = await loadOwnAssignment(store, ctx, assignmentId);
+  return store.listFindingFollowUps(assignment.id);
 }
 
 export async function getFindingHistory(

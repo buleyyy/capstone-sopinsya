@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Ilustrasi pelatihan">
+  <rect x="40" y="218" width="320" height="6" rx="3" fill="#dfe6ee"/>
+  <rect x="110" y="50" width="70" height="165" rx="6" fill="#f1f1f1"/>
+  <rect x="215" y="55" width="85" height="60" rx="3" fill="#fafafa"/>
+  <rect x="205" y="140" width="115" height="78" rx="4" fill="#ececec"/>
+  <rect x="150" y="112" width="40" height="78" rx="5" fill="#2f66d6"/>
+  <circle cx="205" cy="96" r="12" fill="#1c2430"/>
+  <rect x="190" y="110" width="30" height="52" rx="8" fill="#3b6ff0"/>
+  <rect x="192" y="160" width="11" height="52" fill="#a9c2ff"/>
+  <rect x="207" y="160" width="11" height="52" fill="#a9c2ff"/>
+  <rect x="190" y="210" width="15" height="6" rx="3" fill="#1c2430"/>
+  <rect x="206" y="210" width="15" height="6" rx="3" fill="#1c2430"/>
+</svg>

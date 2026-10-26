@@ -1,0 +1,21 @@
+<%- include('../partials/header') %>
+<h1>Departemen / Unit yang Diaudit</h1>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<form method="post" action="/admin/departemen" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="name">Nama departemen</label>
+  <input id="name" type="text" name="name" required maxlength="120" placeholder="mis. IT, HCGA, Keuangan, Procurement">
+  <p><button class="btn" type="submit">Tambah</button></p>
+</form>
+
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>ID</th><th>Nama</th></tr></thead>
+    <tbody>
+      <% departments.forEach(function (d) { %><tr><td><%= d.id %></td><td><%= d.name %></td></tr><% }) %>
+      <% if (departments.length === 0) { %><tr><td colspan="2" class="muted">Belum ada departemen.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

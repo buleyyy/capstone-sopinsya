@@ -1,0 +1,80 @@
+<%- include('../partials/header') %>
+<h1>Dashboard Audit</h1>
+
+<% if (!me.canWrite) { %>
+  <div class="alert info">
+    <% if (me.sessionStatus === 'CLOSED') { %>
+      Sesi ini sudah ditutup. Anda hanya dapat melihat data
+      <% if (me.auditorAccessUntil) { %>sampai <strong><%= fmt(me.auditorAccessUntil) %></strong><% } %>.
+    <% } else { %>
+      Batas waktu pengisian (<%= fmt(me.expiresAt) %>) sudah lewat, sehingga data hanya dapat dilihat.
+    <% } %>
+  </div>
+<% } else { %>
+  <p class="muted">Batas waktu pengisian: <strong><%= fmt(me.expiresAt) %></strong></p>
+<% } %>
+
+<% if (dash.length === 0) { %>
+  <div class="card">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div>
+<% } else { %>
+  <div class="grid">
+    <div class="card">
+      <div class="muted">Kemajuan pengisian</div>
+      <div class="stat"><%= percent(totals.answered, totals.items) %>%</div>
+      <progress max="100" value="<%= percent(totals.answered, totals.items) %>"></progress>
+      <div class="muted small"><%= totals.answered %> dari <%= totals.items %> poin terjawab</div>
+    </div>
+    <div class="card">
+      <div class="muted">Kesesuaian (YA dari yang terjawab)</div>
+      <div class="stat"><%= percent(totals.ya, totals.answered) %>%</div>
+      <progress max="100" value="<%= percent(totals.ya, totals.answered) %>"></progress>
+      <div class="muted small">YA: <%= totals.ya %> &middot; TIDAK: <%= totals.tidak %></div>
+    </div>
+    <div class="card">
+      <div class="muted">Temuan</div>
+      <div class="stat"><%= totals.major + totals.minor + totals.observasi %></div>
+      <div class="small">
+        <span class="badge major">Major <%= totals.major %></span>
+        <span class="badge minor">Minor <%= totals.minor %></span>
+        <span class="badge observasi">Observasi <%= totals.observasi %></span>
+      </div>
+      <div class="muted small">Terbuka: <%= totals.open %> &middot; Ditutup: <%= totals.closed %></div>
+    </div>
+  </div>
+
+  <h2>Per unit yang diaudit</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead>
+        <tr><th>Unit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Belum</th><th>Temuan (terbuka/total)</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% dash.forEach(function (d) { %>
+          <tr>
+            <td><strong><%= d.departmentName %></strong></td>
+            <td><%= percent(d.answered, d.totalItems) %>% <span class="muted small">(<%= d.answered %>/<%= d.totalItems %>)</span></td>
+            <td><%= d.ya %></td>
+            <td><%= d.tidak %></td>
+            <td><%= d.unanswered %></td>
+            <td><%= d.findings.open %>/<%= d.findings.total %></td>
+            <td class="nowrap">
+              <a class="btn small" href="/auditor/penugasan/<%= d.assignmentId %>">Checklist</a>
+              <a class="btn small secondary" href="/auditor/penugasan/<%= d.assignmentId %>/temuan">Temuan</a>
+              <a class="btn small secondary" href="/auditor/penugasan/<%= d.assignmentId %>/laporan">Laporan</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
+<h2>Keluar</h2>
+<div class="card">
+  <p class="muted">Keluar menghapus sesi login di perangkat ini. Anda dapat masuk lagi kapan saja dengan email dan kata sandi Auditor.</p>
+  <form method="post" action="/auditor/keluar">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn danger" type="submit">Keluar</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

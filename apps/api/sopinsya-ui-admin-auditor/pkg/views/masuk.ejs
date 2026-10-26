@@ -1,0 +1,53 @@
+<%- include('partials/header', { wide: true }) %>
+<div class="gate-card">
+  <div class="gate-side">
+    <div>
+      <div class="side-brand">
+        <span class="side-logo"><svg class="icon"><use href="#i-shield"/></svg></span>
+        <span><strong>SOPINSYA</strong><span>Pelatihan &amp; Audit</span></span>
+      </div>
+      <h2>Integritas tanpa kompromi, tata kelola akuntabel</h2>
+      <p class="small">Platform pelatihan dan audit internal Sistem Manajemen Anti Penyuapan (ISO 37001).</p>
+    </div>
+    <ul class="pillars">
+      <li><b>No Bribery</b><span>Hindari penyuapan</span></li>
+      <li><b>No Kickback</b><span>Tanpa komisi ilegal</span></li>
+      <li><b>No Gift</b><span>Tolak gratifikasi</span></li>
+      <li><b>No Extortion</b><span>Cegah pemerasan</span></li>
+    </ul>
+  </div>
+  <div class="gate-form">
+    <span class="eyebrow">Otentikasi Kepatuhan</span>
+    <h1>Masuk ke Portal Audit SMAP</h1>
+    <p class="muted">Peran (Admin atau Auditor) ditentukan dari email. Peserta pelatihan tidak perlu masuk.</p>
+
+    <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+    <form method="post" action="/masuk" autocomplete="off">
+      <label for="email">Email</label>
+      <div class="field-icon">
+        <svg class="icon"><use href="#i-mail"/></svg>
+        <input id="email" type="text" name="email" required maxlength="120" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="<%= auditorEmail %>">
+      </div>
+      <label for="secret">Kata sandi (Admin) atau kode undangan (Auditor)</label>
+      <div class="field-icon">
+        <svg class="icon"><use href="#i-lock"/></svg>
+        <input id="secret" type="password" name="secret" required maxlength="256" value="<%= code %>" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <p><button class="btn block" type="submit">Masuk ke Sistem <svg class="icon sm"><use href="#i-arrow"/></svg></button></p>
+    </form>
+
+    <div class="role-grid">
+      <section>
+        <h3>Admin</h3>
+        <p>Email <code><%= adminEmail %></code> dan kata sandi Admin.</p>
+        <% if (!adminEnabled) { %><p>Login Admin belum diaktifkan di server.</p><% } %>
+      </section>
+      <section>
+        <h3>Auditor</h3>
+        <p>Email <code><%= auditorEmail %></code> dan kode dari tautan undangan Admin (sekali pakai).</p>
+      </section>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

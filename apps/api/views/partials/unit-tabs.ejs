@@ -1,0 +1,6 @@
+<%# Tab unit auditor. Butuh: assignment, tab ('checklist' | 'temuan' | 'laporan'). Opsional: findingCount. %>
+<div class="tabs no-print" role="navigation" aria-label="Bagian unit">
+  <a href="/auditor/penugasan/<%= assignment.id %>"<%- tab === 'checklist' ? ' class="active" aria-current="page"' : '' %>><svg class="icon sm"><use href="#i-checklist"/></svg>Checklist &amp; Kertas Kerja</a>
+  <a href="/auditor/penugasan/<%= assignment.id %>/temuan"<%- tab === 'temuan' ? ' class="active" aria-current="page"' : '' %>><svg class="icon sm"><use href="#i-alert"/></svg>Register Temuan<% if (locals.findingCount) { %> <span class="count"><%= locals.findingCount %></span><% } %></a>
+  <a href="/auditor/penugasan/<%= assignment.id %>/laporan"<%- tab === 'laporan' ? ' class="active" aria-current="page"' : '' %>><svg class="icon sm"><use href="#i-file"/></svg>Laporan</a>
+</div>

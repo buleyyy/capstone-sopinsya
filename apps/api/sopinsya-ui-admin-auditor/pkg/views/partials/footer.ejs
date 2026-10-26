@@ -1,0 +1,11 @@
+<% var role = locals.audit ? 'auditor' : (locals.csrfBinding ? 'admin' : null); %>
+<% if (role) { %>
+    </main>
+  </div>
+</div>
+<% } else { %>
+</div>
+</main>
+<% } %>
+</body>
+</html>

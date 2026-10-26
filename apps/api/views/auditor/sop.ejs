@@ -1,0 +1,40 @@
+<%- include('../partials/header') %>
+<% if (room) { %>
+  <p><a href="/auditor/sop">&larr; Semua Program</a></p>
+  <h1><%= room.name %></h1>
+  <% if (room.description) { %><p><%= room.description %></p><% } %>
+  <% if (room.documents.length === 0) { %>
+    <div class="card muted">Belum ada dokumen yang dipublikasikan di Programini.</div>
+  <% } else { %>
+    <div class="card tablewrap">
+      <table>
+        <thead><tr><th>Kode</th><th>Judul</th><th></th></tr></thead>
+        <tbody>
+          <% room.documents.forEach(function (d) { %>
+            <tr>
+              <td class="nowrap"><%= d.code %></td>
+              <td><%= d.title %></td>
+              <td><% if (d.url) { %><a class="btn small" href="<%= d.url %>" target="_blank" rel="noopener noreferrer">Buka PDF</a><% } else { %><span class="muted small">Tautan belum tersedia</span><% } %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+<% } else { %>
+  <h1>Pustaka SOP</h1>
+  <% if (rooms.length === 0) { %>
+    <div class="card muted">Belum ada Program yang dipublikasikan.</div>
+  <% } else { %>
+    <div class="grid">
+      <% rooms.forEach(function (r) { %>
+        <a class="card" href="/auditor/sop/<%= r.id %>">
+          <strong><%= r.name %></strong>
+          <% if (r.description) { %><p class="muted small"><%= r.description %></p><% } %>
+          <span class="muted small"><%= r.documentCount %> dokumen</span>
+        </a>
+      <% }) %>
+    </div>
+  <% } %>
+<% } %>
+<%- include('../partials/footer') %>

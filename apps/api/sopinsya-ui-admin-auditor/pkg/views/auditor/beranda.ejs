@@ -1,0 +1,81 @@
+<%- include('../partials/header', { nav: 'dashboard' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Ruang Kerja Auditor Lapangan</span>
+    <h1>Dashboard Audit</h1>
+    <% if (me.canWrite) { %><p>Batas waktu pengisian: <strong><%= fmt(me.expiresAt) %></strong></p><% } %>
+  </div>
+</div>
+
+<% if (!me.canWrite) { %>
+  <div class="alert info">
+    <% if (me.sessionStatus === 'CLOSED') { %>
+      Sesi ini sudah ditutup. Anda hanya dapat melihat data
+      <% if (me.auditorAccessUntil) { %>sampai <strong><%= fmt(me.auditorAccessUntil) %></strong><% } %>.
+    <% } else { %>
+      Batas waktu pengisian (<%= fmt(me.expiresAt) %>) sudah lewat, sehingga data hanya dapat dilihat.
+    <% } %>
+  </div>
+<% } %>
+
+<% if (dash.length === 0) { %>
+  <div class="card">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div>
+<% } else { %>
+  <div class="grid">
+    <div class="card kpi">
+      <div class="kpi-top"><div><div class="kpi-label">Kemajuan pengisian</div><div class="stat"><%= percent(totals.answered, totals.items) %>%</div></div><span class="kpi-icon"><svg class="icon"><use href="#i-checklist"/></svg></span></div>
+      <progress max="100" value="<%= percent(totals.answered, totals.items) %>"></progress>
+      <div class="kpi-foot"><%= totals.answered %> dari <%= totals.items %> poin terjawab</div>
+    </div>
+    <div class="card kpi">
+      <div class="kpi-top"><div><div class="kpi-label">Kesesuaian (YA)</div><div class="stat"><%= percent(totals.ya, totals.answered) %>%</div></div><span class="kpi-icon"><svg class="icon"><use href="#i-shield"/></svg></span></div>
+      <progress max="100" value="<%= percent(totals.ya, totals.answered) %>"></progress>
+      <div class="kpi-foot">YA: <%= totals.ya %> &middot; TIDAK: <%= totals.tidak %></div>
+    </div>
+    <div class="card kpi">
+      <div class="kpi-top"><div><div class="kpi-label">Temuan</div><div class="stat"><%= totals.major + totals.minor + totals.observasi %></div></div><span class="kpi-icon"><svg class="icon"><use href="#i-alert"/></svg></span></div>
+      <div class="kpi-foot">
+        <span class="badge major">Major <%= totals.major %></span>
+        <span class="badge minor">Minor <%= totals.minor %></span>
+        <span class="badge observasi">Observasi <%= totals.observasi %></span>
+      </div>
+      <div class="kpi-foot">Terbuka: <%= totals.open %> &middot; Ditutup: <%= totals.closed %></div>
+    </div>
+  </div>
+
+  <h2>Per unit yang diaudit</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Unit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Belum</th><th>Temuan (terbuka/total)</th><th></th></tr></thead>
+      <tbody>
+        <% dash.forEach(function (d) { %>
+          <tr>
+            <td><strong><%= d.departmentName %></strong></td>
+            <td>
+              <div class="pct"><b><%= percent(d.answered, d.totalItems) %>%</b><span><%= d.answered %>/<%= d.totalItems %></span></div>
+              <progress max="100" value="<%= percent(d.answered, d.totalItems) %>"></progress>
+            </td>
+            <td><%= d.ya %></td>
+            <td><%= d.tidak %></td>
+            <td><%= d.unanswered %></td>
+            <td><%= d.findings.open %>/<%= d.findings.total %></td>
+            <td class="nowrap">
+              <a class="btn small" href="/auditor/penugasan/<%= d.assignmentId %>">Checklist</a>
+              <a class="btn small secondary" href="/auditor/penugasan/<%= d.assignmentId %>/temuan">Temuan</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
+<div class="card">
+  <h3>Keluar</h3>
+  <p class="muted">Keluar menghanguskan akses di perangkat ini. Untuk masuk lagi Anda memerlukan undangan baru dari Admin. Jangan keluar kecuali Anda selesai atau berganti perangkat.</p>
+  <form method="post" action="/auditor/keluar">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn danger" type="submit"><svg class="icon sm"><use href="#i-logout"/></svg>Keluar dan hanguskan akses</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

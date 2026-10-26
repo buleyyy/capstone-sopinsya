@@ -12,6 +12,8 @@ import {
   type ChecklistVersionRecord,
   type DepartmentRecord,
   type FindingCount,
+  type FindingFollowUp,
+  type FindingFollowUpRecord,
   type FindingHistoryRecord,
   type FindingRecord,
   type NewFinding,
@@ -77,6 +79,10 @@ export class PrismaAuditStore implements AuditStore {
     return (await this.db.department.count({ where: { id: departmentId } })) > 0;
   }
 
+  listDepartments(): Promise<DepartmentRecord[]> {
+    return this.db.department.findMany({ orderBy: { id: "asc" }, select: { id: true, name: true } });
+  }
+
   createStandard(data: { code: string; name: string }): Promise<StandardRecord> {
     return unique(() => this.db.auditStandard.create({ data }));
   }
@@ -93,6 +99,10 @@ export class PrismaAuditStore implements AuditStore {
 
   findChecklistVersion(versionId: number): Promise<ChecklistVersionRecord | null> {
     return this.db.checklistVersion.findUnique({ where: { id: versionId } });
+  }
+
+  findLatestPublishedVersion(): Promise<ChecklistVersionRecord | null> {
+    return this.db.checklistVersion.findFirst({ where: { status: "PUBLISHED" }, orderBy: { id: "desc" } });
   }
 
   async addChecklistItem(data: Omit<ChecklistItemRecord, "id">): Promise<ChecklistItemRecord | null> {
@@ -171,6 +181,11 @@ export class PrismaAuditStore implements AuditStore {
     return r ? toSession(r) : null;
   }
 
+  async findLatestActiveSession(): Promise<SessionRecord | null> {
+    const r = await this.db.auditSession.findFirst({ where: { status: "ACTIVE" }, orderBy: { id: "desc" } });
+    return r ? toSession(r) : null;
+  }
+
   async activateSession(sessionId: number): Promise<boolean> {
     const r = await this.db.auditSession.updateMany({
       where: { id: sessionId, status: "DRAFT" },
@@ -235,6 +250,18 @@ export class PrismaAuditStore implements AuditStore {
   async findAuthByTokenHash(tokenHash: string): Promise<AuthRecord | null> {
     const r = await this.db.auditor.findUnique({ where: { tokenHash }, include: { session: true } });
     return r ? { auditor: toAuditor(r), session: toSession(r.session) } : null;
+  }
+
+  async findAuthByAuditorId(auditorId: number): Promise<AuthRecord | null> {
+    const r = await this.db.auditor.findUnique({ where: { id: auditorId }, include: { session: true } });
+    return r ? { auditor: toAuditor(r), session: toSession(r.session) } : null;
+  }
+
+  async findPasswordLoginAuditor(): Promise<AuthRecord | null> {
+    const session = await this.db.auditSession.findFirst({ where: { status: "ACTIVE" }, orderBy: { id: "desc" } });
+    if (!session) return null;
+    const r = await this.db.auditor.findFirst({ where: { sessionId: session.id, revokedAt: null }, orderBy: { id: "asc" } });
+    return r ? { auditor: toAuditor(r), session: toSession(session) } : null;
   }
 
   async claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null> {
@@ -397,5 +424,30 @@ export class PrismaAuditStore implements AuditStore {
       else map.set(key, { classification: r.classification, status: r.status, count: 1 });
     }
     return [...map.values()];
+  }
+
+  async saveFindingFollowUp(findingId: number, data: FindingFollowUp): Promise<void> {
+    await this.db.finding.update({ where: { id: findingId }, data });
+  }
+
+  async listFindingFollowUps(assignmentId: number): Promise<FindingFollowUpRecord[]> {
+    const rows = await this.db.finding.findMany({
+      where: { assignmentId },
+      orderBy: { seq: "asc" },
+      select: {
+        id: true,
+        rootCause: true,
+        correction: true,
+        correctionPic: true,
+        correctionTarget: true,
+        correctiveAction: true,
+        correctiveActionPic: true,
+        correctiveActionTarget: true,
+        improvementAction: true,
+        improvementPic: true,
+        improvementTarget: true,
+      },
+    });
+    return rows.map(({ id, ...rest }) => ({ findingId: id, ...rest }));
   }
 }

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import path from "node:path";
+import { config } from "dotenv";
+
+// apps/api/src/config -> naik dua level ke apps/api/.env
+config({ path: path.resolve(__dirname, "../../.env") });
 
 const emptyToUndefined = (v: unknown) =>
   typeof v === "string" && v.trim() === "" ? undefined : v;
@@ -28,11 +33,24 @@ const envSchema = z
     APP_ORIGIN: z.preprocess(emptyToUndefined, z.string().url().optional()),
     // Rahasia penurunan token CSRF. Wajib (>= 32 karakter) di production; jangan pernah di-commit.
     CSRF_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, "CSRF_SECRET minimal 32 karakter").optional()),
+    // Kata sandi Admin untuk halaman /admin (satu akun untuk UAT). Kosong = halaman Admin dinonaktifkan.
+    ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "ADMIN_PASSWORD minimal 8 karakter").optional()),
+    // Identitas gerbang masuk bersama. Email hanya memilih peran; kredensialnya berbeda
+    // (Admin: ADMIN_PASSWORD, Auditor: AUDITOR_PASSWORD). Bawaan: admin@sopinsya dan auditor@sopinsya.
+    AUDITOR_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "AUDITOR_PASSWORD minimal 8 karakter").optional()),
+    ADMIN_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
+    AUDITOR_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV === "production") {
       if (!v.CSRF_SECRET) ctx.addIssue({ code: "custom", path: ["CSRF_SECRET"], message: "CSRF_SECRET wajib di production" });
       if (!v.APP_ORIGIN) ctx.addIssue({ code: "custom", path: ["APP_ORIGIN"], message: "APP_ORIGIN wajib di production" });
+      if (v.ADMIN_PASSWORD && v.ADMIN_PASSWORD.length < 12) {
+        ctx.addIssue({ code: "custom", path: ["ADMIN_PASSWORD"], message: "ADMIN_PASSWORD minimal 12 karakter di production" });
+      }
+      if (v.AUDITOR_PASSWORD && v.AUDITOR_PASSWORD.length < 12) {
+        ctx.addIssue({ code: "custom", path: ["AUDITOR_PASSWORD"], message: "AUDITOR_PASSWORD minimal 12 karakter di production" });
+      }
     }
   });
 

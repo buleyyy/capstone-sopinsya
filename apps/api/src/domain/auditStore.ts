@@ -99,6 +99,21 @@ export interface FindingHistoryRecord {
 
 export interface FindingCount { classification: FindingClass; status: FindingStatus; count: number }
 
+/** Tindak lanjut temuan (kolom 5-7 formulir). Semua opsional; aturan per kategori ditegakkan service. */
+export interface FindingFollowUp {
+  rootCause: string | null;
+  correction: string | null;
+  correctionPic: string | null;
+  correctionTarget: string | null;
+  correctiveAction: string | null;
+  correctiveActionPic: string | null;
+  correctiveActionTarget: string | null;
+  improvementAction: string | null;
+  improvementPic: string | null;
+  improvementTarget: string | null;
+}
+export interface FindingFollowUpRecord extends FindingFollowUp { findingId: number }
+
 /**
  * Kontrak akses data. Setiap metode yang menerima sessionId WAJIB memfilter dengannya,
  * sehingga data sesi lain tidak pernah terbaca.
@@ -113,12 +128,15 @@ export interface AuditStore {
   // --- Master data ---
   createDepartment(name: string): Promise<DepartmentRecord>;
   departmentExists(departmentId: number): Promise<boolean>;
+  listDepartments(): Promise<DepartmentRecord[]>;
   createStandard(data: { code: string; name: string }): Promise<StandardRecord>;
   standardExists(standardId: number): Promise<boolean>;
 
   // --- Versi dan item checklist ---
   createChecklistVersion(data: { standardId: number; versionLabel: string }): Promise<ChecklistVersionRecord>;
   findChecklistVersion(versionId: number): Promise<ChecklistVersionRecord | null>;
+  /** Versi PUBLISHED dengan id terbesar (terbaru); null bila belum ada. */
+  findLatestPublishedVersion(): Promise<ChecklistVersionRecord | null>;
   /** null bila versi tidak ada atau bukan DRAFT. */
   addChecklistItem(data: Omit<ChecklistItemRecord, "id">): Promise<ChecklistItemRecord | null>;
   countItemsInVersion(versionId: number): Promise<number>;
@@ -133,6 +151,8 @@ export interface AuditStore {
   // --- Sesi ---
   createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord>;
   findSession(sessionId: number): Promise<SessionRecord | null>;
+  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Sama dengan sesi yang dipilih findPasswordLoginAuditor. */
+  findLatestActiveSession(): Promise<SessionRecord | null>;
   /** DRAFT -> ACTIVE. false bila bukan DRAFT. */
   activateSession(sessionId: number): Promise<boolean>;
   /** Hanya ACTIVE dan hanya ke masa depan (to > expiresAt saat ini). */
@@ -156,6 +176,13 @@ export interface AuditStore {
   findAuditor(sessionId: number, auditorId: number): Promise<AuditorRecord | null>;
   findAuthByInviteHash(inviteHash: string): Promise<AuthRecord | null>;
   findAuthByTokenHash(tokenHash: string): Promise<AuthRecord | null>;
+  /** Auditor + sesinya berdasarkan id (dipakai cookie Auditor bertanda tangan). */
+  findAuthByAuditorId(auditorId: number): Promise<AuthRecord | null>;
+  /**
+   * Akun Auditor untuk login kata sandi bersama: auditor yang belum dicabut dengan id terkecil
+   * pada sesi ACTIVE terbaru. null bila tidak ada sesi ACTIVE atau auditor.
+   */
+  findPasswordLoginAuditor(): Promise<AuthRecord | null>;
   /** Klaim atomik. null bila undangan tidak (lagi) dapat diklaim. */
   claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null>;
   clearAuditorToken(auditorId: number): Promise<void>;
@@ -197,4 +224,8 @@ export interface AuditStore {
   closeFinding(findingId: number, auditorId: number, note: string | null, now: Date): Promise<boolean>;
   listFindingHistory(findingId: number): Promise<FindingHistoryRecord[]>;
   countFindings(assignmentId: number): Promise<FindingCount[]>;
+  /** Menyimpan tindak lanjut (menimpa seluruh kolom tindak lanjut temuan ini). */
+  saveFindingFollowUp(findingId: number, data: FindingFollowUp): Promise<void>;
+  /** Tindak lanjut semua temuan pada satu penugasan. */
+  listFindingFollowUps(assignmentId: number): Promise<FindingFollowUpRecord[]>;
 }

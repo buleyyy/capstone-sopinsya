@@ -1,0 +1,60 @@
+<%- include('../partials/header') %>
+<p><a href="/auditor">&larr; Dashboard</a></p>
+<h1>Checklist Audit: <%= assignment.departmentName %></h1>
+
+<% if (saved !== undefined && errors.length === 0) { %>
+  <div class="alert ok">Tersimpan. <%= saved %> poin diperbarui.</div>
+<% } %>
+<% if (errors.length > 0) { %>
+  <div class="alert error">
+    <strong>Sebagian jawaban belum tersimpan:</strong>
+    <ul>
+      <% errors.forEach(function (er) { %>
+        <li>Poin #<%= entries.findIndex(function (x) { return x.id === er.itemId; }) + 1 %>: <%= er.message %></li>
+      <% }) %>
+    </ul>
+    <% if (saved && Number(saved) > 0) { %><p class="small">Poin lain (<%= saved %>) sudah tersimpan.</p><% } %>
+  </div>
+<% } %>
+<% if (!me.canWrite) { %>
+  <div class="alert info">Sesi tidak menerima perubahan lagi. Checklist ini hanya dapat dilihat.</div>
+<% } %>
+
+<% if (entries.length === 0) { %>
+  <div class="card">Belum ada poin checklist untuk unit ini pada versi yang dipakai sesi. Hubungi Admin.</div>
+<% } else { %>
+<form method="post" action="/auditor/penugasan/<%= assignment.id %>" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <% entries.forEach(function (e, i) {
+       var err = errors.find(function (x) { return x.itemId === e.id; }); %>
+    <div class="item<%= err ? ' has-error' : '' %>">
+      <div class="muted small">Poin #<%= i + 1 %><% if (e.reference) { %> &middot; <%= e.reference %><% } %></div>
+      <div><strong><%= e.criteria %></strong></div>
+
+      <div class="choices" role="radiogroup" aria-label="Jawaban poin <%= i + 1 %>">
+        <label><input type="radio" name="result_<%= e.id %>" value="YA" <%= e.result === 'YA' ? 'checked' : '' %> <%= me.canWrite ? '' : 'disabled' %>> YA</label>
+        <label><input type="radio" name="result_<%= e.id %>" value="TIDAK" <%= e.result === 'TIDAK' ? 'checked' : '' %> <%= me.canWrite ? '' : 'disabled' %>> TIDAK</label>
+        <label><input type="radio" name="result_<%= e.id %>" value="" <%= e.result === null ? 'checked' : '' %> <%= me.canWrite ? '' : 'disabled' %>> Belum dijawab</label>
+      </div>
+
+      <label for="note_<%= e.id %>">Catatan / bukti objektif</label>
+      <textarea id="note_<%= e.id %>" name="note_<%= e.id %>" maxlength="4000" <%= me.canWrite ? '' : 'disabled' %>><%= e.note || '' %></textarea>
+
+      <label for="evidence_<%= e.id %>">Tautan bukti (opsional, https://)</label>
+      <input id="evidence_<%= e.id %>" type="url" name="evidence_<%= e.id %>" maxlength="1024" value="<%= e.evidenceUrl || '' %>" <%= me.canWrite ? '' : 'disabled' %>>
+
+      <% if (e.result === 'TIDAK' && e.answerId) { %>
+        <p><a class="btn small secondary" href="/auditor/penugasan/<%= assignment.id %>/temuan?answerId=<%= e.answerId %>">Catat temuan untuk poin ini</a></p>
+      <% } else if (e.result === 'TIDAK') { %>
+        <p class="muted small">Simpan jawaban dahulu untuk mencatat temuan dari poin ini.</p>
+      <% } %>
+    </div>
+  <% }) %>
+
+  <% if (me.canWrite) { %>
+    <div class="sticky"><button class="btn" type="submit">Simpan semua jawaban</button></div>
+  <% } %>
+</form>
+<% } %>
+<p><a class="btn secondary" href="/auditor/penugasan/<%= assignment.id %>/temuan">Buka Register Temuan unit ini</a></p>
+<%- include('../partials/footer') %>

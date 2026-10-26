@@ -10,12 +10,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:tests": "tsx prisma/seedTests.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
     "express": "^5.1.0",
     "zod": "^3.24.0"
   },

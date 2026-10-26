@@ -1,7 +1,9 @@
+import type { PrismaClient } from "@prisma/client";
+
 /**
  * Abstraksi koneksi database.
  * Dibuat agar health-check dapat diuji tanpa MySQL sungguhan, dan agar aplikasi
- * tetap bisa berjalan ketika DATABASE_URL belum diisi (Fase 1).
+ * tetap bisa berjalan ketika DATABASE_URL belum diisi.
  */
 export interface Database {
   /** true jika DATABASE_URL sudah dikonfigurasi. */
@@ -10,12 +12,9 @@ export interface Database {
   ping(): Promise<void>;
   /** Menutup koneksi (aman dipanggil walau belum pernah terhubung). */
   disconnect(): Promise<void>;
+  /** Klien Prisma tunggal (dimuat malas). Tidak ada bila DATABASE_URL kosong. */
+  prisma?(): Promise<PrismaClient>;
 }
-
-type PrismaLike = {
-  $queryRaw(query: TemplateStringsArray): Promise<unknown>;
-  $disconnect(): Promise<void>;
-};
 
 export function createDatabase(databaseUrl: string | undefined): Database {
   if (!databaseUrl) {
@@ -28,14 +27,14 @@ export function createDatabase(databaseUrl: string | undefined): Database {
     };
   }
 
-  let client: PrismaLike | undefined;
+  let client: PrismaClient | undefined;
 
   // Prisma Client dimuat malas (lazy) agar server tidak gagal start bila
   // `prisma generate` belum dijalankan atau database belum menyala.
-  const getClient = async (): Promise<PrismaLike> => {
+  const getClient = async (): Promise<PrismaClient> => {
     if (!client) {
-      const { PrismaClient } = await import("@prisma/client");
-      client = new PrismaClient({ datasourceUrl: databaseUrl }) as unknown as PrismaLike;
+      const { PrismaClient: Client } = await import("@prisma/client");
+      client = new Client({ datasourceUrl: databaseUrl });
     }
     return client;
   };
@@ -49,5 +48,6 @@ export function createDatabase(databaseUrl: string | undefined): Database {
     async disconnect() {
       if (client) await client.$disconnect();
     },
+    prisma: getClient,
   };
 }

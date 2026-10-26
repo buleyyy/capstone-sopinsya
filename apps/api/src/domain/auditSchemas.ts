@@ -75,6 +75,23 @@ export const createFindingSchema = z.object({
 
 export const closeFindingSchema = z.object({ note: optionalText(2000) });
 
+/**
+ * Tindak lanjut temuan. Aturan kategori ditegakkan service: Major/Minor memakai akar penyebab, koreksi, dan
+ * tindakan korektif; Observasi hanya tindakan peningkatan.
+ */
+export const followUpSchema = z.object({
+  rootCause: optionalText(4000),
+  correction: optionalText(4000),
+  correctionPic: optionalText(160),
+  correctionTarget: optionalText(80),
+  correctiveAction: optionalText(4000),
+  correctiveActionPic: optionalText(160),
+  correctiveActionTarget: optionalText(80),
+  improvementAction: optionalText(4000),
+  improvementPic: optionalText(160),
+  improvementTarget: optionalText(80),
+});
+
 // ---------- Admin ----------
 
 export const createStandardSchema = z.object({
@@ -158,6 +175,7 @@ export type ClaimInput = z.output<typeof claimSchema>;
 export type SaveAnswerInput = z.output<typeof saveAnswerSchema>;
 export type CreateFindingInput = z.output<typeof createFindingSchema>;
 export type CloseFindingInput = z.output<typeof closeFindingSchema>;
+export type FollowUpInput = z.output<typeof followUpSchema>;
 
 /** Mem-parse input; kegagalan menjadi AppError 422 dengan daftar masalah per field. */
 export function parseInput<S extends z.ZodTypeAny>(schema: S, data: unknown): z.output<S> {

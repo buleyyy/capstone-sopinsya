@@ -1,0 +1,143 @@
+<%- include('../partials/header') %>
+<div class="no-print">
+  <p><a href="/auditor/penugasan/<%= assignment.id %>/temuan">&larr; Kembali ke Register Temuan</a></p>
+  <div class="alert info">
+    Ini pratinjau formulir <strong>Laporan Ketidaksesuaian dan Tindakan Korektif</strong>. Untuk mencetak atau menyimpan sebagai PDF, tekan <code>Ctrl</code> + <code>P</code> (di ponsel: menu peramban &rarr; Cetak) lalu pilih kertas A4 lanskap. Menu dan tombol tidak ikut tercetak.
+  </div>
+</div>
+
+<div class="f-doc">
+  <div class="f-head">
+    <div class="f-head-brand">
+      <strong>SOPINSYA EDUCENTER</strong>
+      <span>Sistem Manajemen Anti Penyuapan (SMAP) ISO 37001</span>
+    </div>
+    <div class="f-head-title">
+      <span>FORMULIR</span>
+      <strong>LAPORAN KETIDAKSESUAIAN DAN TINDAKAN KOREKTIF</strong>
+    </div>
+    <div class="f-head-meta">
+      <div><span>Sesi audit</span><b>: <%= sessionTitle %></b></div>
+      <div><span>Unit diaudit</span><b>: <%= assignment.departmentName %></b></div>
+      <div><span>Dicetak</span><b>: <%= fmt(printedAt) %></b></div>
+    </div>
+  </div>
+
+  <div class="f-source">
+    <strong>SUMBER KETIDAKSESUAIAN:</strong>
+    <span>&#9745; Audit Internal SMAP</span>
+  </div>
+
+  <table class="f-table">
+    <thead>
+      <tr>
+        <th class="c-no">No.<small>(1)</small></th>
+        <th class="c-ref">Acuan Ketidaksesuaian<small>(2)</small></th>
+        <th class="c-plor">Uraian Ketidaksesuaian (PLOR)<small>(3)</small></th>
+        <th class="c-kat">Kat<small>(4)</small></th>
+        <th class="c-root">Akar Penyebab<small>(5)</small></th>
+        <th class="c-fix">Perbaikan / Koreksi<small>(6)</small></th>
+        <th class="c-act">Tindakan Korektif / Peningkatan<small>(7)</small></th>
+        <th class="c-ver">Hasil Verifikasi<small>(8)</small></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (findings.length === 0) { %>
+        <tr><td colspan="8" class="f-empty">Tidak ada temuan pada unit ini.</td></tr>
+      <% } %>
+      <% findings.forEach(function (f, i) { var u = followUps[f.id] || {}; %>
+        <tr>
+          <td class="center"><%= i + 1 %><div class="f-code"><%= f.code %></div></td>
+          <td><%= f.reference %></td>
+          <td>
+            <p><b>Problem:</b> <%= f.problem %></p>
+            <p><b>Location:</b> <%= f.location %></p>
+            <p><b>Objective evidence:</b> <%= f.objectiveEvidence %></p>
+            <p><b>Reference:</b> <%= f.reference %></p>
+          </td>
+          <td class="center"><b><%= f.classification === 'MAJOR' ? '1' : (f.classification === 'MINOR' ? '2' : 'O') %></b></td>
+          <td><%= f.classification === 'OBSERVASI' ? '-' : (u.rootCause || '') %></td>
+          <td>
+            <% if (f.classification === 'OBSERVASI') { %>-<% } else { %>
+              <%= u.correction || '' %>
+              <% if (u.correctionPic) { %><p class="f-meta">PIC: <%= u.correctionPic %></p><% } %>
+              <% if (u.correctionTarget) { %><p class="f-meta">Target: <%= u.correctionTarget %></p><% } %>
+            <% } %>
+          </td>
+          <td>
+            <% if (f.classification === 'OBSERVASI') { %>
+              <%= u.improvementAction || '' %>
+              <% if (u.improvementPic) { %><p class="f-meta">PIC: <%= u.improvementPic %></p><% } %>
+              <% if (u.improvementTarget) { %><p class="f-meta">Target: <%= u.improvementTarget %></p><% } %>
+            <% } else { %>
+              <%= u.correctiveAction || '' %>
+              <% if (u.correctiveActionPic) { %><p class="f-meta">PIC: <%= u.correctiveActionPic %></p><% } %>
+              <% if (u.correctiveActionTarget) { %><p class="f-meta">Target: <%= u.correctiveActionTarget %></p><% } %>
+            <% } %>
+          </td>
+          <td class="center">
+            <% if (f.status === 'CLOSED') { %>
+              <b>Closed</b>
+              <% if (f.closedAt) { %><div class="f-meta"><%= fmt(f.closedAt) %></div><% } %>
+            <% } else { %>
+              <b>Open</b>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <div class="f-count">
+    <span>Jumlah temuan kategori 1 (Major): <b><%= counts.major %></b></span>
+    <span>Jumlah temuan kategori 2 (Minor): <b><%= counts.minor %></b></span>
+    <span>Jumlah temuan Observasi (O): <b><%= counts.observasi %></b></span>
+  </div>
+
+  <div class="f-sign">
+    <div>
+      <div class="f-sign-head">DILAPORKAN TANGGAL: ____ / ____ / ________</div>
+      <div class="f-sign-body">
+        <small>NAMA PELAPOR / AUDITOR:</small>
+        <b><%= auditorName %></b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+    <div>
+      <div class="f-sign-head">DITINDAKLANJUTI TANGGAL: ____ / ____ / ________</div>
+      <div class="f-sign-body">
+        <small>NAMA TERLAPOR / AUDITEE (<%= assignment.departmentName %>):</small>
+        <b>&nbsp;</b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+    <div>
+      <div class="f-sign-head">DIVERIFIKASI TANGGAL: ____ / ____ / ________</div>
+      <div class="f-sign-body">
+        <small>NAMA VERIFIKATOR / AUDITOR:</small>
+        <b><%= auditorName %></b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+  </div>
+
+  <div class="f-notes">
+    <b>KETERANGAN PENGISIAN</b>
+    <div class="f-notes-grid">
+      <div>
+        <b>Diisi oleh pelapor/auditor:</b>
+        <p>(1) Nomor urut temuan. (2) Klausul atau SOP yang tidak dipenuhi. (3) Uraian dengan metode PLOR: Problem, Location, Objective evidence, Reference. (4) Kategori: 1 = Major, 2 = Minor, O = Observasi.</p>
+      </div>
+      <div>
+        <b>Diisi oleh terlapor/auditee:</b>
+        <p>(5) Akar penyebab (Kategori 1 dan 2). (6) Perbaikan/koreksi langsung, PIC, dan target (Kategori 1 dan 2). (7) Tindakan korektif (Kategori 1 dan 2) atau tindakan peningkatan (Observasi).</p>
+      </div>
+      <div>
+        <b>Diisi oleh verifikator/auditor:</b>
+        <p>(8) Closed bila tindakan terbukti menyelesaikan masalah atau peningkatan telah terlaksana; Open bila belum.</p>
+      </div>
+    </div>
+    <p class="f-meta">Major: SOP tidak ada atau sama sekali tidak dikerjakan. Minor: dikerjakan tetapi tidak konsisten atau tidak rutin. Observasi: sudah dikerjakan dan masih dapat dioptimalkan.</p>
+  </div>
+</div>
+<%- include('../partials/footer') %>
