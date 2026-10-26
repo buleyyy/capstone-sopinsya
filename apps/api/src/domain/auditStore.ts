@@ -151,7 +151,7 @@ export interface AuditStore {
   // --- Sesi ---
   createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord>;
   findSession(sessionId: number): Promise<SessionRecord | null>;
-  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Sama dengan sesi yang dipilih findPasswordLoginAuditor. */
+  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Dipertahankan untuk kompatibilitas helper login lama. */
   findLatestActiveSession(): Promise<SessionRecord | null>;
   /** DRAFT -> ACTIVE. false bila bukan DRAFT. */
   activateSession(sessionId: number): Promise<boolean>;
