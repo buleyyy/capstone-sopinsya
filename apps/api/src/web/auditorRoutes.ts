@@ -1,10 +1,9 @@
 import { Router, type RequestHandler, type Response } from "express";
 import type { AnswerResult } from "../domain/auditSchemas.js";
-import { getAuditContext } from "../middleware/sessionAccess.js";
+import { getAuditContext, readCookie, SESSION_COOKIE } from "../middleware/sessionAccess.js";
 import { toHttpsUrl } from "../routes/publicContent.js";
 import {
-  authenticateById,
-  resolvePasswordLogin,
+  authenticate,
   closeFinding,
   createFinding,
   getChecklist,
@@ -15,13 +14,13 @@ import {
   listMyAssignments,
   saveAnswer,
   saveFindingFollowUp,
+  logout as logoutAuditor,
   type AuditContext,
   type ChecklistEntry,
 } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { field, intParam, newRequestId, trimmed } from "./helpers.js";
-import { UNBOUND_AUDITOR_ID } from "./security.js";
 
 const queryString = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
 
@@ -41,40 +40,14 @@ export function createAuditorRouter(deps: WebDeps): Router {
   const auth: RequestHandler = async (req, res, next) => {
     try {
       const store = requireStore(deps);
-      const bound = sec.auditorBinding(req);
-      if (!bound) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-      // Status sesi dan auditor dibaca ulang dari database pada setiap request.
-      let ctx: AuditContext;
-      if (bound.auditorId === UNBOUND_AUDITOR_ID) {
-        // Login kata sandi saat belum ada sesi aktif: cari ulang tiap request, jadi otomatis terhubung setelah Admin mengaktifkan sesi.
-        try {
-          ctx = await resolvePasswordLogin(store, new Date());
-        } catch (err) {
-          if (err instanceof AppError && (err.statusCode === 403 || err.statusCode === 409)) {
-            // Belum ada sesi audit: tetap masuk ke landing Auditor. Hanya landing, Pustaka SOP, dan keluar yang tersedia.
-            res.locals["auditorNoSession"] = true;
-            res.locals["csrfBinding"] = bound.binding;
-            res.locals["csrf"] = sec.csrfToken(bound.binding);
-            const isSop = req.path === "/sop" || req.path.startsWith("/sop/");
-            if (isSop || (req.method === "POST" && req.path === "/keluar")) {
-              next();
-              return;
-            }
-            if (req.method === "GET" && (req.path === "/" || req.path === "")) {
-              res.status(200).render("auditor/belum-ada-sesi", { title: "Dashboard Audit" });
-              return;
-            }
-            res.redirect(303, "/auditor");
-            return;
-          }
-          throw err;
-        }
-      } else {
-        ctx = await authenticateById(store, bound.auditorId, new Date());
-      }
+      const token = readCookie(req.header("cookie"), SESSION_COOKIE);
+      if (!token) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
+      // Undangan individual menghasilkan token acak; hanya hash-nya yang tersimpan di database.
+      // Status sesi, auditor, dan masa akses diperiksa ulang pada setiap request.
+      const ctx: AuditContext = await authenticate(store, token, new Date());
       res.locals["audit"] = ctx;
-      res.locals["csrfBinding"] = bound.binding;
-      res.locals["csrf"] = sec.csrfToken(bound.binding);
+      res.locals["csrfBinding"] = token;
+      res.locals["csrf"] = sec.csrfToken(token);
       res.locals["sessionTitle"] = ctx.session.title;
       next();
     } catch (err) {
@@ -363,8 +336,10 @@ export function createAuditorRouter(deps: WebDeps): Router {
 
   // ----- Keluar -----
 
-  router.post("/auditor/keluar", sec.checkOrigin, sec.requireCsrf, (_req, res) => {
-    // Cookie bertanda tangan: keluar cukup menghapus cookie di peramban ini (peserta lain pada akun yang sama tidak terpengaruh).
+  router.post("/auditor/keluar", sec.checkOrigin, sec.requireCsrf, async (_req, res) => {
+    const store = requireStore(deps);
+    const ctx = getAuditContext(res);
+    await logoutAuditor(store, ctx);
     sec.clearAuditorCookie(res);
     res.redirect(303, "/masuk");
   });
