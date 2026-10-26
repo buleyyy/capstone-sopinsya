@@ -7,6 +7,11 @@
   <% if (session.status === 'CLOSED') { %> &middot; Akses auditor sampai: <%= session.auditorAccessUntil ? fmt(session.auditorAccessUntil) : 'tidak ada' %><% } %>
 </p>
 <% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+<% if (setupError === 'auditor-missing') { %>
+  <div class="alert error" role="alert">Tambahkan minimal satu auditor yang aksesnya belum dicabut sebelum mengaktifkan sesi.</div>
+<% } else if (setupError === 'assignment-missing') { %>
+  <div class="alert error" role="alert">Buat minimal satu penugasan untuk auditor yang belum dicabut pada unit yang memiliki poin checklist sebelum mengaktifkan sesi.</div>
+<% } %>
 
 <% if (invite) { %>
   <div class="alert info">
