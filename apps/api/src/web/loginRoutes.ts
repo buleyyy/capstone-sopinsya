@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import { claimInvitation } from "../services/auditService.js";
+import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { SESSION_COOKIE } from "../middleware/sessionAccess.js";
 import { trimmed } from "./helpers.js";
@@ -38,15 +39,27 @@ export function createLoginRouter(deps: WebDeps): Router {
   // GET tidak menghanguskan token; undangan hanya diklaim setelah Auditor menekan tombol.
   router.get("/undangan/:token", (req, res) => {
     res.set("Cache-Control", "no-store");
-    res.render("undangan", { title: "Aktifkan akses Auditor", token: req.params["token"] });
+    res.render("undangan", { title: "Aktifkan akses Auditor", token: req.params["token"], error: null });
   });
 
   // Token sesi hanya disimpan sebagai hash oleh service. Cookie HttpOnly berisi token acak yang sama.
   router.post("/undangan/:token", sec.checkOrigin, async (req, res) => {
-    const claimed = await claimInvitation(requireStore(deps), { token: req.params["token"] });
-    res.cookie(SESSION_COOKIE, claimed.token, sec.cookieOptions(12 * 3_600_000));
-    res.set("Cache-Control", "no-store");
-    res.redirect(303, "/auditor");
+    try {
+      const claimed = await claimInvitation(requireStore(deps), { token: req.params["token"] });
+      res.cookie(SESSION_COOKIE, claimed.token, sec.cookieOptions(12 * 3_600_000));
+      res.set("Cache-Control", "no-store");
+      res.redirect(303, "/auditor");
+    } catch (err) {
+      if (err instanceof AppError && (err.statusCode === 403 || err.statusCode === 404)) {
+        res.status(410).set("Cache-Control", "no-store").render("undangan", {
+          title: "Undangan tidak dapat digunakan",
+          token: null,
+          error: "Tautan ini sudah digunakan, kedaluwarsa, atau sesi audit tidak lagi dapat diakses. Minta Admin menerbitkan ulang undangan untuk Anda.",
+        });
+        return;
+      }
+      throw err;
+    }
   });
 
   router.post("/masuk", sec.checkOrigin, async (req, res) => {
