@@ -246,13 +246,6 @@ export class MemoryStore implements AuditStore {
       .sort((a, b) => a.id - b.id)[0];
     return this.auth(row);
   }
-  async createPasswordSession(id: number, tokenHash: string, now: Date) {
-    const a = this.auditors.find((x) => x.id === id && x.revokedAt === null);
-    if (!a) return false;
-    a.tokenHash = tokenHash;
-    a.claimedAt = now;
-    return true;
-  }
   async claimInvitation(inviteHash: string, tokenHash: string, now: Date) {
     const a = this.auditors.find((x) => x.inviteHash === inviteHash);
     if (!a || a.claimedAt !== null || a.revokedAt !== null || a.inviteExpiresAt.getTime() <= now.getTime()) return null;
