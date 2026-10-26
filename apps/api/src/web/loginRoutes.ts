@@ -32,7 +32,7 @@ export function createLoginRouter(deps: WebDeps): Router {
     renderGate(res, 200);
   });
 
-  // Bookmark lama Admin tetap diarahkan ke gerbang masuk bersama.
+  // Bookmark lama Admin tetap diarahkan ke gerbang masuk Admin.
   router.get("/admin/masuk", (_req, res) => res.redirect(303, "/masuk"));
 
   // GET tidak menghanguskan token; undangan hanya diklaim setelah Auditor menekan tombol.
