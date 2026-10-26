@@ -16,7 +16,7 @@
   </div>
 <% } %>
 
-<h2>Status sesi</h2>
+<h2 id="status-sesi">Status sesi</h2>
 <div class="card">
   <% if (session.status === 'DRAFT') { %>
     <form method="post" action="/admin/sesi/<%= session.id %>/aktifkan">
@@ -49,7 +49,7 @@
   <% } %>
 </div>
 
-<h2>Auditor dan undangan</h2>
+<h2 id="auditor">Auditor dan undangan</h2>
 <div class="card tablewrap">
   <table>
     <thead><tr><th>Nama</th><th>Status</th><th>Unit terlarang</th><th>Undangan berlaku sampai</th><th></th></tr></thead>
@@ -82,7 +82,7 @@
 <% if (session.status !== 'CLOSED') { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/auditor" class="card">
     <h3>Tambah auditor</h3>
-    <p class="muted small">Auditor masuk lewat halaman Masuk dengan email dan kata sandi Auditor (tanpa tautan undangan). Akun Auditor memakai auditor pertama yang belum dicabut pada sesi aktif terbaru, jadi buat auditor ini lalu tambahkan penugasannya. Tautan undangan yang muncul setelah ini tidak diperlukan.</p>
+    <p class="muted small">Setiap auditor menggunakan tautan undangan unik. Setelah menambahkan auditor, salin dan kirim tautan yang ditampilkan di atas; penerima mengaktifkan akses dari tautan itu. Tautan hanya dapat diklaim sekali. Gunakan “Terbitkan ulang” bila tautan hilang, kedaluwarsa, atau auditor perlu masuk kembali.</p>
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label for="name">Nama auditor</label>
     <input id="name" type="text" name="name" required maxlength="120">
@@ -104,7 +104,7 @@
   </form>
 <% } %>
 
-<h2>Penugasan</h2>
+<h2 id="penugasan">Penugasan</h2>
 <div class="card tablewrap">
   <table>
     <thead><tr><th>Auditor</th><th>Unit diaudit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Temuan</th></tr></thead>
