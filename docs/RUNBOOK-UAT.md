@@ -40,7 +40,7 @@ Generate Prisma Client, jalankan migrasi, lalu seed data contoh:
 ```powershell
 npm run db:generate
 npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-npm run db:seed
+npm run db:seed -w @sopinsya/api
 ```
 
 Perintah `migrate deploy` sesuai untuk menerapkan migrasi yang sudah ada. Bila sedang mengembangkan perubahan schema lokal, ikuti alur migrasi Prisma yang disepakati tim dan jangan menghapus database berisi data yang dibutuhkan.
