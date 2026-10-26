@@ -272,6 +272,14 @@ export class PrismaAuditStore implements AuditStore {
     return r ? { auditor: toAuditor(r), session: toSession(session) } : null;
   }
 
+  async createPasswordSession(auditorId: number, tokenHash: string, now: Date): Promise<boolean> {
+    const r = await this.db.auditor.updateMany({
+      where: { id: auditorId, revokedAt: null },
+      data: { tokenHash, claimedAt: now },
+    });
+    return r.count === 1;
+  }
+
   async claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null> {
     // Satu UPDATE bersyarat: hanya satu pemanggil yang bisa menang.
     const r = await this.db.auditor.updateMany({
