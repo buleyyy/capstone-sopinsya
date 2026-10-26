@@ -1,5 +1,11 @@
 <%- include('../partials/header') %>
-<h1>Departemen / Unit yang Diaudit</h1>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Data Master</span>
+    <h1>Departemen / Unit yang Diaudit</h1>
+    <p>Daftarkan setiap unit yang dapat menerima penugasan audit. Gunakan nama yang konsisten dengan struktur organisasi klien.</p>
+  </div>
+</div>
 <% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
 
 <form method="post" action="/admin/departemen" class="card">
