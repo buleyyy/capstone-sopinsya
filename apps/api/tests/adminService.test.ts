@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as admin from "../src/services/adminService.js";
+import * as audit from "../src/services/auditService.js";
 import { MemoryStore } from "./helpers/memoryStore.js";
 import { addDays, seed, T0 } from "./helpers/seed.js";
 
@@ -175,6 +176,28 @@ describe("auditor dan penugasan", () => {
     expect(
       await fail(admin.createAssignment(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id, departmentId: s.deptB.id }, late)),
     ).toMatchObject({ code: "SESSION_NOT_WRITABLE" });
+  });
+
+  it("undangan dapat diterbitkan ulang pada DRAFT, tetapi tidak dapat diklaim sebelum sesi aktif", async () => {
+    const s = await seed();
+    const draft = await admin.createSession(
+      s.store,
+      { title: "Draft", checklistVersionId: s.v1.id, expiresAt: addDays(T0, 7) },
+      T0,
+    );
+    const created = await admin.createAuditor(s.store, {
+      sessionId: draft.id,
+      name: "Auditor Draft",
+      noExclusions: true,
+    }, T0);
+    const renewed = await admin.reissueInvitation(s.store, { sessionId: draft.id, auditorId: created.auditor.id }, T0);
+    expect(renewed.inviteToken).not.toBe(created.inviteToken);
+    expect(
+      await fail(audit.claimInvitation(s.store, { token: renewed.inviteToken }, T0)),
+    ).toMatchObject({ code: "SESSION_NOT_ACCESSIBLE" });
+    expect(
+      await fail(audit.claimInvitation(s.store, { token: created.inviteToken }, T0)),
+    ).toMatchObject({ code: "INVITATION_NOT_FOUND" });
   });
 
   it("terbit ulang ditolak bila sesi tidak dapat diakses", async () => {
