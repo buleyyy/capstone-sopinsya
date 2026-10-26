@@ -218,6 +218,18 @@ export function createAdminRouter(deps: WebDeps): Router {
 
   router.post("/admin/sesi/:id/aktifkan", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const id = intParam(req.params["id"]);
+    const detail = await requireAdminStore(deps).getSession(id);
+    if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
+
+    const eligibleAuditorIds = new Set(detail.auditors.filter((a) => a.state !== "DICABUT").map((a) => a.id));
+    if (eligibleAuditorIds.size === 0) {
+      throw new AppError(422, "SESSION_NOT_READY", "Tambahkan minimal satu auditor yang aksesnya belum dicabut sebelum mengaktifkan sesi.");
+    }
+    const readyAssignments = detail.assignments.filter((a) => eligibleAuditorIds.has(a.auditorId) && a.total > 0);
+    if (readyAssignments.length === 0) {
+      throw new AppError(422, "SESSION_NOT_READY", "Buat minimal satu penugasan untuk auditor aktif pada unit yang memiliki poin checklist sebelum mengaktifkan sesi.");
+    }
+
     await activateSession(requireStore(deps), { sessionId: id });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
