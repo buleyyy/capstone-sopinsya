@@ -13,6 +13,8 @@
   <div class="alert error" role="alert">Tambahkan minimal satu auditor yang aksesnya belum dicabut sebelum mengaktifkan sesi.</div>
 <% } else if (setupError === 'assignment-missing') { %>
   <div class="alert error" role="alert">Buat minimal satu penugasan untuk auditor yang belum dicabut pada unit yang memiliki poin checklist sebelum mengaktifkan sesi.</div>
+<% } else if (setupError === 'deadline-past') { %>
+  <div class="alert error" role="alert">Batas waktu sesi draf sudah lewat. Atur batas waktu baru di bagian Status sesi sebelum mengaktifkan sesi.</div>
 <% } %>
 
 <% if (invite) { %>
@@ -26,9 +28,19 @@
 <h2 id="status-sesi">Status sesi</h2>
 <div class="card">
   <% if (session.status === 'DRAFT') { %>
+    <form method="post" action="/admin/sesi/<%= session.id %>/batas-waktu" class="row">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div>
+        <label for="draftDeadline">Atur batas tulis (WIB)</label>
+        <input id="draftDeadline" type="datetime-local" name="to" required>
+      </div>
+      <button class="btn secondary" type="submit">Simpan batas waktu</button>
+    </form>
+    <p class="muted small">Batas waktu harus di masa depan. Jika draf terlalu lama tersimpan dan tenggatnya lewat, perbarui di sini sebelum mengaktifkan sesi.</p>
+    <hr>
     <form method="post" action="/admin/sesi/<%= session.id %>/aktifkan">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
-      <p>Aktifkan sesi agar auditor dapat mengisi checklist. Pastikan auditor dan penugasan sudah dibuat. Setelah aktif, poin checklist yang dipakai tidak berubah.</p>
+      <p>Aktifkan sesi setelah checklist terbit, auditor ditambahkan, dan setidaknya satu penugasan valid tersedia. Checklist pada versi terbit tidak dapat diubah.</p>
       <button class="btn" type="submit">Aktifkan sesi</button>
     </form>
   <% } else if (session.status === 'ACTIVE') { %>
