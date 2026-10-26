@@ -1,15 +1,12 @@
 import { Router, type Response } from "express";
-import { claimInvitation, resolvePasswordLogin } from "../services/auditService.js";
-import { AppError } from "../utils/errors.js";
+import { claimInvitation } from "../services/auditService.js";
 import { requireStore, type WebDeps } from "./deps.js";
+import { SESSION_COOKIE } from "../middleware/sessionAccess.js";
 import { trimmed } from "./helpers.js";
-import { UNBOUND_AUDITOR_ID } from "./security.js";
 
 /**
- * Gerbang masuk bersama untuk web Admin + Auditor. Bentuknya sama: email + kata sandi.
- *  - Email hanya memilih peran (bawaan: admin@sopinsya / auditor@sopinsya).
- *  - Admin memakai ADMIN_PASSWORD; Auditor memakai AUDITOR_PASSWORD. Tanpa kode undangan.
- * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang ini.
+ * Gerbang kredensial Admin. Auditor masuk dengan tautan undangan individual sekali pakai.
+ * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang staf.
  */
 export function createLoginRouter(deps: WebDeps): Router {
   const router = Router();
@@ -21,22 +18,17 @@ export function createLoginRouter(deps: WebDeps): Router {
       error: o.error ?? null,
       email: o.email ?? "",
       adminEnabled: sec.adminEnabled,
-      auditorEnabled: sec.auditorEnabled,
       adminEmail: loginEmails.admin,
-      auditorEmail: loginEmails.auditor,
     });
   };
 
   router.get("/", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
-    // Sesi Auditor yang tidak sah akan dialihkan kembali ke /masuk oleh area Auditor (tanpa perulangan).
-    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     res.redirect(303, "/masuk");
   });
 
   router.get("/masuk", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
-    if (sec.auditorBinding(req)) return res.redirect(303, "/auditor");
     renderGate(res, 200);
   });
 
@@ -49,10 +41,10 @@ export function createLoginRouter(deps: WebDeps): Router {
     res.render("undangan", { title: "Aktifkan akses Auditor", token: req.params["token"] });
   });
 
-  // Token undangan berentropi tinggi, sekali pakai, dan divalidasi kembali oleh service.
+  // Token sesi hanya disimpan sebagai hash oleh service. Cookie HttpOnly berisi token acak yang sama.
   router.post("/undangan/:token", sec.checkOrigin, async (req, res) => {
     const claimed = await claimInvitation(requireStore(deps), { token: req.params["token"] });
-    sec.issueAuditorCookie(res, claimed.auditor.id);
+    res.cookie(SESSION_COOKIE, claimed.token, sec.cookieOptions(12 * 3_600_000));
     res.set("Cache-Control", "no-store");
     res.redirect(303, "/auditor");
   });
@@ -82,33 +74,6 @@ export function createLoginRouter(deps: WebDeps): Router {
       }
       renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
       return;
-    }
-
-    if (email === loginEmails.auditor) {
-      const verdict = sec.checkAuditorPassword(secret, ip);
-      if (verdict === "disabled") {
-        renderGate(res, 503, { error: "Login Auditor belum diaktifkan (AUDITOR_PASSWORD belum diatur di server).", email });
-        return;
-      }
-      if (verdict !== "ok") {
-        renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
-        return;
-      }
-      try {
-        const ctx = await resolvePasswordLogin(requireStore(deps));
-        sec.issueAuditorCookie(res, ctx.auditorId);
-        res.redirect(303, "/auditor");
-        return;
-      } catch (err) {
-        // Kata sandi benar tetapi belum ada sesi aktif/auditor: tetap masuk (seperti Admin). Halaman Auditor
-        // menampilkan keadaan "menunggu sesi" dan otomatis terhubung begitu Admin mengaktifkan sesi.
-        if (err instanceof AppError && (err.statusCode === 403 || err.statusCode === 409)) {
-          sec.issueAuditorCookie(res, UNBOUND_AUDITOR_ID);
-          res.redirect(303, "/auditor");
-          return;
-        }
-        throw err;
-      }
     }
 
     sec.recordLoginFailure(ip);
