@@ -10,13 +10,14 @@ export async function publishedVersion(
   standardId: number,
   label: string,
   items: { departmentId: number; criteria: string }[],
+  now: Date = T0,
 ) {
   const v = await admin.createChecklistVersion(store, { standardId, versionLabel: label });
   let order = 0;
   for (const it of items) {
     await admin.addChecklistItem(store, { versionId: v.id, departmentId: it.departmentId, criteria: it.criteria, sortOrder: order++ });
   }
-  await admin.publishChecklistVersion(store, { versionId: v.id }, T0);
+  await admin.publishChecklistVersion(store, { versionId: v.id }, now);
   return v;
 }
 
@@ -24,7 +25,7 @@ export async function publishedVersion(
  * Skenario dasar: 2 unit (A, B), 1 standar, 1 versi PUBLISHED (A1, A2, B1), 1 sesi ACTIVE (batas tulis +7 hari).
  * Auditor 1: dilarang mengaudit A, ditugaskan ke B. Auditor 2: dilarang mengaudit B, ditugaskan ke A.
  */
-export async function seed() {
+export async function seed(now: Date = T0) {
   const store = new MemoryStore();
   const deptA = await admin.createDepartment(store, { name: "Unit A" });
   const deptB = await admin.createDepartment(store, { name: "Unit B" });
@@ -33,13 +34,13 @@ export async function seed() {
     { departmentId: deptA.id, criteria: "A1" },
     { departmentId: deptA.id, criteria: "A2" },
     { departmentId: deptB.id, criteria: "B1" },
-  ]);
-  const session = await admin.createSession(store, { title: "Audit 1", checklistVersionId: v1.id, expiresAt: addDays(T0, 7) }, T0);
-  const inv1 = await admin.createAuditor(store, { sessionId: session.id, name: "Auditor 1", excludeDepartmentIds: [deptA.id] }, T0);
-  const inv2 = await admin.createAuditor(store, { sessionId: session.id, name: "Auditor 2", excludeDepartmentIds: [deptB.id] }, T0);
-  const assign1 = await admin.createAssignment(store, { sessionId: session.id, auditorId: inv1.auditor.id, departmentId: deptB.id }, T0);
-  const assign2 = await admin.createAssignment(store, { sessionId: session.id, auditorId: inv2.auditor.id, departmentId: deptA.id }, T0);
-  await admin.activateSession(store, { sessionId: session.id }, T0);
+  ], now);
+  const session = await admin.createSession(store, { title: "Audit 1", checklistVersionId: v1.id, expiresAt: addDays(now, 7) }, now);
+  const inv1 = await admin.createAuditor(store, { sessionId: session.id, name: "Auditor 1", excludeDepartmentIds: [deptA.id] }, now);
+  const inv2 = await admin.createAuditor(store, { sessionId: session.id, name: "Auditor 2", excludeDepartmentIds: [deptB.id] }, now);
+  const assign1 = await admin.createAssignment(store, { sessionId: session.id, auditorId: inv1.auditor.id, departmentId: deptB.id }, now);
+  const assign2 = await admin.createAssignment(store, { sessionId: session.id, auditorId: inv2.auditor.id, departmentId: deptA.id }, now);
+  await admin.activateSession(store, { sessionId: session.id }, now);
 
   const item = (criteria: string) => {
     const found = store.items.find((i) => i.criteria === criteria && i.versionId === v1.id);
