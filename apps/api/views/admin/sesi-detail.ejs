@@ -17,14 +17,6 @@
   <div class="alert error" role="alert">Batas waktu sesi draf sudah lewat. Atur batas waktu baru di bagian Status sesi sebelum mengaktifkan sesi.</div>
 <% } %>
 
-<% if (invite) { %>
-  <div class="alert info">
-    <strong>Undangan untuk <%= invite.name %></strong> (berlaku sampai <%= fmt(invite.expires) %>).
-    <p>Simpan tautan ini, lalu kirim setelah sesi berstatus <strong>Aktif</strong>. Tautan <strong>tidak akan ditampilkan lagi</strong> setelah halaman ini ditutup; bila hilang atau sudah digunakan, gunakan "Terbitkan ulang".</p>
-    <div class="link-box"><%= invite.link %></div>
-  </div>
-<% } %>
-
 <h2 id="status-sesi">Status sesi</h2>
 <div class="card">
   <% if (session.status === 'DRAFT') { %>
@@ -68,25 +60,18 @@
   <% } %>
 </div>
 
-<h2 id="auditor">Auditor dan undangan</h2>
+<h2 id="auditor">Auditor dan akses</h2>
 <div class="card tablewrap">
   <table>
-    <thead><tr><th>Nama</th><th>Status</th><th>Unit terlarang</th><th>Undangan berlaku sampai</th><th></th></tr></thead>
+    <thead><tr><th>Nama</th><th>Status login</th><th>Unit terlarang</th><th>Aksi</th></tr></thead>
     <tbody>
       <% auditors.forEach(function (a) { %>
         <tr>
           <td><%= a.name %></td>
           <td><span class="badge <%= a.state.toLowerCase() %>"><%= inviteLabel[a.state] %></span></td>
           <td><%= a.excluded.length ? a.excluded.join(', ') : '-' %></td>
-          <td><%= fmt(a.inviteExpiresAt) %></td>
           <td class="nowrap">
             <% if (a.state !== 'DICABUT') { %>
-              <% if (session.status !== 'CLOSED' || (session.auditorAccessUntil && new Date(session.auditorAccessUntil).getTime() > now.getTime())) { %>
-              <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/terbit-ulang">
-                <input type="hidden" name="_csrf" value="<%= csrf %>">
-                <button class="btn small secondary" type="submit">Terbitkan ulang</button>
-              </form>
-              <% } %>
               <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/cabut">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <button class="btn small danger" type="submit">Cabut akses</button>
@@ -95,7 +80,7 @@
           </td>
         </tr>
       <% }) %>
-      <% if (auditors.length === 0) { %><tr><td colspan="5" class="muted">Belum ada auditor.</td></tr><% } %>
+      <% if (auditors.length === 0) { %><tr><td colspan="4" class="muted">Belum ada auditor.</td></tr><% } %>
     </tbody>
   </table>
 </div>
@@ -103,7 +88,7 @@
 <% if (canConfigure) { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/auditor" class="card">
     <h3>Tambah auditor</h3>
-    <p class="muted small">Setiap auditor menggunakan tautan undangan unik. Setelah menambahkan auditor, salin dan kirim tautan yang ditampilkan di atas; penerima mengaktifkan akses dari tautan itu. Tautan hanya dapat diklaim sekali. Gunakan “Terbitkan ulang” bila tautan hilang, kedaluwarsa, atau auditor perlu masuk kembali.</p>
+    <p class="muted small">Akses web menggunakan email <code>auditor@sopinsya</code> dan kata sandi dari environment server. Daftar ini mengatur penugasan serta pencabutan akses auditor pada sesi audit.</p>
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label for="name">Nama auditor</label>
     <input id="name" type="text" name="name" required maxlength="120">
@@ -115,12 +100,6 @@
       <label class="check"><input type="checkbox" name="noExclusions" value="1"> Tidak ada unit terlarang untuk auditor ini</label>
       <p class="muted small">Pilih unit asal auditor, atau centang "tidak ada". Salah satunya wajib.</p>
     </fieldset>
-    <label for="inviteTtlHours">Masa berlaku undangan</label>
-    <select id="inviteTtlHours" name="inviteTtlHours">
-      <option value="24">1 hari</option>
-      <option value="72">3 hari</option>
-      <option value="168" selected>7 hari</option>
-    </select>
     <p><button class="btn" type="submit">Tambah auditor</button></p>
   </form>
 <% } %>
