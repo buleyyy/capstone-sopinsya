@@ -14,7 +14,7 @@ Sopinsya memiliki dua area aplikasi yang dipakai untuk kebutuhan berbeda: portal
 | Data | MySQL 8, Prisma | Backend | Penyimpanan sesi, auditor, checklist, jawaban, temuan dan konten publik |
 | Pengujian API | Vitest, Supertest | Developer | Pengujian service, route, dan aturan keamanan |
 
-**Pemisahan akses:** peserta tidak memerlukan login. Admin masuk ke `/masuk` memakai `ADMIN_PASSWORD`. Auditor menggunakan undangan individual sekali pakai; setiap token sesi diverifikasi pada request dan dibatalkan saat logout.
+**Pemisahan akses:** peserta tidak memerlukan login. Admin masuk memakai `admin@sopinsya` + `ADMIN_PASSWORD`; Auditor memakai `auditor@sopinsya` + `AUDITOR_PASSWORD`. Token undangan tidak digunakan untuk login.
 
 ## Struktur repository
 
@@ -80,7 +80,7 @@ Buat database bila belum tersedia:
 CREATE DATABASE sopinsya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Jangan gunakan kata sandi contoh untuk server yang dapat diakses jaringan. Jangan commit `.env`, `.env.local`, kata sandi, secret, atau tautan undangan.
+Jangan gunakan kata sandi contoh untuk server yang dapat diakses jaringan. Jangan commit `.env`, `.env.local`, kata sandi, atau secret.
 
 ### 2. Terapkan schema dan seed data contoh
 
@@ -140,11 +140,11 @@ Jalankan dari root:
 3. Buat sesi dari checklist yang sudah terbit dan tentukan batas waktu.
 4. Tambahkan auditor, tetapkan pengecualian self-audit, dan buat penugasan.
 5. Aktifkan sesi setelah auditor dan penugasan valid tersedia.
-6. Kirim tautan undangan personal setelah sesi aktif; pantau kemajuan dan temuan dari detail sesi.
+6. Pastikan `AUDITOR_PASSWORD` sudah diatur pada server; pantau kemajuan dan temuan dari detail sesi.
 
 ### Auditor
 
-1. Buka tautan individual dan tekan **Terima undangan dan masuk**.
+1. Buka portal staf `/masuk` dan login dengan `auditor@sopinsya` serta `AUDITOR_PASSWORD`.
 2. Isi checklist untuk unit yang ditugaskan, simpan catatan dan bukti.
 3. Catat temuan Major, Minor, atau Observasi.
 4. Isi tindak lanjut dan tutup temuan setelah verifikasi.
@@ -164,7 +164,7 @@ Panduan lengkap serta skenario penerimaan tersedia di [Runbook UAT](docs/RUNBOOK
 
 - Gunakan secret CSRF acak berukuran minimal 32 karakter; wajib di production.
 - Password production minimal 12 karakter sesuai validasi environment.
-- Token undangan hanya dapat diklaim sekali. Jangan bagikan secara publik atau menyimpannya dalam dokumentasi.
+- Kredensial Auditor merupakan satu akun role bersama dan memilih Auditor pertama yang belum dicabut pada sesi aktif terbaru. Ini tidak membedakan identitas login banyak auditor; untuk audit multi-auditor dengan atribusi per orang, tiap auditor membutuhkan kredensial unik.
 - Dokumen internal tidak boleh menggunakan URL publik yang membuka akses di luar kontrol Sopinsya.
 - Gunakan HTTPS dan tinjau konfigurasi origin, cookie serta reverse proxy sebelum deployment produksi.
 
