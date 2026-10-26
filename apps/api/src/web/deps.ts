@@ -11,7 +11,7 @@ export interface WebDeps {
   sec: WebSecurity;
   /** Origin publik aplikasi (APP_ORIGIN); dipakai membentuk tautan undangan. */
   appOrigin?: string | undefined;
-  /** Email peran pada gerbang masuk bersama (huruf kecil). Email hanya memilih peran. */
+  /** Email login staf (huruf kecil). Email Auditor dipertahankan untuk kompatibilitas konfigurasi lama. */
   loginEmails: { admin: string; auditor: string };
 }
 
