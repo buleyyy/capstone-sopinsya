@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import { startPasswordSession } from "../services/auditService.js";
+import { resolvePasswordLogin } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 import { requireStore, type WebDeps } from "./deps.js";
 import { SESSION_COOKIE } from "../middleware/sessionAccess.js";
@@ -74,8 +74,8 @@ export function createLoginRouter(deps: WebDeps): Router {
       const verdict = sec.checkAuditorPassword(secret, ip);
       if (verdict === "ok") {
         try {
-          const { token } = await startPasswordSession(requireStore(deps));
-          res.cookie(SESSION_COOKIE, token, sec.cookieOptions(12 * 3_600_000));
+          const context = await resolvePasswordLogin(requireStore(deps));
+          sec.issueAuditorCookie(res, context.auditorId);
           res.set("Cache-Control", "no-store");
           res.redirect(303, "/auditor");
           return;
