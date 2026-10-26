@@ -12,6 +12,7 @@ import {
   createSession,
   createStandard,
   extendSession,
+  updateDraftSessionDeadline,
   publishChecklistVersion,
   reissueInvitation,
   revokeAuditor,
@@ -222,12 +223,19 @@ export function createAdminRouter(deps: WebDeps): Router {
     const detail = await requireAdminStore(deps).getSession(id);
     if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
 
+    if (detail.session.expiresAt.getTime() <= Date.now()) return res.redirect(303, `/admin/sesi/${id}?error=deadline-past#status-sesi`);
     const eligibleAuditorIds = new Set(detail.auditors.filter((a) => a.state !== "DICABUT").map((a) => a.id));
     if (eligibleAuditorIds.size === 0) return res.redirect(303, `/admin/sesi/${id}?error=auditor-missing#auditor`);
     const readyAssignments = detail.assignments.filter((a) => eligibleAuditorIds.has(a.auditorId) && a.total > 0);
     if (readyAssignments.length === 0) return res.redirect(303, `/admin/sesi/${id}?error=assignment-missing#penugasan`);
 
     await activateSession(requireStore(deps), { sessionId: id });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  router.post("/admin/sesi/:id/batas-waktu", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const id = intParam(req.params["id"]);
+    await updateDraftSessionDeadline(requireStore(deps), { sessionId: id, to: wibInput(field(req, "to")) });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
 
