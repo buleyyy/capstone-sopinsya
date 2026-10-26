@@ -9,7 +9,7 @@ import { AppError } from "../utils/errors.js";
 
 export type VersionStatus = "DRAFT" | "PUBLISHED" | "RETIRED";
 export type SessionStatusRow = "DRAFT" | "ACTIVE" | "CLOSED";
-export type InviteState = "BELUM_DIKLAIM" | "AKTIF" | "DICABUT" | "KEDALUWARSA";
+export type InviteState = "AKSES_TERSEDIA" | "DICABUT";
 
 export interface DepartmentRow { id: number; name: string }
 export interface StandardRow { id: number; code: string; name: string }
@@ -258,11 +258,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
     if (!s) return null;
 
     const auditors: AuditorRow[] = s.auditors.map((a) => {
-      let state: InviteState;
-      if (a.revokedAt) state = "DICABUT";
-      else if (a.claimedAt) state = "AKTIF";
-      else if (a.inviteExpiresAt.getTime() <= now.getTime()) state = "KEDALUWARSA";
-      else state = "BELUM_DIKLAIM";
+      const state: InviteState = a.revokedAt ? "DICABUT" : "AKSES_TERSEDIA";
       return {
         id: a.id,
         name: a.name,
