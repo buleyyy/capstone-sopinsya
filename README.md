@@ -1,238 +1,173 @@
 # Sopinsya
 
-**Web-Based Training Platform**  
+**Platform pelatihan dan audit internal SMAP berbasis web**  
 Capstone Project · Kelompok 1 · Kelas 4KA23
 
-Sopinsya adalah platform pelatihan berbasis web yang dikembangkan sebagai bagian dari proyek Capstone. Repository ini menggunakan arsitektur monorepo untuk mengelola aplikasi API dan web dalam satu project.
+Sopinsya memiliki dua area aplikasi yang dipakai untuk kebutuhan berbeda: portal pelatihan publik untuk peserta dan portal staf untuk pelaksanaan audit internal ISO 37001 / Sistem Manajemen Anti-Penyuapan (SMAP).
 
-## Tech Stack
+## Area aplikasi
 
-| Komponen | Teknologi |
-|---|---|
-| Backend | Node.js, Express, TypeScript |
-| Frontend | Next.js App Router, TypeScript |
-| Database | MySQL 8 |
-| ORM | Prisma |
-| Package Manager | npm Workspaces |
-| API Testing | Vitest, Supertest |
+| Area | Teknologi | Pengguna | Tanggung jawab |
+|---|---|---|---|
+| Portal peserta (`apps/web`) | Next.js App Router, React, TypeScript | Peserta pelatihan | Katalog program, materi/video referensi, studi kasus, pre-test dan post-test |
+| Portal staf (`apps/api`) | Express, TypeScript, EJS | Admin dan Auditor | Data master, versi checklist, sesi audit, penugasan, checklist, temuan, tindak lanjut, laporan dan Pustaka SOP |
+| Data | MySQL 8, Prisma | Backend | Penyimpanan sesi, auditor, checklist, jawaban, temuan dan konten publik |
+| Pengujian API | Vitest, Supertest | Developer | Pengujian service, route, dan aturan keamanan |
 
-## Project Structure
+**Pemisahan akses:** peserta tidak memerlukan login. Admin masuk ke `/masuk` memakai `ADMIN_PASSWORD`. Auditor menggunakan undangan individual sekali pakai; setiap token sesi diverifikasi pada request dan dibatalkan saat logout.
+
+## Struktur repository
 
 ```text
-sopinsya/
+.
 ├── apps/
-│   ├── api/              # Backend API
-│   │   ├── prisma/       # Database schema
-│   │   ├── src/
-│   │   │   ├── config/
-│   │   │   ├── domain/
-│   │   │   ├── lib/
-│   │   │   ├── middleware/
-│   │   │   ├── routes/
-│   │   │   ├── services/
-│   │   │   └── utils/
-│   │   └── tests/
-│   └── web/              # Next.js frontend
-├── docs/                 # Project documentation
+│   ├── api/
+│   │   ├── prisma/           # schema, migrations, seed
+│   │   ├── src/domain/       # aturan, tipe, validasi
+│   │   ├── src/services/     # use case / business logic
+│   │   ├── src/stores/       # implementasi Prisma untuk data audit
+│   │   ├── src/routes/       # health, konten publik, tes peserta
+│   │   ├── src/web/          # rute server-rendered Admin/Auditor
+│   │   ├── views/            # template EJS
+│   │   ├── public/app.css    # design tokens dan layout portal staf
+│   │   └── tests/            # Vitest + Supertest
+│   └── web/
+│       └── src/
+│           ├── app/          # halaman publik Next.js
+│           ├── components/   # komponen UI peserta
+│           └── lib/          # API client dan data program
+├── docs/
+│   ├── PENDING-DECISIONS.md  # keputusan yang menunggu konfirmasi
+│   ├── RUNBOOK-UAT.md        # setup, flow dan checklist UAT
+│   └── FLOW-AND-UX-REVIEW.md # artefak review alur dan UX
 ├── package.json
 └── README.md
 ```
 
-## Getting Started
+## Memulai secara lokal
 
-### Prerequisites
+### Persyaratan
 
-Pastikan perangkat kamu sudah memiliki:
+- Node.js versi 20 atau lebih baru.
+- npm versi 10 atau lebih baru.
+- MySQL 8 untuk fitur yang memerlukan persistensi.
+- Git.
 
-- Node.js >= 20
-- npm >= 10
-- MySQL 8 (opsional untuk menjalankan fondasi awal; diperlukan untuk fitur database)
+### 1. Instal dependency dan environment
 
-### 1. Clone Repository
+Dari root repository:
 
-```bash
+```powershell
 git clone https://github.com/buleyyy/capstone-sopinsya.git
 cd capstone-sopinsya
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
-```
-
-### 3. Configure Environment Variables
-
-Buat file environment untuk API dan frontend.
-
-**Backend — `apps/api/.env`**
-
-Salin dari template:
-
-```powershell
 Copy-Item apps/api/.env.example apps/api/.env
-```
-
-**Frontend — `apps/web/.env.local`**
-
-```powershell
 Copy-Item apps/web/.env.example apps/web/.env.local
 ```
 
-Sesuaikan nilai konfigurasi dengan lingkungan lokal kamu. File `.env` dan `.env.local` tidak boleh berisi kredensial yang di-commit ke repository.
-
-### 4. Run the Application
-
-Jalankan frontend dan backend bersamaan:
-
-```bash
-npm run dev
-```
-
-Atau jalankan masing-masing aplikasi secara terpisah:
-
-```bash
-npm run dev:api
-npm run dev:web
-```
-
-| Service | URL |
-|---|---|
-| Backend API | http://localhost:4000 |
-| Frontend Web | http://localhost:3000 |
-| API Health Check | http://localhost:4000/api/health |
-| Database Health Check | http://localhost:4000/api/health/db |
-
-Endpoint `/api/health` memeriksa status server API. Endpoint `/api/health/db` memeriksa konektivitas database dan dapat mengembalikan status `503` jika database belum dikonfigurasi atau tidak dapat dijangkau.
-
-## Available Scripts
-
-Jalankan perintah berikut dari root repository.
-
-| Command | Description |
-|---|---|
-| `npm run dev` | Menjalankan API dan frontend |
-| `npm run dev:api` | Menjalankan backend API |
-| `npm run dev:web` | Menjalankan frontend |
-| `npm run typecheck` | Memeriksa tipe TypeScript |
-| `npm run lint` | Menjalankan linting frontend |
-| `npm test` | Menjalankan pengujian API |
-| `npm run build` | Build aplikasi API dan frontend |
-| `npm run db:generate` | Generate Prisma Client |
-| `npm run db:migrate` | Menjalankan migrasi database |
-
-## Database Configuration
-
-Sopinsya menggunakan MySQL sebagai database dan Prisma sebagai ORM.
-
-### 1. Create Database
-
-Jalankan SQL berikut melalui MySQL:
-
-```sql
-CREATE DATABASE sopinsya
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
-```
-
-### 2. Configure Database Connection
-
-Isi variabel `DATABASE_URL` pada `apps/api/.env`:
+Isi `DATABASE_URL` di `apps/api/.env`, misalnya:
 
 ```dotenv
 DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/sopinsya"
+APP_ORIGIN=http://localhost:4000
+CSRF_SECRET=<secret-acak-minimal-32-karakter>
+ADMIN_PASSWORD=<kata-sandi-lokal-anda>
 ```
 
-Ganti `USER` dan `PASSWORD` sesuai kredensial MySQL lokal kamu.
+Buat database bila belum tersedia:
 
-### 3. Generate Prisma Client
+```sql
+CREATE DATABASE sopinsya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-```bash
+Jangan gunakan kata sandi contoh untuk server yang dapat diakses jaringan. Jangan commit `.env`, `.env.local`, kata sandi, secret, atau tautan undangan.
+
+### 2. Terapkan schema dan seed data contoh
+
+```powershell
 npm run db:generate
+npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+npm run db:seed
 ```
 
-### 4. Verify Connection
+Seed berisi data **contoh** untuk development, bukan data resmi klien. Jangan menjalankan seed tanpa memeriksa efeknya pada database yang digunakan.
 
-Jalankan backend, kemudian buka:
+### 3. Jalankan aplikasi
 
-```text
-http://localhost:4000/api/health/db
+Dalam dua terminal dari root repository:
+
+```powershell
+# Terminal 1 — API + portal staf
+npm run dev:api
+
+# Terminal 2 — portal peserta
+npm run dev:web
 ```
 
-**Catatan:** Schema Prisma saat ini belum memiliki model domain. Migrasi database untuk entitas aplikasi dilakukan setelah model ditambahkan pada fase pengembangan berikutnya.
-
-## Environment Variables
-
-| Variable | Application | Description |
-|---|---|---|
-| `NODE_ENV` | API | Environment aplikasi: development, test, atau production |
-| `PORT` | API | Port server API, default `4000` |
-| `CORS_ORIGINS` | API | Daftar origin yang diizinkan, dipisahkan dengan koma |
-| `DATABASE_URL` | API | Connection string MySQL |
-| `APP_ORIGIN` | API | Origin aplikasi yang digunakan server |
-| `CSRF_SECRET` | API | Secret untuk mekanisme perlindungan CSRF |
-| `NEXT_PUBLIC_API_BASE_URL` | Web | Base URL API yang digunakan frontend |
-
-Lihat file `.env.example` pada masing-masing aplikasi untuk konfigurasi awal.
-
-> **Security:** Jangan pernah mengunggah password database, secret, token, atau kredensial asli ke GitHub.
-
-## Backend API Overview
-
-Backend menggunakan pola pemisahan tanggung jawab untuk mempermudah pengembangan dan pengujian.
-
-| Directory / File | Responsibility |
+| Service | URL lokal |
 |---|---|
-| `src/app.ts` | Membuat instance Express tanpa menjalankan listener |
-| `src/server.ts` | Entry point server dan graceful shutdown |
-| `src/config/env.ts` | Validasi konfigurasi environment |
-| `src/lib/database.ts` | Abstraksi koneksi database |
-| `src/middleware/` | Middleware dan penanganan error |
-| `src/routes/` | Definisi endpoint API |
-| `src/domain/` | Aturan domain dan validasi |
-| `src/services/` | Logika layanan aplikasi |
-| `src/utils/` | Utilitas dan format respons |
+| Portal peserta | [http://localhost:3000](http://localhost:3000) |
+| Gerbang Admin | [http://localhost:4000/masuk](http://localhost:4000/masuk) |
+| Health API | [http://localhost:4000/api/health](http://localhost:4000/api/health) |
+| Health database | [http://localhost:4000/api/health/db](http://localhost:4000/api/health/db) |
 
-### API Response Format
+`/api/health` memeriksa status API. `/api/health/db` memeriksa koneksi MySQL dan akan mengembalikan error terstruktur bila database belum dikonfigurasi atau tidak tersedia.
 
-**Success response**
+Untuk menjalankan keduanya sekaligus gunakan `npm run dev`.
 
-```json
-{
-  "success": true,
-  "data": {}
-}
-```
+## Perintah pengembangan
 
-**Error response**
+Jalankan dari root:
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Error description"
-  }
-}
-```
-
-## Development Roadmap
-
-| Phase | Scope |
+| Perintah | Tujuan |
 |---|---|
-| Phase 1 | Project foundation, application setup, dan health checks |
-| Phase 2 | Authentication dan role-based access control |
-| Phase 3 | Core training domain, jadwal, registrasi, materi, dan akses pelatihan |
-| Phase 4 | Evaluasi, hasil penilaian, dan laporan |
+| `npm run dev` | Menjalankan API dan web secara bersamaan |
+| `npm run dev:api` | Menjalankan Express API dan web staf |
+| `npm run dev:web` | Menjalankan Next.js |
+| `npm run typecheck` | Type-check API dan web |
+| `npm run lint` | ESLint pada web |
+| `npm test` | Tes API |
+| `npm run build` | Build API dan web |
+| `npm run db:generate` | Generate Prisma Client |
+| `npm run db:migrate` | Migrasi development dengan Prisma |
 
-Daftar keputusan bisnis dan teknis yang masih menunggu konfirmasi tersedia di [`docs/PENDING-DECISIONS.md`](docs/PENDING-DECISIONS.md).
+## Flow utama
 
-## Project Status
+### Admin
 
-**Current stage: Phase 1 — Foundation**
+1. Buat departemen / unit yang diaudit.
+2. Buat standar serta versi checklist, isi poin, lalu terbitkan versi.
+3. Buat sesi dari checklist yang sudah terbit dan tentukan batas waktu.
+4. Tambahkan auditor, tetapkan pengecualian self-audit, dan buat penugasan.
+5. Aktifkan sesi setelah auditor dan penugasan valid tersedia.
+6. Kirim tautan undangan personal setelah sesi aktif; pantau kemajuan dan temuan dari detail sesi.
 
-Repository telah memiliki fondasi aplikasi dan pengujian awal. Fitur domain dan konfigurasi database untuk kebutuhan aplikasi akan dikembangkan secara bertahap.
+### Auditor
+
+1. Buka tautan individual dan tekan **Terima undangan dan masuk**.
+2. Isi checklist untuk unit yang ditugaskan, simpan catatan dan bukti.
+3. Catat temuan Major, Minor, atau Observasi.
+4. Isi tindak lanjut dan tutup temuan setelah verifikasi.
+5. Buka laporan unit untuk ditinjau atau dicetak.
+
+Panduan lengkap serta skenario penerimaan tersedia di [Runbook UAT](docs/RUNBOOK-UAT.md). Artefak alur, temuan UX dan acceptance criteria tersedia di [Flow & UX Review](docs/FLOW-AND-UX-REVIEW.md).
+
+## Batasan yang diketahui
+
+- Pilihan “Ikuti Pelatihan” pada portal peserta saat ini disimpan di browser pengguna, belum menjadi registrasi/enrollment persisten di server.
+- Materi PDF dan bukti audit direferensikan menggunakan URL HTTPS; izin akses tetap mengikuti penyedia dokumen.
+- Portal staf saat ini memiliki peran Admin dan Auditor; peran Trainer terpisah belum ditetapkan.
+- Beberapa keputusan aturan bisnis masih menunggu konfirmasi klien. Lihat [Keputusan Tertunda](docs/PENDING-DECISIONS.md); jangan menetapkan bobot tes, status tindak lanjut, atau hak akses baru tanpa persetujuan.
+- Pemeriksaan typecheck, test, build dan UAT harus dijalankan pada environment developer/staging sebelum branch dianggap siap dipakai. Dokumentasi dan kode dalam repository bukan bukti bahwa pengujian browser maupun UAT telah lulus.
+
+## Keamanan
+
+- Gunakan secret CSRF acak berukuran minimal 32 karakter; wajib di production.
+- Password production minimal 12 karakter sesuai validasi environment.
+- Token undangan hanya dapat diklaim sekali. Jangan bagikan secara publik atau menyimpannya dalam dokumentasi.
+- Dokumen internal tidak boleh menggunakan URL publik yang membuka akses di luar kontrol Sopinsya.
+- Gunakan HTTPS dan tinjau konfigurasi origin, cookie serta reverse proxy sebelum deployment produksi.
 
 ---
 
-Developed as part of the **Capstone Project — Kelompok 1, 4KA23**.
+Dikembangkan untuk **Capstone Project — Kelompok 1, 4KA23**.
