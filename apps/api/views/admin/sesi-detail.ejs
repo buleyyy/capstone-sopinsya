@@ -11,7 +11,7 @@
 <% if (invite) { %>
   <div class="alert info">
     <strong>Undangan untuk <%= invite.name %></strong> (berlaku sampai <%= fmt(invite.expires) %>).
-    <p>Salin dan kirim tautan ini sekarang. Tautan <strong>tidak akan ditampilkan lagi</strong> setelah halaman ini ditutup; bila hilang, gunakan "Terbitkan ulang".</p>
+    <p>Simpan tautan ini, lalu kirim setelah sesi berstatus <strong>Aktif</strong>. Tautan <strong>tidak akan ditampilkan lagi</strong> setelah halaman ini ditutup; bila hilang atau sudah digunakan, gunakan "Terbitkan ulang".</p>
     <div class="link-box"><%= invite.link %></div>
   </div>
 <% } %>
