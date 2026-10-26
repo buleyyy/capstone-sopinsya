@@ -35,11 +35,10 @@ const envSchema = z
     CSRF_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, "CSRF_SECRET minimal 32 karakter").optional()),
     // Kata sandi Admin untuk halaman /admin (satu akun untuk UAT). Kosong = halaman Admin dinonaktifkan.
     ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "ADMIN_PASSWORD minimal 8 karakter").optional()),
-    // Variabel legacy untuk login Auditor bersama. Route web saat ini tidak menggunakannya;
-    // Auditor hanya masuk melalui undangan individual. Dipertahankan sementara agar env lama tidak langsung rusak.
+    // Kata sandi bersama untuk role Auditor; email role bawaan auditor@sopinsya.
     AUDITOR_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "AUDITOR_PASSWORD minimal 8 karakter").optional()),
     ADMIN_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
-    // Email Auditor legacy; tidak dipakai untuk akses pada flow undangan individual.
+    // Email role Auditor (bawaan: auditor@sopinsya).
     AUDITOR_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
   })
   .superRefine((v, ctx) => {
@@ -48,6 +47,9 @@ const envSchema = z
       if (!v.APP_ORIGIN) ctx.addIssue({ code: "custom", path: ["APP_ORIGIN"], message: "APP_ORIGIN wajib di production" });
       if (v.ADMIN_PASSWORD && v.ADMIN_PASSWORD.length < 12) {
         ctx.addIssue({ code: "custom", path: ["ADMIN_PASSWORD"], message: "ADMIN_PASSWORD minimal 12 karakter di production" });
+      }
+      if (v.AUDITOR_PASSWORD && v.AUDITOR_PASSWORD.length < 12) {
+        ctx.addIssue({ code: "custom", path: ["AUDITOR_PASSWORD"], message: "AUDITOR_PASSWORD minimal 12 karakter di production" });
       }
     }
   });
