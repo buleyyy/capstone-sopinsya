@@ -75,6 +75,27 @@ describe("lifecycle sesi", () => {
     expect(await fail(admin.activateSession(s.store, { sessionId: s.session.id }, T0))).toMatchObject({ code: "INVALID_STATE" });
   });
 
+  it("batas waktu sesi DRAFT dapat diperbarui ke masa depan setelah tenggat lama lewat", async () => {
+    const s = await seed();
+    const draft = await admin.createSession(
+      s.store,
+      { title: "Draft tertunda", checklistVersionId: s.v1.id, expiresAt: addDays(T0, 1) },
+      T0,
+    );
+    const now = addDays(T0, 2);
+    expect(
+      await fail(admin.updateDraftSessionDeadline(s.store, { sessionId: draft.id, to: addDays(T0, 1) }, now)),
+    ).toMatchObject({ code: "EXPIRES_IN_PAST" });
+
+    await admin.updateDraftSessionDeadline(s.store, { sessionId: draft.id, to: addDays(T0, 20) }, now);
+    expect((await s.store.findSession(draft.id))?.expiresAt).toEqual(addDays(T0, 20));
+
+    await s.store.activateSession(draft.id);
+    expect(
+      await fail(admin.updateDraftSessionDeadline(s.store, { sessionId: draft.id, to: addDays(T0, 30) }, now)),
+    ).toMatchObject({ code: "INVALID_STATE" });
+  });
+
   it("perpanjangan hanya ke masa depan dan hanya untuk sesi ACTIVE", async () => {
     const s = await seed();
     expect(await fail(admin.extendSession(s.store, { sessionId: s.session.id, to: addDays(T0, 3) }, T0))).toMatchObject({
