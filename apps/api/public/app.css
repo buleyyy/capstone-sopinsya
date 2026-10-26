@@ -665,6 +665,41 @@ body.gate { background: var(--surface); }
 .f-notes { border: 1px solid #000; padding: .6rem; font-size: 10px; line-height: 14px; min-width: 720px; }
 .f-notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-top: .35rem; }
 
+/* ---------- UX refinement: invitation and page hierarchy ---------- */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #6aa0ff;
+  outline-offset: 2px;
+}
+.page-head { align-items: flex-start; }
+.page-head > div { min-width: 0; }
+.page-head .eyebrow { margin-bottom: .35rem; }
+.page-head h1 { margin-bottom: .25rem; }
+.page-head p { max-width: 62rem; line-height: 1.6; }
+.invitation-card { width: 100%; }
+.invitation-card .gate-form { gap: .85rem; }
+.invitation-card .gate-form > form { margin: 0; }
+.invitation-card .gate-form > .alert { margin: 0; }
+.invitation-card .gate-form > p.small { line-height: 1.55; }
+.main > .page-head > .btn { flex: none; }
+.tablewrap { max-width: 100%; }
+.tablewrap table { min-width: 640px; }
+.f-doc { max-width: 100%; }
+
+@media (max-width: 960px) {
+  .page-head { align-items: flex-start; }
+  .page-head > .btn { width: auto; }
+  .invitation-card .gate-side { gap: 1.5rem; }
+}
+@media (max-width: 640px) {
+  .page-head { display: grid; gap: .75rem; }
+  .page-head > .btn { width: 100%; }
+  .main > .page-head { margin-bottom: 1rem; }
+  .invitation-card .gate-form { padding: 1.25rem; }
+  .steps li { flex-wrap: wrap; }
+  .steps li .btn { margin-left: 2.5rem; }
+  .tablewrap { margin-inline: 0; }
+}
+
 @media print {
   @page { size: A4 landscape; margin: 8mm; }
   .sidebar, .topbar, .btn, .sticky, .no-print, .tabs, .backlink { display: none !important; }
