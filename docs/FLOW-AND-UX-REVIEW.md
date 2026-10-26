@@ -139,6 +139,7 @@ Use these as the consistency contract for the UI pass:
 | Logout | Logout clears the cookie and calls the existing token invalidation service. |
 | Admin sign-in | `/masuk` now explains that it is for Admin; Auditor access uses the personal link. |
 | Session readiness | Activation from the Admin route is rejected unless the write deadline is in the future and a non-revoked auditor has an assignment with checklist items. |
+| Draft deadline recovery | Admin can set a new future deadline on a DRAFT session if the original deadline passed. |
 | Draft recovery | Admin can revise an expired draft deadline and reissue individual invitations while a session is DRAFT; claiming remains blocked until session access is allowed. |
 | Invalid invite feedback | Used, expired, or currently inaccessible links show recovery guidance instead of dropping into the Admin sign-in form. |
 | Dashboard setup | Setup checklist split into department, published checklist, session, auditor, assignment and activation stages with deep links. |
@@ -158,6 +159,7 @@ Use these as the consistency contract for the UI pass:
 | ADMIN-01 | Checklist | Empty versions cannot be published; published versions cannot be edited. |
 | ADMIN-02 | Session activation | Activation is blocked until the write deadline is in the future and an eligible auditor has a checklist-bearing assignment. |
 | ADMIN-04 | Draft expiry | A DRAFT session with a past deadline can be rescheduled to a future deadline before activation. |
+| ADMIN-05 | Invitation administration | Admin can reissue a token in DRAFT after losing its one-time display; the old token is invalidated and the new token cannot be claimed until the session is accessible. |
 | ADMIN-03 | Self-audit | A restricted auditor cannot be assigned to an excluded department. |
 | AUD-01 | Scope | Auditor cannot read/write another auditor's assignment. |
 | AUD-02 | Checklist | YA/TIDAK, notes and HTTPS evidence persist; expired sessions become read-only. |
