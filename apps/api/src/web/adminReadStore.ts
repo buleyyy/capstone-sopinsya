@@ -100,6 +100,18 @@ export interface DocumentRow {
   pdfUrl: string | null;
   isPublished: boolean;
 }
+export type TrainingResourceTypeRow = "VIDEO" | "BLOOKET" | "CASE_STUDY" | "SYLLABUS";
+export interface TrainingResourceRow {
+  id: number;
+  categoryId: number;
+  categoryName: string;
+  type: TrainingResourceTypeRow;
+  title: string;
+  description: string | null;
+  url: string;
+  sortOrder: number;
+  isPublished: boolean;
+}
 
 export interface AdminReadStore {
   listDepartments(): Promise<DepartmentRow[]>;
@@ -119,6 +131,9 @@ export interface AdminReadStore {
   >;
   listRooms(): Promise<RoomRow[]>;
   listDocuments(): Promise<DocumentRow[]>;
+  listTrainingResources(): Promise<TrainingResourceRow[]>;
+  createTrainingResource(data: { categoryId: number; type: TrainingResourceTypeRow; title: string; description: string | null; url: string; sortOrder: number; isPublished: boolean }): Promise<void>;
+  setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
   createRoom(data: { name: string; description: string | null; sortOrder: number; isPublished: boolean }): Promise<RoomRow>;
   createDocument(data: {
     code: string;
@@ -401,6 +416,29 @@ export class PrismaAdminReadStore implements AdminReadStore {
     isPublished: boolean;
   }): Promise<void> {
     await guardUnique("Dokumen dengan kode ini", () => this.db.sopDocument.create({ data }));
+  }
+
+  async listTrainingResources(): Promise<TrainingResourceRow[]> {
+    const rows = await this.db.trainingResource.findMany({
+      orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+      include: { category: { select: { name: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id, categoryId: r.categoryId, categoryName: r.category.name,
+      type: r.type, title: r.title, description: r.description, url: r.url,
+      sortOrder: r.sortOrder, isPublished: r.isPublished,
+    }));
+  }
+
+  async createTrainingResource(data: { categoryId: number; type: TrainingResourceTypeRow; title: string; description: string | null; url: string; sortOrder: number; isPublished: boolean }): Promise<void> {
+    const category = await this.db.materialCategory.findUnique({ where: { id: data.categoryId }, select: { id: true } });
+    if (!category) throw new AppError(404, "NOT_FOUND", "Program training tidak ditemukan");
+    await this.db.trainingResource.create({ data });
+  }
+
+  async setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean> {
+    const r = await this.db.trainingResource.updateMany({ where: { id }, data: { isPublished } });
+    return r.count > 0;
   }
 
   async setRoomPublished(roomId: number, isPublished: boolean): Promise<boolean> {

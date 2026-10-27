@@ -42,6 +42,11 @@ export class PrismaPublicContentStore implements PublicContentStore {
           orderBy: [{ code: "asc" }],
           select: { id: true, code: true, title: true, pdfUrl: true },
         },
+        trainingResources: {
+          where: { isPublished: true },
+          orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+          select: { id: true, type: true, title: true, description: true, url: true },
+        },
       },
     });
     if (!row) return null;
@@ -51,6 +56,7 @@ export class PrismaPublicContentStore implements PublicContentStore {
       description: row.description,
       documentCount: row.sopDocuments.length,
       documents: row.sopDocuments.map((d) => ({ id: d.id, code: d.code, title: d.title, url: d.pdfUrl })),
+      resources: row.trainingResources.map((r) => ({ id: r.id, type: r.type, title: r.title, description: r.description, url: r.url })),
     };
   }
 }

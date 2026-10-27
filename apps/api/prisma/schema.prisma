@@ -66,6 +66,13 @@ enum TestType {
   POST
 }
 
+enum TrainingResourceType {
+  VIDEO
+  BLOOKET
+  CASE_STUDY
+  SYLLABUS
+}
+
 // Satu tes per jenis per pertemuan. Program/pertemuan belum ada di basis data, jadi diikat lewat slug + nomor.
 model Test {
   id          Int            @id @default(autoincrement())
@@ -163,6 +170,7 @@ model MaterialCategory {
   // Hanya Programyang dipublikasikan yang tampil di halaman publik peserta.
   isPublished  Boolean       @default(false)
   sopDocuments SopDocument[]
+  trainingResources TrainingResource[]
 }
 
 model SopDocument {
@@ -180,6 +188,24 @@ model SopDocument {
 
   @@index([categoryId, isPublished])
   @@index([departmentId])
+}
+
+// Tautan pendukung program yang bukan dokumen PDF: video, Blooket, studi kasus, dan silabus.
+// Semua konten tetap terikat ke program dan hanya dipublikasikan secara eksplisit.
+model TrainingResource {
+  id          Int                  @id @default(autoincrement())
+  categoryId  Int
+  type        TrainingResourceType
+  title       String               @db.VarChar(200)
+  description String?              @db.Text
+  url         String               @db.VarChar(1024)
+  sortOrder   Int                  @default(0)
+  isPublished Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  category    MaterialCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([categoryId, isPublished, sortOrder])
 }
 
 // ---------- Standar dan versi checklist ----------

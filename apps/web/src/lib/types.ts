@@ -13,6 +13,15 @@ export interface RoomDocument {
   url: string | null;
 }
 
+export interface TrainingResource {
+  id: number;
+  type: "VIDEO" | "BLOOKET" | "CASE_STUDY" | "SYLLABUS";
+  title: string;
+  description: string | null;
+  url: string;
+}
+
 export interface RoomDetail extends Room {
   documents: RoomDocument[];
+  resources: TrainingResource[];
 }
