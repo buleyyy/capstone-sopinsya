@@ -66,6 +66,16 @@ const documentSchema = z.object({
   isPublished: z.boolean(),
 });
 
+const trainingResourceSchema = z.object({
+  categoryId: z.number().int().positive(),
+  type: z.enum(["VIDEO", "BLOOKET", "CASE_STUDY", "SYLLABUS"]),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(4000).transform((v) => (v === "" ? null : v)),
+  url: z.string().trim().min(1).max(1024).refine(httpsOnly, "Tautan harus berupa URL https:// tanpa kredensial"),
+  sortOrder: z.number().int().min(0).max(100000),
+  isPublished: z.boolean(),
+});
+
 const ok = "?ok=1";
 
 /** Halaman Admin memakai ADMIN_PASSWORD. Semua operasi memakai service Admin yang sudah diuji. */
@@ -326,6 +336,38 @@ export function createAdminRouter(deps: WebDeps): Router {
       departmentId: intField(req, "departmentId"),
     });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  // ---------- Program Training ----------
+
+  router.get("/admin/program-training", async (req, res) => {
+    const admin = requireAdminStore(deps);
+    const [rooms, resources] = await Promise.all([admin.listRooms(), admin.listTrainingResources()]);
+    res.render("admin/program-training", {
+      title: "Manajemen Program Training", rooms, resources,
+      saved: req.query["ok"] === "1", nav: "program-training",
+    });
+  });
+
+  router.post("/admin/program-training/sumber", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const sort = intField(req, "sortOrder");
+    const data = parseInput(trainingResourceSchema, {
+      categoryId: intField(req, "categoryId"),
+      type: trimmed(req, "type"),
+      title: trimmed(req, "title"),
+      description: trimmed(req, "description"),
+      url: trimmed(req, "url"),
+      sortOrder: Number.isNaN(sort) ? 0 : sort,
+      isPublished: trimmed(req, "isPublished") === "1",
+    });
+    await requireAdminStore(deps).createTrainingResource(data);
+    res.redirect(303, `/admin/program-training${ok}`);
+  });
+
+  router.post("/admin/program-training/sumber/:id/publikasi", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const found = await requireAdminStore(deps).setTrainingResourcePublished(intParam(req.params["id"]), trimmed(req, "value") === "1");
+    if (!found) throw new AppError(404, "NOT_FOUND", "Konten program tidak ditemukan");
+    res.redirect(303, `/admin/program-training${ok}`);
   });
 
   // ---------- Pustaka SOP ----------
