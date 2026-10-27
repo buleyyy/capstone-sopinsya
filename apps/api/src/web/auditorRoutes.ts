@@ -3,7 +3,7 @@ import type { AnswerResult } from "../domain/auditSchemas.js";
 import { getAuditContext } from "../middleware/sessionAccess.js";
 import { toHttpsUrl } from "../routes/publicContent.js";
 import {
-  authenticateById,
+  authenticateAccount,
   closeFinding,
   createFinding,
   getChecklist,
@@ -32,21 +32,33 @@ export function createAuditorRouter(deps: WebDeps): Router {
   const router = Router();
   const { sec } = deps;
 
-  // Akses Auditor memakai email + password role; cookie sesi bertanda tangan memuat id Auditor terpilih.
+  // Akses Auditor memakai akun individual (email + password). Cookie bertanda tangan hanya memuat id akun;
+  // status akun, keanggotaan sesi, dan penugasan dibaca ulang dari database pada setiap request.
 
   // ---------- Area Auditor (wajib sesi) ----------
+
+  // Halaman yang boleh dibuka akun aktif yang belum punya sesi/penugasan yang dapat diakses.
+  const allowedWithoutSession = (path: string): boolean => path === "/" || path === "" || path === "/keluar" || path.startsWith("/sop");
 
   const auth: RequestHandler = async (req, res, next) => {
     try {
       const store = requireStore(deps);
       const binding = sec.auditorBinding(req);
       if (!binding) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-      // Role password sudah diverifikasi pada /masuk. Id Auditor disimpan pada cookie yang ditandatangani.
-      // Hak akses, status pencabutan, dan sesi dicek ulang terhadap database di setiap request.
-      const ctx: AuditContext = await authenticateById(store, binding.auditorId, new Date());
-      res.locals["audit"] = ctx;
+      const access = await authenticateAccount(store, binding.accountId, new Date());
       res.locals["csrfBinding"] = binding.binding;
       res.locals["csrf"] = sec.csrfToken(binding.binding);
+      res.locals["auditorName"] = access.account.name;
+      if (!access.context) {
+        if (!allowedWithoutSession(req.path)) {
+          throw new AppError(403, "NO_AUDIT_ASSIGNMENT", "Belum ada sesi audit yang dapat Anda akses. Hubungi Admin.");
+        }
+        res.locals["auditorNoSession"] = true;
+        next();
+        return;
+      }
+      const ctx: AuditContext = access.context;
+      res.locals["audit"] = ctx;
       res.locals["sessionTitle"] = ctx.session.title;
       next();
     } catch (err) {
@@ -62,6 +74,10 @@ export function createAuditorRouter(deps: WebDeps): Router {
   };
 
   router.get("/auditor", async (_req, res) => {
+    if (res.locals["auditorNoSession"]) {
+      res.render("auditor/belum-ada-sesi", { title: "Dashboard Audit" });
+      return;
+    }
     const store = requireStore(deps);
     const ctx = getAuditContext(res);
     const [me, dash] = await Promise.all([getMe(store, ctx), getDashboard(store, ctx)]);

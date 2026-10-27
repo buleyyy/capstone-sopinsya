@@ -32,19 +32,9 @@ export function assertCanWrite(s: SessionState, now: Date): void {
   }
 }
 
-export interface InviteState {
-  claimedAt: Date | null;
-  revokedAt: Date | null;
-  inviteExpiresAt: Date;
-}
-
-/** I3: undangan dapat diklaim hanya bila belum diklaim, tidak dicabut, dan belum kedaluwarsa. */
-export const isInviteClaimable = (a: InviteState, now: Date): boolean =>
-  a.claimedAt === null && a.revokedAt === null && a.inviteExpiresAt.getTime() > now.getTime();
-
 /**
  * Aturan bisnis: auditor tidak boleh mengaudit unit yang dikecualikan baginya (self-audit).
- * Daftar pengecualian dideklarasikan Admin saat membuat undangan.
+ * Daftar pengecualian dideklarasikan Admin saat menambahkan auditor ke sesi.
  */
 export function assertNotExcluded(excludedDepartmentIds: readonly number[], targetDepartmentId: number): void {
   if (excludedDepartmentIds.includes(targetDepartmentId)) {

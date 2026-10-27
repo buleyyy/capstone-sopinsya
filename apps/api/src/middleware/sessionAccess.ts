@@ -1,8 +1,8 @@
-import type { RequestHandler, Response } from "express";
-import type { AuditStore } from "../domain/auditStore.js";
-import { authenticate, type AuditContext } from "../services/auditService.js";
+import type { Response } from "express";
+import type { AuditContext } from "../services/auditService.js";
 import { AppError } from "../utils/errors.js";
 
+/** Nama cookie sesi Auditor (nilai bertanda tangan, dibuat WebSecurity.issueAuditorCookie). */
 export const SESSION_COOKIE = "sopinsya_session";
 
 /** Membaca satu cookie dari header Cookie (tanpa dependency tambahan). */
@@ -23,23 +23,10 @@ export function readCookie(header: string | undefined, name: string): string | u
 }
 
 /**
- * Akses auditor: token sesi dari cookie HttpOnly. Pada SETIAP request status sesi dibaca ulang dari
- * database dan diperiksa canAccess (tanpa itu: 403). Hasilnya (res.locals.audit) adalah SATU-SATUNYA
- * sumber sessionId/auditorId/checklistVersionId untuk handler; tidak pernah diambil dari body/query.
+ * Konteks audit (res.locals.audit) diisi middleware /auditor dari database pada SETIAP request, lewat
+ * cookie bertanda tangan -> akun -> keanggotaan sesi. Ini SATU-SATUNYA sumber sessionId/auditorId/
+ * checklistVersionId untuk handler; tidak pernah diambil dari body/query.
  */
-export function requireAuditor(store: AuditStore, clock: () => Date = () => new Date()): RequestHandler {
-  return async (req, res, next) => {
-    try {
-      const token = readCookie(req.header("cookie"), SESSION_COOKIE);
-      if (!token) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-      res.locals["audit"] = await authenticate(store, token, clock());
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
 export function getAuditContext(res: Response): AuditContext {
   const ctx = res.locals["audit"] as AuditContext | undefined;
   if (!ctx) throw new AppError(500, "INTERNAL_ERROR", "Konteks audit tidak tersedia (middleware belum dipasang)");

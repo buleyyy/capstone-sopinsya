@@ -6,8 +6,12 @@
 //  - Satu AuditSession terikat pada satu ChecklistVersion yang tetap (checklistVersionId).
 //  - MaterialCategory (Program) TERPISAH dari Department (unit yang diaudit).
 //  - Auditor TIDAK punya departemen asal. Self-audit dicegah lewat AuditorExclusion
-//    (unit yang dilarang diaudit oleh auditor tertentu, dideklarasikan Admin saat membuat undangan).
-//  - Akses lewat undangan per auditor: hanya hash yang disimpan (inviteHash, tokenHash).
+//    (unit yang dilarang diaudit oleh auditor tertentu, dideklarasikan Admin saat menambahkan auditor ke sesi).
+//  - Akses Auditor memakai akun individual (AuditorAccount: email + hash kata sandi) yang dibuat Admin. Tidak ada
+//    undangan atau token. Auditor (keanggotaan pada satu sesi) menaut ke akun lewat accountId; Admin menugaskan
+//    unit lewat AuditAssignment.
+//  - Kolom lama Auditor.inviteHash/inviteExpiresAt/claimedAt/tokenHash TIDAK lagi dibaca atau ditulis. Dipertahankan
+//    (nullable) agar tidak ada migrasi destruktif; hapus lewat migrasi tersendiri setelah disetujui.
 //  - Semua relasi rantai audit memakai onDelete: Restrict (tidak ada penghapusan beruntun).
 //  - Invarian lintas tabel dijaga foreign key komposit (lihat komentar @@unique "target FK").
 //  - Pre-test/Post-test peserta (Test, TestQuestion, TestOption, TestAttempt, TestAttemptAnswer) ada di schema ini.
@@ -241,28 +245,43 @@ model AuditSession {
   @@index([checklistVersionId])
 }
 
-// Auditor = penerima undangan per sesi. Nama BUKAN identitas.
-// Invarian (dijaga service):
-//  I1 tokenHash terisi => claimedAt terisi dan revokedAt kosong
-//  I2 revokedAt terisi => tokenHash kosong
-//  I3 undangan dapat diklaim hanya bila claimedAt kosong, revokedAt kosong, dan inviteExpiresAt > sekarang
+// Auditor = keanggotaan satu akun pada satu sesi. Nama disalin dari akun saat ditambahkan.
+// accountId null hanya untuk data lama (sebelum akun individual): data tetap utuh tetapi tidak dapat login
+// sampai Admin mengaitkan akun. Satu akun hanya sekali per sesi (@@unique sessionId+accountId).
 model Auditor {
-  id              Int                     @id @default(autoincrement())
-  sessionId       Int
-  name            String                  @db.VarChar(120)
-  inviteHash      String                  @unique @db.VarChar(64) // SHA-256 token undangan
-  inviteExpiresAt DateTime
+  id        Int      @id @default(autoincrement())
+  sessionId Int
+  accountId Int?
+  name      String   @db.VarChar(120)
+  // DEPRECATED (mekanisme undangan dihapus): tidak lagi dibaca/ditulis, dipertahankan nullable.
+  inviteHash      String?   @unique @db.VarChar(64)
+  inviteExpiresAt DateTime?
   claimedAt       DateTime?
+  tokenHash       String?   @unique @db.VarChar(64)
   revokedAt       DateTime?
-  tokenHash       String?                 @unique @db.VarChar(64) // SHA-256 token sesi (cookie); null = tidak ada sesi login
-  createdAt       DateTime                @default(now())
-  session         AuditSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  createdAt       DateTime               @default(now())
+  session         AuditSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  account         AuditorAccount?        @relation(fields: [accountId], references: [id], onDelete: Restrict)
   assignments     AuditAssignment[]
   exclusions      AuditorExclusion[]
   statusChanges   FindingStatusHistory[]
 
   @@unique([id, sessionId]) // target FK: penugasan hanya boleh menunjuk auditor dari sesi yang sama
+  @@unique([sessionId, accountId])
   @@index([sessionId])
+  @@index([accountId])
+}
+
+// Akun login Auditor. Email (huruf kecil) adalah identitas; hanya hash scrypt kata sandi yang disimpan.
+model AuditorAccount {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(160)
+  name         String    @db.VarChar(120)
+  passwordHash String    @db.VarChar(255)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  memberships  Auditor[]
 }
 
 // Pencegahan self-audit tanpa departemen asal: unit yang tidak boleh diaudit oleh auditor ini.

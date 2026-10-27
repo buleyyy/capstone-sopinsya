@@ -1,13 +1,13 @@
 import { Router, type Response } from "express";
-import { resolvePasswordLogin } from "../services/auditService.js";
-import { AppError } from "../utils/errors.js";
+import { verifyAuditorCredentials } from "../services/auditService.js";
 import { requireStore, type WebDeps } from "./deps.js";
-import { trimmed } from "./helpers.js";
+import { field, trimmed } from "./helpers.js";
 
 /**
- * Gerbang kredensial role Admin dan Auditor. Email hanya memilih role; password terpisah per role.
- * Setelah password role benar, server menerbitkan cookie Auditor bertanda tangan; tautan undangan tidak dipakai untuk login.
- * Web peserta (apps/web) adalah aplikasi terpisah dan tidak memakai gerbang staf.
+ * Gerbang login tunggal untuk Admin dan Auditor (email + kata sandi). Role ditentukan sistem dari email:
+ *  - email Admin (ADMIN_LOGIN_EMAIL) + ADMIN_PASSWORD -> cookie Admin, /admin;
+ *  - selain itu dicari sebagai akun Auditor di database (dibuat Admin) -> cookie Auditor, /auditor.
+ * Tidak ada undangan, token, atau tautan khusus. Web peserta (apps/web) tidak memakai gerbang ini.
  */
 export function createLoginRouter(deps: WebDeps): Router {
   const router = Router();
@@ -19,9 +19,7 @@ export function createLoginRouter(deps: WebDeps): Router {
       error: o.error ?? null,
       email: o.email ?? "",
       adminEnabled: sec.adminEnabled,
-      auditorEnabled: sec.auditorEnabled,
       adminEmail: loginEmails.admin,
-      auditorEmail: loginEmails.auditor,
     });
   };
 
@@ -37,17 +35,12 @@ export function createLoginRouter(deps: WebDeps): Router {
     renderGate(res, 200);
   });
 
-  // Bookmark lama Admin tetap diarahkan ke gerbang masuk Admin.
+  // Bookmark lama Admin tetap diarahkan ke gerbang masuk bersama.
   router.get("/admin/masuk", (_req, res) => res.redirect(303, "/masuk"));
-
-  // URL undangan lama tidak lagi mengaktifkan akses; semua Auditor masuk melalui email + kata sandi.
-  router.get("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
-  router.post("/undangan/:token", (_req, res) => res.redirect(303, "/masuk?access=password"));
 
   router.post("/masuk", sec.checkOrigin, async (req, res) => {
     const ip = req.ip ?? "unknown";
     const email = trimmed(req, "email").toLowerCase();
-    const secret = trimmed(req, "secret");
     const generic = "Email atau kata sandi tidak sesuai.";
     const blocked = "Terlalu banyak percobaan. Coba lagi dalam 15 menit.";
 
@@ -57,7 +50,7 @@ export function createLoginRouter(deps: WebDeps): Router {
     }
 
     if (email === loginEmails.admin) {
-      const verdict = sec.checkAdminPassword(secret, ip);
+      const verdict = sec.checkAdminPassword(trimmed(req, "secret"), ip);
       if (verdict === "ok") {
         sec.issueAdminCookie(res);
         res.redirect(303, "/admin");
@@ -71,33 +64,19 @@ export function createLoginRouter(deps: WebDeps): Router {
       return;
     }
 
-    if (email === loginEmails.auditor) {
-      const verdict = sec.checkAuditorPassword(secret, ip);
-      if (verdict === "ok") {
-        try {
-          const context = await resolvePasswordLogin(requireStore(deps));
-          sec.issueAuditorCookie(res, context.auditorId);
-          res.set("Cache-Control", "no-store");
-          res.redirect(303, "/auditor");
-          return;
-        } catch (err) {
-          if (err instanceof AppError && err.statusCode === 409) {
-            renderGate(res, 409, { error: err.message, email });
-            return;
-          }
-          throw err;
-        }
-      }
-      if (verdict === "disabled") {
-        renderGate(res, 503, { error: "Login Auditor belum diaktifkan (AUDITOR_PASSWORD belum diatur di server).", email });
-        return;
-      }
-      renderGate(res, verdict === "blocked" ? 429 : 401, { error: verdict === "blocked" ? blocked : generic, email });
+    // Akun Auditor. Kata sandi tidak dipangkas (sama seperti saat dibuat). Semua kegagalan (email tidak ada,
+    // kata sandi salah, akun nonaktif) memberi respons yang sama dan dihitung pada pembatas percobaan per IP.
+    const accountId = await verifyAuditorCredentials(requireStore(deps), email, field(req, "secret"));
+    if (accountId === null) {
+      sec.recordLoginFailure(ip);
+      renderGate(res, 401, { error: generic, email });
       return;
     }
-
-    sec.recordLoginFailure(ip);
-    renderGate(res, 401, { error: generic, email });
+    // Sengaja TIDAK mereset pembatas IP di sini: akun Auditor yang sah tidak boleh dipakai untuk menghapus
+    // hitungan percobaan tebak password Admin dari IP yang sama.
+    sec.issueAuditorCookie(res, accountId);
+    res.set("Cache-Control", "no-store");
+    res.redirect(303, "/auditor");
   });
 
   return router;

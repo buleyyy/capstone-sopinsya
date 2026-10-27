@@ -44,12 +44,28 @@ export interface SessionRecord {
   closedAt: Date | null;
   auditorAccessUntil: Date | null;
 }
+/** Akun login Auditor (email + kata sandi). Kata sandi tidak pernah keluar dari store kecuali lewat AuditorAccountCredential. */
+export interface AuditorAccountRecord {
+  id: number;
+  email: string;
+  name: string;
+  isActive: boolean;
+}
+/** Hanya dipakai saat verifikasi login. Jangan diteruskan ke view atau log. */
+export interface AuditorAccountCredential extends AuditorAccountRecord {
+  passwordHash: string;
+}
+
+/**
+ * Keanggotaan Auditor pada satu sesi. `accountId` null hanya untuk data lama (sebelum akun individual):
+ * keanggotaan itu tetap utuh (penugasan, jawaban, temuan) tetapi tidak dapat dipakai login sampai
+ * Admin mengaitkan akun.
+ */
 export interface AuditorRecord {
   id: number;
   sessionId: number;
+  accountId: number | null;
   name: string;
-  inviteExpiresAt: Date;
-  claimedAt: Date | null;
   revokedAt: Date | null;
 }
 export interface AuthRecord { auditor: AuditorRecord; session: SessionRecord }
@@ -118,7 +134,7 @@ export interface FindingFollowUpRecord extends FindingFollowUp { findingId: numb
  * Kontrak akses data. Setiap metode yang menerima sessionId WAJIB memfilter dengannya,
  * sehingga data sesi lain tidak pernah terbaca.
  *
- * Metode bersyarat (activate/extend/close/claim/publish/...) bersifat atomik dan mengembalikan
+ * Metode bersyarat (activate/extend/close/publish/...) bersifat atomik dan mengembalikan
  * true/null bila kondisi tidak terpenuhi, sehingga tidak ada pemeriksaan-lalu-tulis yang bisa balapan.
  */
 export interface AuditStore {
@@ -151,8 +167,6 @@ export interface AuditStore {
   // --- Sesi ---
   createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord>;
   findSession(sessionId: number): Promise<SessionRecord | null>;
-  /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Dipertahankan untuk kompatibilitas helper login lama. */
-  findLatestActiveSession(): Promise<SessionRecord | null>;
   /** DRAFT -> ACTIVE. false bila bukan DRAFT. */
   activateSession(sessionId: number): Promise<boolean>;
   /** Mengganti batas waktu hanya untuk sesi DRAFT; to harus divalidasi service agar berada di masa depan. */
@@ -167,29 +181,32 @@ export interface AuditStore {
    */
   lockSessionForWrite(sessionId: number, now: Date): Promise<boolean>;
 
-  // --- Auditor dan undangan ---
+  // --- Akun Auditor ---
+  /** Melempar UniqueViolationError bila email sudah dipakai. */
+  createAuditorAccount(data: { email: string; name: string; passwordHash: string }): Promise<AuditorAccountRecord>;
+  listAuditorAccounts(): Promise<AuditorAccountRecord[]>;
+  findAuditorAccount(accountId: number): Promise<AuditorAccountRecord | null>;
+  /** Email harus sudah huruf kecil. Satu-satunya jalur yang mengembalikan hash kata sandi. */
+  findAuditorCredentialByEmail(email: string): Promise<AuditorAccountCredential | null>;
+  setAuditorAccountActive(accountId: number, isActive: boolean): Promise<boolean>;
+  setAuditorAccountPassword(accountId: number, passwordHash: string): Promise<boolean>;
+
+  // --- Auditor pada sesi (keanggotaan) ---
   createAuditor(data: {
     sessionId: number;
+    accountId: number;
     name: string;
-    inviteHash: string;
-    inviteExpiresAt: Date;
     excludedDepartmentIds: number[];
   }): Promise<AuditorRecord>;
   findAuditor(sessionId: number, auditorId: number): Promise<AuditorRecord | null>;
-  findAuthByInviteHash(inviteHash: string): Promise<AuthRecord | null>;
-  findAuthByTokenHash(tokenHash: string): Promise<AuthRecord | null>;
-  /** Auditor + sesinya berdasarkan id (dipakai cookie Auditor bertanda tangan). */
-  findAuthByAuditorId(auditorId: number): Promise<AuthRecord | null>;
-  /**
-   * Akun Auditor untuk login kata sandi bersama: auditor yang belum dicabut dengan id terkecil
-   * pada sesi ACTIVE terbaru. null bila tidak ada sesi ACTIVE atau auditor.
-   */
-  findPasswordLoginAuditor(): Promise<AuthRecord | null>;
-  /** Klaim undangan legacy; tidak dipakai oleh login password role Auditor. */
-  claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null>;
-  clearAuditorToken(auditorId: number): Promise<void>;
-  reissueInvitation(auditorId: number, inviteHash: string, inviteExpiresAt: Date): Promise<void>;
+  findAuditorBySessionAccount(sessionId: number, accountId: number): Promise<AuditorRecord | null>;
+  /** Keanggotaan milik akun yang belum dicabut, beserta sesinya. Filter akses sesi dilakukan service. */
+  listMembershipsForAccount(accountId: number): Promise<AuthRecord[]>;
   revokeAuditor(auditorId: number, now: Date): Promise<void>;
+  /** Membatalkan pencabutan akses. */
+  restoreAuditor(auditorId: number): Promise<void>;
+  /** Mengaitkan akun ke keanggotaan lama. false bila keanggotaan sudah punya akun. */
+  linkAuditorAccount(auditorId: number, accountId: number): Promise<boolean>;
   listExclusions(auditorId: number): Promise<number[]>;
 
   // --- Penugasan ---

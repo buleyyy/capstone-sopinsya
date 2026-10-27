@@ -9,7 +9,7 @@ import { AppError } from "../utils/errors.js";
 
 export type VersionStatus = "DRAFT" | "PUBLISHED" | "RETIRED";
 export type SessionStatusRow = "DRAFT" | "ACTIVE" | "CLOSED";
-export type InviteState = "AKSES_TERSEDIA" | "DICABUT";
+export type AuditorAccessState = "AKSES_TERSEDIA" | "DICABUT";
 
 export interface DepartmentRow { id: number; name: string }
 export interface StandardRow { id: number; code: string; name: string }
@@ -47,9 +47,19 @@ export interface SessionRow {
 export interface AuditorRow {
   id: number;
   name: string;
-  state: InviteState;
-  inviteExpiresAt: Date;
+  state: AuditorAccessState;
+  /** null = keanggotaan lama tanpa akun (belum dapat login). */
+  accountId: number | null;
+  email: string | null;
+  accountActive: boolean;
   excluded: string[];
+}
+export interface AccountRow {
+  id: number;
+  email: string;
+  name: string;
+  isActive: boolean;
+  sessionCount: number;
 }
 export interface AssignmentRow {
   id: number;
@@ -97,6 +107,7 @@ export interface AdminReadStore {
   listVersions(): Promise<VersionRow[]>;
   getVersion(versionId: number): Promise<{ version: VersionRow; items: VersionItemRow[] } | null>;
   listSessions(): Promise<SessionRow[]>;
+  listAuditorAccounts(): Promise<AccountRow[]>;
   getSession(sessionId: number, now?: Date): Promise<
     | {
         session: SessionRow;
@@ -122,6 +133,14 @@ export interface AdminReadStore {
 }
 
 const duplicate = (what: string) => new AppError(409, "ALREADY_EXISTS", `${what} sudah ada`);
+
+/** Keanggotaan auditor yang benar-benar dapat login: belum dicabut, punya akun, dan akun aktif. */
+interface LoginReady {
+  revokedAt: Date | null;
+  accountId: number | null;
+  account: { isActive: boolean } | null;
+}
+const isLoginReady = (a: LoginReady): boolean => a.revokedAt === null && a.accountId !== null && a.account?.isActive === true;
 
 async function guardUnique<T>(what: string, run: () => Promise<T>): Promise<T> {
   try {
@@ -205,8 +224,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
     checklistVersionId: number;
     checklistVersion: { versionLabel: string; standard: { code: string } };
     _count: { auditors: number; assignments: number };
-    auditors: { revokedAt: Date | null }[];
-    assignments: { departmentId: number; auditor: { revokedAt: Date | null } }[];
+    auditors: LoginReady[];
+    assignments: { departmentId: number; auditor: LoginReady }[];
   }): SessionRow {
     return {
       id: r.id,
@@ -220,8 +239,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
       standardCode: r.checklistVersion.standard.code,
       auditorCount: r._count.auditors,
       assignmentCount: r._count.assignments,
-      eligibleAuditorCount: r.auditors.filter((a) => a.revokedAt === null).length,
-      eligibleAssignmentCount: r.assignments.filter((a) => a.auditor.revokedAt === null).length,
+      eligibleAuditorCount: r.auditors.filter(isLoginReady).length,
+      eligibleAssignmentCount: r.assignments.filter((a) => isLoginReady(a.auditor)).length,
     };
   }
 
@@ -231,13 +250,13 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
-        auditors: { select: { revokedAt: true } },
-        assignments: { select: { departmentId: true, auditor: { select: { revokedAt: true } } } },
+        auditors: { include: { account: true } },
+        assignments: { select: { departmentId: true, auditor: { include: { account: true } } } },
       },
     });
     return Promise.all(rows.map(async (r) => {
       const row = this.toSessionRow(r);
-      const activeAssignments = r.assignments.filter((a) => a.auditor.revokedAt === null);
+      const activeAssignments = r.assignments.filter((a) => isLoginReady(a.auditor));
       const checklistCounts = await Promise.all(activeAssignments.map((a) =>
         this.db.checklistItem.count({ where: { versionId: r.checklistVersionId, departmentId: a.departmentId } }),
       ));
@@ -251,19 +270,21 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
-        auditors: { orderBy: { id: "asc" }, include: { exclusions: { include: { department: true } } } },
-        assignments: { orderBy: { id: "asc" }, include: { auditor: true, department: true } },
+        auditors: { orderBy: { id: "asc" }, include: { exclusions: { include: { department: true } }, account: true } },
+        assignments: { orderBy: { id: "asc" }, include: { auditor: { include: { account: true } }, department: true } },
       },
     });
     if (!s) return null;
 
     const auditors: AuditorRow[] = s.auditors.map((a) => {
-      const state: InviteState = a.revokedAt ? "DICABUT" : "AKSES_TERSEDIA";
+      const state: AuditorAccessState = a.revokedAt ? "DICABUT" : "AKSES_TERSEDIA";
       return {
         id: a.id,
         name: a.name,
         state,
-        inviteExpiresAt: a.inviteExpiresAt,
+        accountId: a.accountId,
+        email: a.account?.email ?? null,
+        accountActive: a.account?.isActive ?? false,
         excluded: a.exclusions.map((e) => e.department.name),
       };
     });
@@ -306,6 +327,20 @@ export class PrismaAdminReadStore implements AdminReadStore {
     }));
 
     return { session: this.toSessionRow(s), auditors, assignments, findings };
+  }
+
+  async listAuditorAccounts(): Promise<AccountRow[]> {
+    const rows = await this.db.auditorAccount.findMany({
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      include: { _count: { select: { memberships: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      isActive: r.isActive,
+      sessionCount: r._count.memberships,
+    }));
   }
 
   async listRooms(): Promise<RoomRow[]> {

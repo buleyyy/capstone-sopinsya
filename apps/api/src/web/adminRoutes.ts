@@ -3,15 +3,20 @@ import { z } from "zod";
 import { parseInput } from "../domain/auditSchemas.js";
 import {
   activateSession,
+  addAuditorToSession,
   addChecklistItem,
   closeSession,
   createAssignment,
-  createAuditor,
+  createAuditorAccount,
   createChecklistVersion,
   createDepartment,
   createSession,
   createStandard,
   extendSession,
+  linkAuditorAccount,
+  resetAuditorPassword,
+  restoreAuditor,
+  setAuditorAccountActive,
   updateDraftSessionDeadline,
   publishChecklistVersion,
   revokeAuditor,
@@ -66,7 +71,7 @@ const ok = "?ok=1";
 /** Halaman Admin memakai ADMIN_PASSWORD. Semua operasi memakai service Admin yang sudah diuji. */
 export function createAdminRouter(deps: WebDeps): Router {
   const router = Router();
-  const { sec } = deps;
+  const { sec, loginEmails } = deps;
 
   // Masuk ditangani gerbang role (loginRoutes.ts). Semua rute /admin wajib login Admin.
   router.use("/admin", sec.requireAdmin);
@@ -171,6 +176,31 @@ export function createAdminRouter(deps: WebDeps): Router {
     res.redirect(303, `/admin/checklist/${versionId}${ok}`);
   });
 
+  // ---------- Akun Auditor ----------
+
+  router.get("/admin/auditor", async (req, res) => {
+    const accounts = await requireAdminStore(deps).listAuditorAccounts();
+    res.render("admin/auditor", { title: "Akun Auditor", accounts, saved: req.query["ok"] === "1" });
+  });
+
+  router.post("/admin/auditor", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const email = trimmed(req, "email").toLowerCase();
+    // Email Admin tidak boleh dipakai akun Auditor: gerbang login memeriksa email Admin lebih dulu.
+    if (email === loginEmails.admin) throw new AppError(422, "EMAIL_RESERVED", "Email ini dicadangkan untuk Admin");
+    await createAuditorAccount(requireStore(deps), { name: trimmed(req, "name"), email, password: field(req, "password") });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
+  router.post("/admin/auditor/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    await setAuditorAccountActive(requireStore(deps), { accountId: intParam(req.params["id"]), isActive: trimmed(req, "value") === "1" });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
+  router.post("/admin/auditor/:id/password", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    await resetAuditorPassword(requireStore(deps), { accountId: intParam(req.params["id"]), password: field(req, "password") });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
   // ---------- Sesi audit ----------
 
   router.get("/admin/sesi", async (req, res) => {
@@ -201,11 +231,12 @@ export function createAdminRouter(deps: WebDeps): Router {
     const admin = requireAdminStore(deps);
     const detail = Number.isNaN(id) ? null : await admin.getSession(id);
     if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
-    const departments = await admin.listDepartments();
+    const [departments, accounts] = await Promise.all([admin.listDepartments(), admin.listAuditorAccounts()]);
     res.render("admin/sesi-detail", {
       title: detail.session.title,
       ...detail,
       departments,
+      accounts,
       saved: req.query["ok"] === "1",
       setupError: typeof req.query["error"] === "string" ? req.query["error"] : null,
     });
@@ -221,7 +252,9 @@ export function createAdminRouter(deps: WebDeps): Router {
     if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
 
     if (detail.session.expiresAt.getTime() <= Date.now()) return res.redirect(303, `/admin/sesi/${id}?error=deadline-past#status-sesi`);
-    const eligibleAuditorIds = new Set(detail.auditors.filter((a) => a.state !== "DICABUT").map((a) => a.id));
+    const eligibleAuditorIds = new Set(
+      detail.auditors.filter((a) => a.state !== "DICABUT" && a.accountId !== null && a.accountActive).map((a) => a.id),
+    );
     if (eligibleAuditorIds.size === 0) return res.redirect(303, `/admin/sesi/${id}?error=auditor-missing#auditor`);
     const readyAssignments = detail.assignments.filter((a) => eligibleAuditorIds.has(a.auditorId) && a.total > 0);
     if (readyAssignments.length === 0) return res.redirect(303, `/admin/sesi/${id}?error=assignment-missing#penugasan`);
@@ -254,11 +287,27 @@ export function createAdminRouter(deps: WebDeps): Router {
 
   router.post("/admin/sesi/:id/auditor", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const id = intParam(req.params["id"]);
-    await createAuditor(requireStore(deps), {
+    await addAuditorToSession(requireStore(deps), {
       sessionId: id,
-      name: trimmed(req, "name"),
+      accountId: intField(req, "accountId"),
       excludeDepartmentIds: intList(req, "exclude"),
       noExclusions: trimmed(req, "noExclusions") === "1",
+    });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  router.post("/admin/sesi/:id/auditor/:auditorId/pulihkan", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const id = intParam(req.params["id"]);
+    await restoreAuditor(requireStore(deps), { sessionId: id, auditorId: intParam(req.params["auditorId"]) });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  router.post("/admin/sesi/:id/auditor/:auditorId/akun", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const id = intParam(req.params["id"]);
+    await linkAuditorAccount(requireStore(deps), {
+      sessionId: id,
+      auditorId: intParam(req.params["auditorId"]),
+      accountId: intField(req, "accountId"),
     });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
   });

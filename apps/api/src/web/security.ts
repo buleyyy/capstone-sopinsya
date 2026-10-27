@@ -7,18 +7,10 @@ export const ADMIN_COOKIE = "sopinsya_admin";
 const ADMIN_TTL_MS = 8 * 3_600_000;
 const AUDITOR_TTL_MS = 12 * 3_600_000;
 
-/**
- * Id auditor khusus pada cookie login kata sandi bersama bila saat masuk belum ada sesi audit aktif.
- * Cookie ini hanya diterbitkan setelah kata sandi Auditor terverifikasi; id sebenarnya dicari ulang pada setiap request.
- */
-export const UNBOUND_AUDITOR_ID = 0;
-
 export interface SecurityOptions {
-  /** Rahasia HMAC (CSRF dan cookie Admin). Bila kosong, dibuat acak per proses (sesi hilang saat restart). */
+  /** Rahasia HMAC (CSRF dan cookie Admin/Auditor). Bila kosong, dibuat acak per proses (sesi hilang saat restart). */
   secret?: string | undefined;
   adminPassword?: string | undefined;
-  /** Kata sandi Auditor (satu akun bersama untuk UAT). Kosong = login Auditor dinonaktifkan. */
-  auditorPassword?: string | undefined;
   appOrigin?: string | undefined;
   production: boolean;
 }
@@ -70,10 +62,6 @@ export class WebSecurity {
 
   get adminEnabled(): boolean {
     return Boolean(this.opts.adminPassword);
-  }
-
-  get auditorEnabled(): boolean {
-    return Boolean(this.opts.auditorPassword);
   }
 
   cookieOptions(maxAgeMs?: number): CookieOptions {
@@ -149,35 +137,33 @@ export class WebSecurity {
     return this.checkPassword(this.opts.adminPassword, candidate, ip, now);
   }
 
-  checkAuditorPassword(candidate: string, ip: string, now = Date.now()): "ok" | "wrong" | "blocked" | "disabled" {
-    return this.checkPassword(this.opts.auditorPassword, candidate, ip, now);
-  }
-
   // ---------- Auditor ----------
 
   /**
-   * Cookie Auditor bertanda tangan (tanpa token di database), sehingga banyak peserta UAT dapat masuk
-   * bersamaan dengan akun yang sama tanpa saling mengeluarkan. Isi: exp.auditorId.nonce.tandaTangan.
+   * Cookie Auditor bertanda tangan (tanpa token di database). Isi: exp.accountId.nonce.tandaTangan.
+   * Cookie hanya membuktikan bahwa email + kata sandi akun itu pernah terverifikasi; status akun, keanggotaan
+   * sesi, dan penugasan dibaca ulang dari database pada setiap request. Label HMAC `auditor-account` berbeda dari
+   * format lama sehingga cookie sebelum perubahan ini otomatis tidak berlaku.
    */
-  issueAuditorCookie(res: Response, auditorId: number, now = Date.now()): void {
-    const value = `${now + AUDITOR_TTL_MS}.${auditorId}.${randomBytes(16).toString("hex")}`;
-    res.cookie(SESSION_COOKIE, `${value}.${hmac(this.secret, `auditor:${value}`)}`, this.cookieOptions(AUDITOR_TTL_MS));
+  issueAuditorCookie(res: Response, accountId: number, now = Date.now()): void {
+    const value = `${now + AUDITOR_TTL_MS}.${accountId}.${randomBytes(16).toString("hex")}`;
+    res.cookie(SESSION_COOKIE, `${value}.${hmac(this.secret, `auditor-account:${value}`)}`, this.cookieOptions(AUDITOR_TTL_MS));
   }
 
   clearAuditorCookie(res: Response): void {
     res.clearCookie(SESSION_COOKIE, this.cookieOptions());
   }
 
-  /** Cookie Auditor yang sah: id auditor + nilai cookie (binding CSRF), atau undefined. */
-  auditorBinding(req: Request, now = Date.now()): { auditorId: number; binding: string } | undefined {
+  /** Cookie Auditor yang sah: id akun + nilai cookie (binding CSRF), atau undefined. */
+  auditorBinding(req: Request, now = Date.now()): { accountId: number; binding: string } | undefined {
     const raw = readCookie(req.header("cookie"), SESSION_COOKIE);
     if (!raw) return undefined;
     const parts = raw.split(".");
     if (parts.length !== 4) return undefined;
     const [exp, id, nonce, sig] = parts as [string, string, string, string];
-    if (!safeEqual(hmac(this.secret, `auditor:${exp}.${id}.${nonce}`), sig)) return undefined;
+    if (!safeEqual(hmac(this.secret, `auditor-account:${exp}.${id}.${nonce}`), sig)) return undefined;
     if (!(Number(exp) > now) || !/^\d{1,9}$/.test(id)) return undefined;
-    return { auditorId: Number(id), binding: raw };
+    return { accountId: Number(id), binding: raw };
   }
 
   issueAdminCookie(res: Response, now = Date.now()): void {

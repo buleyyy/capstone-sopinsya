@@ -5,6 +5,8 @@ import {
   type AssignmentRecord,
   type AssignmentSummary,
   type AuditStore,
+  type AuditorAccountCredential,
+  type AuditorAccountRecord,
   type AuditorRecord,
   type AuthRecord,
   type ChecklistItemDetail,
@@ -45,14 +47,21 @@ const toSession = (r: SessionRecord): SessionRecord => ({
   auditorAccessUntil: r.auditorAccessUntil,
 });
 
-// Sengaja memilih field satu per satu: hash undangan/token tidak boleh ikut keluar dari store.
+// Sengaja memilih field satu per satu: kolom lama (inviteHash/tokenHash/claimedAt) tidak boleh ikut keluar dari store.
 const toAuditor = (r: AuditorRecord): AuditorRecord => ({
   id: r.id,
   sessionId: r.sessionId,
+  accountId: r.accountId,
   name: r.name,
-  inviteExpiresAt: r.inviteExpiresAt,
-  claimedAt: r.claimedAt,
   revokedAt: r.revokedAt,
+});
+
+// Hash kata sandi tidak pernah ikut keluar kecuali lewat findAuditorCredentialByEmail.
+const toAccount = (r: AuditorAccountRecord): AuditorAccountRecord => ({
+  id: r.id,
+  email: r.email,
+  name: r.name,
+  isActive: r.isActive,
 });
 
 /**
@@ -181,11 +190,6 @@ export class PrismaAuditStore implements AuditStore {
     return r ? toSession(r) : null;
   }
 
-  async findLatestActiveSession(): Promise<SessionRecord | null> {
-    const r = await this.db.auditSession.findFirst({ where: { status: "ACTIVE" }, orderBy: { id: "desc" } });
-    return r ? toSession(r) : null;
-  }
-
   async activateSession(sessionId: number): Promise<boolean> {
     const r = await this.db.auditSession.updateMany({
       where: { id: sessionId, status: "DRAFT" },
@@ -227,13 +231,43 @@ export class PrismaAuditStore implements AuditStore {
     return rows.length === 1;
   }
 
-  // --- Auditor dan undangan ---
+  // --- Akun Auditor ---
+
+  async createAuditorAccount(data: { email: string; name: string; passwordHash: string }): Promise<AuditorAccountRecord> {
+    return toAccount(await unique(() => this.db.auditorAccount.create({ data })));
+  }
+
+  async listAuditorAccounts(): Promise<AuditorAccountRecord[]> {
+    const rows = await this.db.auditorAccount.findMany({ orderBy: [{ name: "asc" }, { id: "asc" }] });
+    return rows.map(toAccount);
+  }
+
+  async findAuditorAccount(accountId: number): Promise<AuditorAccountRecord | null> {
+    const r = await this.db.auditorAccount.findUnique({ where: { id: accountId } });
+    return r ? toAccount(r) : null;
+  }
+
+  async findAuditorCredentialByEmail(email: string): Promise<AuditorAccountCredential | null> {
+    const r = await this.db.auditorAccount.findUnique({ where: { email } });
+    return r ? { ...toAccount(r), passwordHash: r.passwordHash } : null;
+  }
+
+  async setAuditorAccountActive(accountId: number, isActive: boolean): Promise<boolean> {
+    const r = await this.db.auditorAccount.updateMany({ where: { id: accountId }, data: { isActive } });
+    return r.count === 1;
+  }
+
+  async setAuditorAccountPassword(accountId: number, passwordHash: string): Promise<boolean> {
+    const r = await this.db.auditorAccount.updateMany({ where: { id: accountId }, data: { passwordHash } });
+    return r.count === 1;
+  }
+
+  // --- Auditor pada sesi (keanggotaan) ---
 
   async createAuditor(data: {
     sessionId: number;
+    accountId: number;
     name: string;
-    inviteHash: string;
-    inviteExpiresAt: Date;
     excludedDepartmentIds: number[];
   }): Promise<AuditorRecord> {
     const { excludedDepartmentIds, ...rest } = data;
@@ -250,52 +284,32 @@ export class PrismaAuditStore implements AuditStore {
     return r ? toAuditor(r) : null;
   }
 
-  async findAuthByInviteHash(inviteHash: string): Promise<AuthRecord | null> {
-    const r = await this.db.auditor.findUnique({ where: { inviteHash }, include: { session: true } });
-    return r ? { auditor: toAuditor(r), session: toSession(r.session) } : null;
+  async findAuditorBySessionAccount(sessionId: number, accountId: number): Promise<AuditorRecord | null> {
+    const r = await this.db.auditor.findFirst({ where: { sessionId, accountId } });
+    return r ? toAuditor(r) : null;
   }
 
-  async findAuthByTokenHash(tokenHash: string): Promise<AuthRecord | null> {
-    const r = await this.db.auditor.findUnique({ where: { tokenHash }, include: { session: true } });
-    return r ? { auditor: toAuditor(r), session: toSession(r.session) } : null;
-  }
-
-  async findAuthByAuditorId(auditorId: number): Promise<AuthRecord | null> {
-    const r = await this.db.auditor.findUnique({ where: { id: auditorId }, include: { session: true } });
-    return r ? { auditor: toAuditor(r), session: toSession(r.session) } : null;
-  }
-
-  async findPasswordLoginAuditor(): Promise<AuthRecord | null> {
-    const session = await this.db.auditSession.findFirst({ where: { status: "ACTIVE" }, orderBy: { id: "desc" } });
-    if (!session) return null;
-    const r = await this.db.auditor.findFirst({ where: { sessionId: session.id, revokedAt: null }, orderBy: { id: "asc" } });
-    return r ? { auditor: toAuditor(r), session: toSession(session) } : null;
-  }
-
-  async claimInvitation(inviteHash: string, tokenHash: string, now: Date): Promise<AuditorRecord | null> {
-    // Satu UPDATE bersyarat: hanya satu pemanggil yang bisa menang.
-    const r = await this.db.auditor.updateMany({
-      where: { inviteHash, claimedAt: null, revokedAt: null, inviteExpiresAt: { gt: now } },
-      data: { claimedAt: now, tokenHash },
+  async listMembershipsForAccount(accountId: number): Promise<AuthRecord[]> {
+    const rows = await this.db.auditor.findMany({
+      where: { accountId, revokedAt: null },
+      include: { session: true },
+      orderBy: { id: "asc" },
     });
-    if (r.count !== 1) return null;
-    const row = await this.db.auditor.findUnique({ where: { inviteHash } });
-    return row ? toAuditor(row) : null;
-  }
-
-  async clearAuditorToken(auditorId: number): Promise<void> {
-    await this.db.auditor.updateMany({ where: { id: auditorId }, data: { tokenHash: null } });
-  }
-
-  async reissueInvitation(auditorId: number, inviteHash: string, inviteExpiresAt: Date): Promise<void> {
-    await this.db.auditor.update({
-      where: { id: auditorId },
-      data: { inviteHash, inviteExpiresAt, tokenHash: null, claimedAt: null, revokedAt: null },
-    });
+    return rows.map((r) => ({ auditor: toAuditor(r), session: toSession(r.session) }));
   }
 
   async revokeAuditor(auditorId: number, now: Date): Promise<void> {
-    await this.db.auditor.update({ where: { id: auditorId }, data: { revokedAt: now, tokenHash: null } });
+    await this.db.auditor.update({ where: { id: auditorId }, data: { revokedAt: now } });
+  }
+
+  async restoreAuditor(auditorId: number): Promise<void> {
+    await this.db.auditor.update({ where: { id: auditorId }, data: { revokedAt: null } });
+  }
+
+  async linkAuditorAccount(auditorId: number, accountId: number): Promise<boolean> {
+    // Satu UPDATE bersyarat: hanya keanggotaan yang masih tanpa akun yang dapat dikaitkan.
+    const r = await unique(() => this.db.auditor.updateMany({ where: { id: auditorId, accountId: null }, data: { accountId } }));
+    return r.count === 1;
   }
 
   async listExclusions(auditorId: number): Promise<number[]> {

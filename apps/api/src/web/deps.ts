@@ -9,10 +9,8 @@ export interface WebDeps {
   admin: AdminReadStore | undefined;
   publicContent: PublicContentStore | undefined;
   sec: WebSecurity;
-  /** Origin publik aplikasi (APP_ORIGIN); dipakai membentuk tautan undangan. */
-  appOrigin?: string | undefined;
-  /** Email login staf (huruf kecil). Email Auditor dipertahankan untuk kompatibilitas konfigurasi lama. */
-  loginEmails: { admin: string; auditor: string };
+  /** Email login Admin (huruf kecil). Auditor tidak punya email tetap: identitasnya akun di database. */
+  loginEmails: { admin: string };
 }
 
 const noDb = () => new AppError(503, "DB_NOT_CONFIGURED", "Database belum dikonfigurasi atau belum siap");
