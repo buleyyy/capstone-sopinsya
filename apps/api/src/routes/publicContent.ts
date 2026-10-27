@@ -34,7 +34,13 @@ export function createPublicRouter(store: PublicContentStore | undefined): Route
     if (!Number.isInteger(id) || id < 1) throw new AppError(404, "NOT_FOUND", "Programtidak ditemukan");
     const room = await s.getRoom(id);
     if (!room) throw new AppError(404, "NOT_FOUND", "Programtidak ditemukan");
-    res.json(ok({ ...room, documents: room.documents.map((d) => ({ ...d, url: toHttpsUrl(d.url) })) }));
+    res.json(ok({
+      ...room,
+      documents: room.documents.map((d) => ({ ...d, url: toHttpsUrl(d.url) })),
+      resources: room.resources
+        .map((resource) => ({ ...resource, url: toHttpsUrl(resource.url) }))
+        .filter((resource) => resource.url !== null),
+    }));
   });
 
   return router;
