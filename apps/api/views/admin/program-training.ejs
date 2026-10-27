@@ -1,0 +1,65 @@
+<%- include('../partials/header', { nav: 'program-training' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Konten Peserta</span>
+    <h1>Manajemen Program Training</h1>
+    <p>Atur tautan video, Blooket, studi kasus, dan silabus pada setiap program. Materi PDF tetap dikelola melalui Pustaka SOP.</p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Perubahan tersimpan.</div><% } %>
+
+<section class="card">
+  <h2>Konten pendukung (<%= resources.length %>)</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Program</th><th>Jenis</th><th>Judul</th><th>Tautan</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% resources.forEach(function (item) { %>
+          <tr>
+            <td><%= item.categoryName %></td>
+            <td><%= ({ VIDEO: 'Video referensi', BLOOKET: 'Blooket', CASE_STUDY: 'Studi kasus', SYLLABUS: 'Silabus' })[item.type] || item.type %></td>
+            <td><strong><%= item.title %></strong><% if (item.description) { %><div class="muted small"><%= item.description %></div><% } %></td>
+            <td><a href="<%= item.url %>" target="_blank" rel="noopener noreferrer">Buka tautan</a></td>
+            <td><span class="badge <%= item.isPublished ? 'published' : 'draft' %>"><%= item.isPublished ? 'Terbit' : 'Draf' %></span></td>
+            <td>
+              <form method="post" action="/admin/program-training/sumber/<%= item.id %>/publikasi" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <input type="hidden" name="value" value="<%= item.isPublished ? '0' : '1' %>">
+                <button class="btn secondary small" type="submit"><%= item.isPublished ? 'Tarik dari publik' : 'Terbitkan' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (resources.length === 0) { %><tr><td colspan="6" class="muted">Belum ada konten pendukung.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<form method="post" action="/admin/program-training/sumber" class="card">
+  <h2>Tambah konten program</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="training-program">Program</label>
+  <select id="training-program" name="categoryId" required>
+    <% rooms.forEach(function (room) { %><option value="<%= room.id %>"><%= room.name %><%= room.isPublished ? '' : ' (Program masih draf)' %></option><% }) %>
+  </select>
+  <label for="training-type">Jenis konten</label>
+  <select id="training-type" name="type" required>
+    <option value="VIDEO">Video referensi</option>
+    <option value="BLOOKET">Blooket</option>
+    <option value="CASE_STUDY">Studi kasus</option>
+    <option value="SYLLABUS">Silabus</option>
+  </select>
+  <label for="training-title">Judul</label>
+  <input id="training-title" name="title" type="text" required maxlength="200" placeholder="mis. Video pengantar ISO 37001">
+  <label for="training-description">Deskripsi (opsional)</label>
+  <textarea id="training-description" name="description" rows="3" maxlength="4000"></textarea>
+  <label for="training-url">URL https://</label>
+  <input id="training-url" name="url" type="url" required maxlength="1024" pattern="https://.*" placeholder="https://...">
+  <label for="training-order">Urutan tampil</label>
+  <input id="training-order" name="sortOrder" type="number" min="0" max="100000" value="0">
+  <label><input type="checkbox" name="isPublished" value="1"> Langsung tampilkan ke peserta (jika program sudah terbit)</label>
+  <p><button class="btn" type="submit" <%= rooms.length === 0 ? 'disabled' : '' %>>Simpan konten</button></p>
+  <% if (rooms.length === 0) { %><p class="muted">Buat Program terlebih dahulu di Pustaka SOP.</p><% } %>
+</form>
+<%- include('../partials/footer') %>
