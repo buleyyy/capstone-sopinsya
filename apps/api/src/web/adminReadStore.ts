@@ -139,6 +139,7 @@ export interface AdminReadStore {
   listTrainingTests(): Promise<TrainingTestRow[]>;
   listTrainingQuestions(): Promise<TrainingQuestionRow[]>;
   saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void>;
+  saveTrainingTestStatus(testId: number, isActive: boolean): Promise<boolean>;
   addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void>;
   setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean>;
 }
@@ -435,6 +436,11 @@ export class PrismaAdminReadStore implements AdminReadStore {
       create: data,
       update: { title: data.title, isActive: data.isActive },
     });
+  }
+
+  async saveTrainingTestStatus(testId: number, isActive: boolean): Promise<boolean> {
+    const r = await this.db.test.updateMany({ where: { id: testId }, data: { isActive } });
+    return r.count > 0;
   }
 
   async addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void> {
