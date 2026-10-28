@@ -135,6 +135,7 @@ export interface AdminReadStore {
   setDocumentPublished(documentId: number, isPublished: boolean): Promise<boolean>;
   listTrainingResources(): Promise<TrainingResourceRow[]>;
   createTrainingResource(data: Omit<TrainingResourceRow, "id">): Promise<TrainingResourceRow>;
+  updateTrainingResource(id: number, data: Omit<TrainingResourceRow, "id">): Promise<boolean>;
   setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
   listTrainingTests(): Promise<TrainingTestRow[]>;
   listTrainingQuestions(): Promise<TrainingQuestionRow[]>;
@@ -401,6 +402,11 @@ export class PrismaAdminReadStore implements AdminReadStore {
 
   async createTrainingResource(data: Omit<TrainingResourceRow, "id">): Promise<TrainingResourceRow> {
     return this.db.trainingResource.create({ data });
+  }
+
+  async updateTrainingResource(id: number, data: Omit<TrainingResourceRow, "id">): Promise<boolean> {
+    const r = await this.db.trainingResource.updateMany({ where: { id }, data });
+    return r.count > 0;
   }
 
   async setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean> {
