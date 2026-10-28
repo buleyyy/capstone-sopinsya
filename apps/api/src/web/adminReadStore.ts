@@ -99,6 +99,7 @@ export interface TrainingTestRow {
   id: number; programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string;
   isActive: boolean; questionCount: number; attemptCount: number;
 }
+export interface TrainingQuestionRow { id: number; testId: number; programSlug: string; meetingNo: number; testType: ParticipantTestKind; text: string; isActive: boolean; answerCount: number; }
 export interface TrainingQuestionInput {
   text: string;
   options: { label: string; text: string; isCorrect: boolean }[];
@@ -136,6 +137,7 @@ export interface AdminReadStore {
   createTrainingResource(data: Omit<TrainingResourceRow, "id">): Promise<TrainingResourceRow>;
   setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
   listTrainingTests(): Promise<TrainingTestRow[]>;
+  listTrainingQuestions(): Promise<TrainingQuestionRow[]>;
   saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void>;
   addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void>;
   setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean>;
@@ -413,6 +415,17 @@ export class PrismaAdminReadStore implements AdminReadStore {
     return rows.map((r) => ({
       id: r.id, programSlug: r.programSlug, meetingNo: r.meetingNo, type: r.type, title: r.title,
       isActive: r.isActive, questionCount: r._count.questions, attemptCount: r._count.attempts,
+    }));
+  }
+
+  async listTrainingQuestions(): Promise<TrainingQuestionRow[]> {
+    const rows = await this.db.testQuestion.findMany({
+      orderBy: [{ testId: "asc" }, { orderNo: "asc" }, { id: "asc" }],
+      include: { test: true, _count: { select: { answers: true } } },
+    });
+    return rows.map((q) => ({
+      id: q.id, testId: q.testId, programSlug: q.test.programSlug, meetingNo: q.test.meetingNo,
+      testType: q.test.type, text: q.text, isActive: q.isActive, answerCount: q._count.answers,
     }));
   }
 
