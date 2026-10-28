@@ -412,11 +412,13 @@ export function createAdminRouter(deps: WebDeps): Router {
     if (options.length < 2 || !options.some((option) => option.label === raw.correctOption)) {
       throw new AppError(422, "VALIDATION_ERROR", "Isi minimal dua pilihan dan pastikan kunci jawaban termasuk pilihan yang diisi.");
     }
-    await requireAdminStore(deps).addTrainingQuestion(testId, {
+    const admin = requireAdminStore(deps);
+    if (!(await admin.listTrainingTests()).some((test) => test.id === testId)) throw new AppError(404, "NOT_FOUND", "Tes tidak ditemukan");
+    await admin.addTrainingQuestion(testId, {
       text: raw.text,
       options: options.map((option) => ({ ...option, isCorrect: option.label === raw.correctOption })),
     });
-    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+    res.redirect(303, `/admin/program-training?tab=tes&testId=${testId}&ok=1`);
   });
 
   router.post("/admin/program-training/test/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
