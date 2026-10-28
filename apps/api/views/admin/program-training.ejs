@@ -1,0 +1,140 @@
+<%- include('../partials/header') %>
+<h1>Manajemen Program Training</h1>
+<p class="muted">Kelola konten pendukung dan pre-test/post-test untuk empat program pelatihan peserta.</p>
+<% if (saved) { %><div class="alert ok">Perubahan berhasil disimpan.</div><% } %>
+
+<div class="tabs" role="navigation" aria-label="Bagian manajemen training">
+  <a class="tab <%= tab === 'program' ? 'active' : '' %>" href="/admin/program-training?tab=program">Program</a>
+  <a class="tab <%= tab === 'materi' ? 'active' : '' %>" href="/admin/program-training?tab=materi">Materi & Konten</a>
+  <a class="tab <%= tab === 'tes' ? 'active' : '' %>" href="/admin/program-training?tab=tes">Pre/Post-test</a>
+</div>
+
+<% if (tab === 'program') { %>
+  <h2>Program pelatihan (4)</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Program</th><th>Pertemuan</th><th>Konten pendukung</th><th>Tes</th><th>Aksi</th></tr></thead>
+      <tbody>
+        <% programs.forEach(function (p) { const rs = resources.filter(function (r) { return r.programSlug === p.slug; }); const ts = tests.filter(function (t) { return t.programSlug === p.slug; }); %>
+          <tr>
+            <td><strong><%= p.label %></strong><div class="muted small"><%= p.slug %></div></td>
+            <td>1–2</td>
+            <td><%= rs.length %></td>
+            <td><%= ts.length %></td>
+            <td><a class="btn secondary small" href="/admin/program-training?tab=materi">Kelola konten</a> <a class="btn secondary small" href="/admin/program-training?tab=tes">Kelola tes</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="alert info">Definisi nama, deskripsi, dan pertemuan program masih bersumber dari <code>apps/web/src/lib/programs.ts</code>. Halaman ini belum mengubah metadata program utama; perubahan metadata dan integrasi katalog peserta memerlukan migrasi model program terpisah.</div>
+<% } else if (tab === 'materi') { %>
+  <h2>Konten pendukung (<%= resources.length %>)</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Program / Pertemuan</th><th>Jenis</th><th>Judul</th><th>Tautan</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% resources.forEach(function (r) { const p = programs.find(function (x) { return x.slug === r.programSlug; }); %>
+          <tr>
+            <td><%= p ? p.label : r.programSlug %><div class="muted small">Pertemuan <%= r.meetingNo %></div></td>
+            <td><%= ({ SILABUS: 'Silabus', MATERI: 'Materi', STUDI_KASUS: 'Studi kasus', VIDEO: 'Video referensi', BLOOKET: 'Blooket', LINK_LAIN: 'Tautan lain' })[r.type] %></td>
+            <td><strong><%= r.title %></strong><% if (r.description) { %><div class="muted small"><%= r.description %></div><% } %></td>
+            <td><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer">Buka tautan</a></td>
+            <td><span class="badge <%= r.isPublished ? 'published' : 'draft' %>"><%= r.isPublished ? 'Terbit' : 'Draf' %></span></td>
+            <td><form method="post" action="/admin/program-training/resource/<%= r.id %>/publikasi" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= r.isPublished ? '0' : '1' %>"><button class="btn secondary small" type="submit"><%= r.isPublished ? 'Tarik' : 'Terbitkan' %></button></form></td>
+          </tr>
+        <% }) %>
+        <% if (resources.length === 0) { %><tr><td colspan="6" class="muted">Belum ada konten pendukung.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <form method="post" action="/admin/program-training/resource" class="card">
+    <h2>Tambah konten program</h2>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="resource-program">Program</label>
+    <select id="resource-program" name="programSlug" required><% programs.forEach(function (p) { %><option value="<%= p.slug %>"><%= p.label %></option><% }) %></select>
+    <label for="resource-meeting">Pertemuan</label>
+    <select id="resource-meeting" name="meetingNo" required><option value="1">Pertemuan 1</option><option value="2">Pertemuan 2</option></select>
+    <label for="resource-type">Jenis konten</label>
+    <select id="resource-type" name="type" required><option value="VIDEO">Video referensi</option><option value="BLOOKET">Blooket</option><option value="STUDI_KASUS">Studi kasus</option><option value="SILABUS">Silabus</option><option value="MATERI">Materi eksternal</option><option value="LINK_LAIN">Tautan lain</option></select>
+    <label for="resource-title">Judul</label>
+    <input id="resource-title" name="title" required maxlength="160" placeholder="mis. Video pengantar ISO 37001">
+    <label for="resource-description">Deskripsi (opsional)</label>
+    <textarea id="resource-description" name="description" rows="3" maxlength="4000"></textarea>
+    <label for="resource-url">URL https://</label>
+    <input id="resource-url" type="url" name="url" required maxlength="1024" placeholder="https://...">
+    <label for="resource-order">Urutan tampil</label>
+    <input id="resource-order" type="number" name="sortOrder" min="0" max="100000" value="0">
+    <label><input type="checkbox" name="isPublished" value="1"> Langsung tampilkan ke peserta (jika integrasi publik tersedia)</label>
+    <p><button class="btn" type="submit">Simpan konten</button></p>
+  </form>
+  <div class="alert info">PDF/SOP tetap dikelola melalui Pustaka SOP. Konten ini menyimpan tautan eksternal, video, Blooket, studi kasus, dan silabus. Endpoint publik untuk menampilkan konten pendukung ini perlu dihubungkan ke frontend peserta pada tahap integrasi berikutnya.</div>
+<% } else { %>
+  <h2>Tes pelatihan (<%= tests.length %>)</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Program / Pertemuan</th><th>Jenis tes</th><th>Judul</th><th>Soal aktif/total</th><th>Percobaan</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% tests.forEach(function (t) { const p = programs.find(function (x) { return x.slug === t.programSlug; }); %>
+          <tr>
+            <td><%= p ? p.label : t.programSlug %><div class="muted small">Pertemuan <%= t.meetingNo %></div></td>
+            <td><%= t.type === 'PRE' ? 'Pre-test' : 'Post-test' %></td>
+            <td><%= t.title %></td><td><%= questions.filter(function (q) { return q.testId === t.id && q.isActive; }).length %>/<%= t.questionCount %></td><td><%= t.attemptCount %></td>
+            <td><span class="badge <%= t.isActive ? 'published' : 'draft' %>"><%= t.isActive ? 'Aktif' : 'Nonaktif' %></span></td>
+            <td><form method="post" action="/admin/program-training/test/<%= t.id %>/status" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= t.isActive ? '0' : '1' %>"><button class="btn secondary small" type="submit"><%= t.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button></form></td>
+          </tr>
+        <% }) %>
+        <% if (tests.length === 0) { %><tr><td colspan="7" class="muted">Belum ada tes.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <form method="post" action="/admin/program-training/test" class="card">
+    <h2>Buat / perbarui tes</h2>
+    <p class="muted">Satu tes per program, pertemuan, dan jenis. Jika kombinasi sudah ada, judul/status diperbarui dan soal yang tersimpan tetap dipertahankan.</p>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label for="test-program">Program</label>
+    <select id="test-program" name="programSlug" required><% programs.forEach(function (p) { %><option value="<%= p.slug %>"><%= p.label %></option><% }) %></select>
+    <label for="test-meeting">Pertemuan</label>
+    <select id="test-meeting" name="meetingNo" required><option value="1">Pertemuan 1</option><option value="2">Pertemuan 2</option></select>
+    <label for="test-type">Jenis tes</label>
+    <select id="test-type" name="type" required><option value="PRE">Pre-test</option><option value="POST">Post-test</option></select>
+    <label for="test-title">Judul tes</label>
+    <input id="test-title" name="title" required maxlength="160" placeholder="mis. Pre-test ISO 37001 Pertemuan 1">
+    <label><input type="checkbox" name="isActive" value="1" checked> Aktifkan tes</label>
+    <p><button class="btn" type="submit">Simpan tes</button></p>
+  </form>
+
+  <h2>Soal tes (<%= questions.length %>)</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr><th>Tes</th><th>Pertanyaan</th><th>Jawaban tersimpan</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% questions.forEach(function (q) { const p = programs.find(function (x) { return x.slug === q.programSlug; }); %>
+          <tr><td><%= p ? p.label : q.programSlug %><div class="muted small">Pertemuan <%= q.meetingNo %> · <%= q.testType === 'PRE' ? 'Pre-test' : 'Post-test' %></div></td><td><%= q.text %></td><td><%= q.answerCount %></td><td><span class="badge <%= q.isActive ? 'published' : 'draft' %>"><%= q.isActive ? 'Aktif' : 'Nonaktif' %></span></td><td><form method="post" action="/admin/program-training/question/<%= q.id %>/status" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= q.isActive ? '0' : '1' %>"><button class="btn secondary small" type="submit"><%= q.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button></form></td></tr>
+        <% }) %>
+        <% if (questions.length === 0) { %><tr><td colspan="5" class="muted">Belum ada soal.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (tests.length === 0) { %><div class="alert info">Buat tes terlebih dahulu sebelum menambahkan soal.</div><% } else { %>
+    <form method="post" action="/admin/program-training/test/<%= tests[0].id %>/question" class="card">
+      <h2>Tambah soal</h2>
+      <label for="question-test">Tes tujuan</label>
+      <select id="question-test" name="testId" required>
+        <% tests.forEach(function (t) { const p = programs.find(function (x) { return x.slug === t.programSlug; }); %><option value="<%= t.id %>" data-action="/admin/program-training/test/<%= t.id %>/question"><%= p ? p.label : t.programSlug %> · Pertemuan <%= t.meetingNo %> · <%= t.type === 'PRE' ? 'Pre-test' : 'Post-test' %></option><% }) %>
+      </select>
+      <p class="muted small">Pilih tes, lalu pastikan form dikirim ke endpoint tes yang dipilih. Jika memilih tes selain opsi pertama, gunakan tombol di daftar tes untuk membuka pengelolaan soal pada rilis berikutnya.</p>
+      <label for="question-text">Pertanyaan</label>
+      <textarea id="question-text" name="text" rows="3" required maxlength="4000"></textarea>
+      <label for="option-a">Pilihan A</label><input id="option-a" name="optionA" required maxlength="500">
+      <label for="option-b">Pilihan B</label><input id="option-b" name="optionB" required maxlength="500">
+      <label for="option-c">Pilihan C (opsional)</label><input id="option-c" name="optionC" maxlength="500">
+      <label for="option-d">Pilihan D (opsional)</label><input id="option-d" name="optionD" maxlength="500">
+      <label for="correct-option">Kunci jawaban</label>
+      <select id="correct-option" name="correctOption" required><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
+      <p><button class="btn" type="submit">Simpan soal</button></p>
+    </form>
+  <% } %>
+  <div class="alert info">Kunci jawaban tetap berada di backend dan tidak dikirim melalui API publik peserta. Soal yang sudah memiliki jawaban peserta dinonaktifkan, bukan dihapus secara fisik.</div>
+<% } %>
+<%- include('../partials/footer') %>
