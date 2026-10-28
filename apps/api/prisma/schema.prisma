@@ -62,6 +62,15 @@ enum TestType {
   POST
 }
 
+enum TrainingResourceType {
+  SILABUS
+  MATERI
+  STUDI_KASUS
+  VIDEO
+  BLOOKET
+  LINK_LAIN
+}
+
 // Satu tes per jenis per pertemuan. Program/pertemuan belum ada di basis data, jadi diikat lewat slug + nomor.
 model Test {
   id          Int            @id @default(autoincrement())
@@ -136,6 +145,24 @@ model TestAttemptAnswer {
   @@unique([attemptId, questionId])
   @@index([questionId])
   @@index([optionId])
+}
+
+// Konten pendukung yang dikelola Admin dan ditautkan ke program/pertemuan statis saat ini.
+// URL eksternal divalidasi https di service; konten draft tidak diterbitkan ke halaman publik.
+model TrainingResource {
+  id          Int                  @id @default(autoincrement())
+  programSlug String               @db.VarChar(80)
+  meetingNo   Int
+  type        TrainingResourceType
+  title       String               @db.VarChar(160)
+  description String?              @db.Text
+  url         String               @db.VarChar(1024)
+  sortOrder   Int                  @default(0)
+  isPublished Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([programSlug, meetingNo, isPublished, sortOrder])
 }
 
 // ---------- Master data ----------
