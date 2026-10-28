@@ -333,6 +333,7 @@ export function createAdminRouter(deps: WebDeps): Router {
       title: "Manajemen Program Training",
       nav: "program-training",
       tab,
+      selectedTestId: Number(req.query["testId"]) || null,
       programs: trainingPrograms,
       resources,
       tests,
