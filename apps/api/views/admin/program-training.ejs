@@ -41,7 +41,23 @@
             <td><strong><%= r.title %></strong><% if (r.description) { %><div class="muted small"><%= r.description %></div><% } %></td>
             <td><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer">Buka tautan</a></td>
             <td><span class="badge <%= r.isPublished ? 'published' : 'draft' %>"><%= r.isPublished ? 'Terbit' : 'Draf' %></span></td>
-            <td><form method="post" action="/admin/program-training/resource/<%= r.id %>/publikasi" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= r.isPublished ? '0' : '1' %>"><button class="btn secondary small" type="submit"><%= r.isPublished ? 'Tarik' : 'Terbitkan' %></button></form></td>
+            <td>
+              <details><summary>Edit</summary>
+                <form method="post" action="/admin/program-training/resource/<%= r.id %>" class="compact-form">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <label>Program<select name="programSlug" required><% programs.forEach(function (x) { %><option value="<%= x.slug %>" <%= x.slug === r.programSlug ? 'selected' : '' %>><%= x.label %></option><% }) %></select></label>
+                  <label>Pertemuan<select name="meetingNo"><option value="1" <%= r.meetingNo === 1 ? 'selected' : '' %>>Pertemuan 1</option><option value="2" <%= r.meetingNo === 2 ? 'selected' : '' %>>Pertemuan 2</option></select></label>
+                  <label>Jenis<select name="type"><% [['SILABUS','Silabus'],['MATERI','Materi'],['STUDI_KASUS','Studi kasus'],['VIDEO','Video'],['BLOOKET','Blooket'],['LINK_LAIN','Tautan lain']].forEach(function (x) { %><option value="<%= x[0] %>" <%= x[0] === r.type ? 'selected' : '' %>><%= x[1] %></option><% }) %></select></label>
+                  <label>Judul<input name="title" required maxlength="160" value="<%= r.title %>"></label>
+                  <label>Deskripsi<textarea name="description" rows="2" maxlength="4000"><%= r.description || '' %></textarea></label>
+                  <label>URL https://<input type="url" name="url" required maxlength="1024" value="<%= r.url %>"></label>
+                  <label>Urutan<input type="number" name="sortOrder" min="0" max="100000" value="<%= r.sortOrder %>"></label>
+                  <label><input type="checkbox" name="isPublished" value="1" <%= r.isPublished ? 'checked' : '' %>> Dipublikasikan</label>
+                  <button class="btn small" type="submit">Simpan perubahan</button>
+                </form>
+              </details>
+              <form method="post" action="/admin/program-training/resource/<%= r.id %>/publikasi" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= r.isPublished ? '0' : '1' %>"><button class="btn secondary small" type="submit"><%= r.isPublished ? 'Tarik' : 'Terbitkan' %></button></form>
+            </td>
           </tr>
         <% }) %>
         <% if (resources.length === 0) { %><tr><td colspan="6" class="muted">Belum ada konten pendukung.</td></tr><% } %>
