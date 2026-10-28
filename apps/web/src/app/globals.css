@@ -241,4 +241,26 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .file-card { grid-template-columns: 1fr 6rem; }
   .nav { gap: 1rem; }
 }
+/* Responsive and keyboard-access refinements */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #6aa0ff;
+  outline-offset: 2px;
+}
+@media (max-width: 48rem) {
+  .container { padding-inline: 1rem; }
+  .meeting { padding-inline: .9rem; }
+  .meeting-head { font-size: 1.15rem; gap: .75rem; }
+  .dlg { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); margin: .5rem auto; }
+  .dlg-head { padding: 1rem 1rem .5rem; }
+  .dlg-progress { margin: 0 .75rem .75rem; padding: .75rem; }
+  .dlg-body { padding: .5rem 1rem; }
+  .dlg-foot { padding: .75rem 1rem 1rem; align-items: stretch; }
+  .dlg-actions { width: 100%; flex-wrap: wrap; }
+  .dlg-actions .btn { flex: 1 1 auto; }
+  .confirm-box { justify-items: stretch; }
+  .pdf-bar { flex-wrap: wrap; padding: .75rem 1rem; }
+  .pdf-actions { gap: .75rem; }
+  .file-card-text { padding: 1rem; }
+  .submission { padding: 1.25rem 1rem; }
+}
 @media (prefers-reduced-motion: reduce) { .progress span { transition: none; } }

@@ -7,13 +7,24 @@
   var lewat = aktif.filter(function (s) { return new Date(s.expiresAt) < now; });
   var terbit = versions.filter(function (v) { return v.status === 'PUBLISHED'; });
   var program = rooms.filter(function (r) { return r.isPublished; });
-  var auditorTotal = aktif.reduce(function (t, s) { return t + s.auditorCount; }, 0);
-  var tugasTotal = aktif.reduce(function (t, s) { return t + s.assignmentCount; }, 0);
+  var auditorTotal = aktif.reduce(function (t, s) { return t + s.eligibleAuditorCount; }, 0);
+  var tugasTotal = aktif.reduce(function (t, s) { return t + s.eligibleAssignmentCount; }, 0);
+  // Sesi yang sedang disiapkan: sesi DRAFT terbaru, jika tidak ada maka sesi ACTIVE terbaru.
+  // Sesi CLOSED tidak dipakai untuk menandai setup baru sebagai selesai.
+  var setupSession = sessions.find(function (s) { return s.status === 'DRAFT'; })
+    || sessions.find(function (s) { return s.status === 'ACTIVE'; })
+    || null;
+  var setupHref = setupSession ? '/admin/sesi/' + setupSession.id : '/admin/sesi';
+  var setupHasAuditor = Boolean(setupSession && setupSession.eligibleAuditorCount > 0);
+  var setupHasAssignment = Boolean(setupSession && setupSession.eligibleAssignmentCount > 0);
+  var setupIsActive = Boolean(setupSession && setupSession.status === 'ACTIVE' && setupHasAuditor && setupHasAssignment);
   var steps = [
-    { done: departments.length > 0, title: 'Tambah departemen yang akan diaudit', desc: departments.length + ' departemen terdaftar.', href: '/admin/departemen', cta: 'Departemen' },
-    { done: terbit.length > 0, title: 'Siapkan dan terbitkan checklist', desc: terbit.length + ' dari ' + versions.length + ' versi sudah terbit.', href: '/admin/checklist', cta: 'Checklist' },
-    { done: sessions.length > 0, title: 'Buat sesi audit', desc: sessions.length + ' sesi dibuat.', href: '/admin/sesi', cta: 'Sesi audit' },
-    { done: aktif.length > 0, title: 'Undang auditor, buat penugasan, lalu aktifkan sesi', desc: aktif.length + ' sesi sedang aktif.', href: sessions.length ? '/admin/sesi/' + sessions[0].id : '/admin/sesi', cta: 'Buka sesi' }
+    { done: departments.length > 0, title: 'Tambah departemen yang akan diaudit', desc: departments.length + ' departemen terdaftar.', href: '/admin/departemen', cta: 'Kelola departemen' },
+    { done: terbit.length > 0, title: 'Siapkan dan terbitkan checklist', desc: terbit.length + ' dari ' + versions.length + ' versi sudah terbit.', href: '/admin/checklist', cta: 'Kelola checklist' },
+    { done: Boolean(setupSession), title: 'Buat sesi audit', desc: setupSession ? 'Sesi yang disiapkan: ' + setupSession.title : 'Buat sesi baru untuk memulai audit.', href: '/admin/sesi', cta: 'Buat sesi' },
+    { done: setupHasAuditor, title: 'Tambahkan auditor', desc: setupSession ? setupSession.eligibleAuditorCount + ' auditor belum dicabut pada sesi ini.' : 'Buat sesi terlebih dahulu.', href: setupHref + '#auditor', cta: 'Kelola auditor' },
+    { done: setupHasAssignment, title: 'Tetapkan unit audit', desc: setupSession ? setupSession.eligibleAssignmentCount + ' penugasan aktif dengan poin checklist.' : 'Tambahkan auditor sebelum membuat penugasan.', href: setupHref + '#penugasan', cta: 'Buat penugasan' },
+    { done: setupIsActive, title: 'Aktifkan sesi audit', desc: setupIsActive ? 'Auditor dapat mengisi checklist.' : 'Aktifkan setelah auditor dan penugasan siap.', href: setupHref + '#status-sesi', cta: 'Periksa status sesi' }
   ];
   var nextIdx = steps.findIndex(function (s) { return !s.done; });
 %>

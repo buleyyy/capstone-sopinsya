@@ -17,8 +17,17 @@ export interface PublicDocument {
   url: string | null;
 }
 
+export interface PublicTrainingResource {
+  id: number;
+  type: "VIDEO" | "BLOOKET" | "CASE_STUDY" | "SYLLABUS";
+  title: string;
+  description: string | null;
+  url: string;
+}
+
 export interface PublicRoomDetail extends PublicRoom {
   documents: PublicDocument[];
+  resources: PublicTrainingResource[];
 }
 
 export interface PublicContentStore {

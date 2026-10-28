@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../lib/passwords.js";
 import { AppError } from "../utils/errors.js";
 
 // Harus identik dengan enum di prisma/schema.prisma (dijaga oleh tests/auditSchemas.test.ts).
@@ -46,8 +47,6 @@ const evidenceUrl = z.preprocess(
 );
 
 // ---------- Auditor ----------
-
-export const claimSchema = z.object({ token: z.string().trim().min(32).max(128) });
 
 /** Jawaban: hanya YA, TIDAK, atau null (belum dijawab). */
 export const saveAnswerSchema = z.object({
@@ -143,14 +142,35 @@ export const closeSessionSchema = z
     }
   });
 
+const accountPassword = z
+  .string()
+  .min(MIN_PASSWORD_LENGTH, `Kata sandi minimal ${MIN_PASSWORD_LENGTH} karakter`)
+  .max(MAX_PASSWORD_LENGTH, `Kata sandi maksimal ${MAX_PASSWORD_LENGTH} karakter`);
+
+/** Akun Auditor (email + kata sandi) dibuat Admin. Email disimpan huruf kecil dan menjadi identitas login. */
+export const createAuditorAccountSchema = z.object({
+  name: text(120),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(3)
+    .max(160)
+    .regex(/^[^\s@]+@[^\s@]+$/, "Email tidak valid"),
+  password: accountPassword,
+});
+
+export const setAuditorAccountActiveSchema = z.object({ accountId: id, isActive: z.boolean() });
+
+export const resetAuditorPasswordSchema = z.object({ accountId: id, password: accountPassword });
+
 /** Pengecualian self-audit wajib dinyatakan eksplisit: daftar unit, atau noExclusions. */
-export const createAuditorSchema = z
+export const addAuditorToSessionSchema = z
   .object({
     sessionId: id,
-    name: text(120),
+    accountId: id,
     excludeDepartmentIds: z.array(id).max(50).default([]),
     noExclusions: z.boolean().default(false),
-    inviteTtlHours: z.number().int().min(1).max(24 * 30).default(168),
   })
   .superRefine((v, ctx) => {
     const hasList = v.excludeDepartmentIds.length > 0;
@@ -163,15 +183,13 @@ export const createAuditorSchema = z
     }
   });
 
-export const auditorRefSchema = z.object({
-  sessionId: id,
-  auditorId: id,
-  inviteTtlHours: z.number().int().min(1).max(24 * 30).default(168),
-});
+export const auditorRefSchema = z.object({ sessionId: id, auditorId: id });
+
+/** Mengaitkan akun ke keanggotaan auditor lama (data sebelum akun individual) yang belum punya akun. */
+export const linkAuditorAccountSchema = z.object({ sessionId: id, auditorId: id, accountId: id });
 
 export const createAssignmentSchema = z.object({ sessionId: id, auditorId: id, departmentId: id });
 
-export type ClaimInput = z.output<typeof claimSchema>;
 export type SaveAnswerInput = z.output<typeof saveAnswerSchema>;
 export type CreateFindingInput = z.output<typeof createFindingSchema>;
 export type CloseFindingInput = z.output<typeof closeFindingSchema>;

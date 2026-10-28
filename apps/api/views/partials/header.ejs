@@ -6,12 +6,14 @@
   var adminGroups = [
     { label: 'Administrasi SMAP', items: [
       { key: 'dashboard', href: '/admin', icon: 'dashboard', label: 'Dashboard' },
-      { key: 'sesi', href: '/admin/sesi', icon: 'calendar', label: 'Sesi Audit' }
+      { key: 'sesi', href: '/admin/sesi', icon: 'calendar', label: 'Sesi Audit' },
+      { key: 'auditor', href: '/admin/auditor', icon: 'users', label: 'Akun Auditor' }
     ] },
     { label: 'Data Master', items: [
       { key: 'checklist', href: '/admin/checklist', icon: 'checklist', label: 'Master Checklist' },
       { key: 'departemen', href: '/admin/departemen', icon: 'building', label: 'Departemen' },
-      { key: 'sop', href: '/admin/sop', icon: 'folder', label: 'Pustaka SOP' }
+      { key: 'sop', href: '/admin/sop', icon: 'folder', label: 'Pustaka SOP' },
+      { key: 'program-training', href: '/admin/program-training', icon: 'book', label: 'Program Training' }
     ] }
   ];
   var auditorItems = [
@@ -121,7 +123,7 @@
             <span class="top-sep"></span>
           <% } %>
           <div class="top-user">
-            <div class="who"><b><%= role === 'admin' ? 'Administrator' : 'Auditor' %></b><span><%= role === 'admin' ? 'Administrator SMAP' : 'Auditor Lapangan' %></span></div>
+            <div class="who"><b><%= role === 'admin' ? 'Administrator' : (locals.auditorName || 'Auditor') %></b><span><%= role === 'admin' ? 'Administrator SMAP' : 'Auditor Lapangan' %></span></div>
             <span class="avatar" aria-hidden="true"><%= role === 'admin' ? 'A' : 'U' %></span>
             <% if (locals.csrf) { %>
               <form method="post" action="<%= role === 'admin' ? '/admin/keluar' : '/auditor/keluar' %>">

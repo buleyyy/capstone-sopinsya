@@ -1,0 +1,52 @@
+<%- include('../partials/header', { nav: 'auditor' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Administrasi SMAP</span>
+    <h1>Akun Auditor</h1>
+    <p>Buat akun login (email + kata sandi) untuk setiap Auditor. Setelah itu tambahkan akun ke sesi audit dan tetapkan unitnya dari halaman <a href="/admin/sesi">Sesi Audit</a>. Tidak ada tautan undangan atau token.</p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Nama</th><th>Email</th><th>Status</th><th>Sesi</th><th>Aksi</th></tr></thead>
+    <tbody>
+      <% accounts.forEach(function (a) { %>
+        <tr>
+          <td><%= a.name %></td>
+          <td><%= a.email %></td>
+          <td><span class="badge <%= a.isActive ? 'active' : 'closed' %>"><%= a.isActive ? 'Aktif' : 'Nonaktif' %></span></td>
+          <td><%= a.sessionCount %></td>
+          <td class="nowrap">
+            <form class="inline" method="post" action="/admin/auditor/<%= a.id %>/status">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="hidden" name="value" value="<%= a.isActive ? '0' : '1' %>">
+              <button class="btn small <%= a.isActive ? 'danger' : 'secondary' %>" type="submit"><%= a.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button>
+            </form>
+            <form class="inline" method="post" action="/admin/auditor/<%= a.id %>/password">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="password" name="password" required minlength="8" maxlength="256" autocomplete="new-password" aria-label="Kata sandi baru untuk <%= a.name %>" placeholder="Kata sandi baru">
+              <button class="btn small secondary" type="submit">Atur ulang</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (accounts.length === 0) { %><tr><td colspan="5" class="muted">Belum ada akun Auditor.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="/admin/auditor" class="card" autocomplete="off">
+  <h3>Buat akun Auditor</h3>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="name">Nama</label>
+  <input id="name" type="text" name="name" required maxlength="120">
+  <label for="email">Email (dipakai untuk login)</label>
+  <input id="email" type="text" name="email" required maxlength="160" autocapitalize="off" spellcheck="false">
+  <label for="password">Kata sandi awal (minimal 8 karakter)</label>
+  <input id="password" type="password" name="password" required minlength="8" maxlength="256" autocomplete="new-password">
+  <p class="muted small">Sampaikan kata sandi awal langsung kepada Auditor yang bersangkutan. Hanya hash yang disimpan. Menonaktifkan akun langsung memutus akses tanpa menghapus data audit.</p>
+  <p><button class="btn" type="submit">Buat akun</button></p>
+</form>
+<%- include('../partials/footer') %>

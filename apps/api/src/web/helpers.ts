@@ -50,10 +50,8 @@ export const percent = (part: number, total: number): number => (total <= 0 ? 0 
 
 export const SESSION_LABEL: Record<string, string> = { DRAFT: "Draf", ACTIVE: "Aktif", CLOSED: "Ditutup" };
 export const VERSION_LABEL: Record<string, string> = { DRAFT: "Draf", PUBLISHED: "Diterbitkan", RETIRED: "Dipensiunkan" };
-export const INVITE_LABEL: Record<string, string> = {
-  BELUM_DIKLAIM: "Belum diklaim",
-  AKTIF: "Aktif",
+export const ACCESS_LABEL: Record<string, string> = {
+  AKSES_TERSEDIA: "Akses tersedia",
   DICABUT: "Dicabut",
-  KEDALUWARSA: "Undangan kedaluwarsa",
 };
 export const CLASS_LABEL: Record<string, string> = { MAJOR: "Major", MINOR: "Minor", OBSERVASI: "Observasi" };

@@ -4,6 +4,8 @@ import {
   type AssignmentRecord,
   type AssignmentSummary,
   type AuditStore,
+  type AuditorAccountCredential,
+  type AuditorAccountRecord,
   type AuditorRecord,
   type AuthRecord,
   type ChecklistItemDetail,
@@ -20,7 +22,7 @@ import {
   type StandardRecord,
 } from "../../src/domain/auditStore.js";
 
-type AuditorRow = AuditorRecord & { inviteHash: string; tokenHash: string | null };
+type AccountRow = AuditorAccountRecord & { passwordHash: string };
 type SessionRow = SessionRecord & { findingSeq: number };
 type AnswerRow = AnswerRecord & { snapshot: Record<string, unknown> };
 
@@ -30,7 +32,8 @@ interface State {
   versions: ChecklistVersionRecord[];
   items: ChecklistItemRecord[];
   sessions: SessionRow[];
-  auditors: AuditorRow[];
+  accounts: AccountRow[];
+  auditors: AuditorRecord[];
   exclusions: { auditorId: number; departmentId: number }[];
   assignments: AssignmentRecord[];
   answers: AnswerRow[];
@@ -49,7 +52,8 @@ export class MemoryStore implements AuditStore {
   versions: ChecklistVersionRecord[] = [];
   items: ChecklistItemRecord[] = [];
   sessions: SessionRow[] = [];
-  auditors: AuditorRow[] = [];
+  accounts: AccountRow[] = [];
+  auditors: AuditorRecord[] = [];
   exclusions: { auditorId: number; departmentId: number }[] = [];
   assignments: AssignmentRecord[] = [];
   answers: AnswerRow[] = [];
@@ -65,6 +69,7 @@ export class MemoryStore implements AuditStore {
       versions: this.versions,
       items: this.items,
       sessions: this.sessions,
+      accounts: this.accounts,
       auditors: this.auditors,
       exclusions: this.exclusions,
       assignments: this.assignments,
@@ -81,6 +86,7 @@ export class MemoryStore implements AuditStore {
     this.versions = s.versions;
     this.items = s.items;
     this.sessions = s.sessions;
+    this.accounts = s.accounts;
     this.auditors = s.auditors;
     this.exclusions = s.exclusions;
     this.assignments = s.assignments;
@@ -108,6 +114,7 @@ export class MemoryStore implements AuditStore {
     return row;
   }
   async departmentExists(id: number) { return this.departments.some((d) => d.id === id); }
+  async listDepartments() { return [...this.departments]; }
   async createStandard(data: { code: string; name: string }): Promise<StandardRecord> {
     if (this.standards.some((s) => s.code === data.code)) throw new UniqueViolationError("code");
     const row = { id: this.seq++, ...data };
@@ -126,6 +133,9 @@ export class MemoryStore implements AuditStore {
     return row;
   }
   async findChecklistVersion(id: number) { return this.versions.find((v) => v.id === id) ?? null; }
+  async findLatestPublishedVersion() {
+    return [...this.versions].filter((v) => v.status === "PUBLISHED").sort((a, b) => b.id - a.id)[0] ?? null;
+  }
   async addChecklistItem(data: Omit<ChecklistItemRecord, "id">): Promise<ChecklistItemRecord | null> {
     const v = this.versions.find((x) => x.id === data.versionId);
     if (!v || v.status !== "DRAFT") return null;
@@ -183,6 +193,12 @@ export class MemoryStore implements AuditStore {
     s.status = "ACTIVE";
     return true;
   }
+  async updateDraftSessionDeadline(id: number, to: Date) {
+    const s = this.sessions.find((x) => x.id === id);
+    if (!s || s.status !== "DRAFT") return false;
+    s.expiresAt = to;
+    return true;
+  }
   async extendSession(id: number, to: Date) {
     const s = this.sessions.find((x) => x.id === id);
     if (!s || s.status !== "ACTIVE" || s.expiresAt.getTime() >= to.getTime()) return false;
@@ -202,63 +218,86 @@ export class MemoryStore implements AuditStore {
     return !!s && s.status === "ACTIVE" && s.expiresAt.getTime() > now.getTime();
   }
 
-  // --- Auditor ---
+  // --- Akun Auditor ---
+  private publicAccount(r: AccountRow): AuditorAccountRecord {
+    return { id: r.id, email: r.email, name: r.name, isActive: r.isActive };
+  }
+  async createAuditorAccount(d: { email: string; name: string; passwordHash: string }): Promise<AuditorAccountRecord> {
+    if (this.accounts.some((a) => a.email === d.email)) throw new UniqueViolationError("email");
+    const row: AccountRow = { id: this.seq++, ...d, isActive: true };
+    this.accounts.push(row);
+    return this.publicAccount(row);
+  }
+  async listAuditorAccounts() { return this.accounts.map((a) => this.publicAccount(a)); }
+  async findAuditorAccount(id: number) {
+    const r = this.accounts.find((a) => a.id === id);
+    return r ? this.publicAccount(r) : null;
+  }
+  async findAuditorCredentialByEmail(email: string): Promise<AuditorAccountCredential | null> {
+    const r = this.accounts.find((a) => a.email === email);
+    return r ? { ...this.publicAccount(r), passwordHash: r.passwordHash } : null;
+  }
+  async setAuditorAccountActive(id: number, isActive: boolean) {
+    const r = this.accounts.find((a) => a.id === id);
+    if (!r) return false;
+    r.isActive = isActive;
+    return true;
+  }
+  async setAuditorAccountPassword(id: number, passwordHash: string) {
+    const r = this.accounts.find((a) => a.id === id);
+    if (!r) return false;
+    r.passwordHash = passwordHash;
+    return true;
+  }
+
+  // --- Auditor pada sesi ---
   async createAuditor(d: {
     sessionId: number;
+    accountId: number;
     name: string;
-    inviteHash: string;
-    inviteExpiresAt: Date;
     excludedDepartmentIds: number[];
   }): Promise<AuditorRecord> {
-    if (this.auditors.some((a) => a.inviteHash === d.inviteHash)) throw new UniqueViolationError("inviteHash");
+    if (this.auditors.some((a) => a.sessionId === d.sessionId && a.accountId === d.accountId)) {
+      throw new UniqueViolationError("sessionId_accountId");
+    }
     const { excludedDepartmentIds, ...rest } = d;
-    const row: AuditorRow = { id: this.seq++, ...rest, claimedAt: null, revokedAt: null, tokenHash: null };
+    const row: AuditorRecord = { id: this.seq++, ...rest, revokedAt: null };
     this.auditors.push(row);
     for (const departmentId of excludedDepartmentIds) this.exclusions.push({ auditorId: row.id, departmentId });
-    return this.publicAuditor(row);
-  }
-  private publicAuditor(r: AuditorRow): AuditorRecord {
-    return { id: r.id, sessionId: r.sessionId, name: r.name, inviteExpiresAt: r.inviteExpiresAt, claimedAt: r.claimedAt, revokedAt: r.revokedAt };
-  }
-  private auth(row: AuditorRow | undefined): AuthRecord | null {
-    if (!row) return null;
-    const session = this.sessions.find((s) => s.id === row.sessionId);
-    return session ? { auditor: this.publicAuditor(row), session } : null;
+    return { ...row };
   }
   async findAuditor(sessionId: number, auditorId: number) {
     const r = this.auditors.find((a) => a.id === auditorId && a.sessionId === sessionId);
-    return r ? this.publicAuditor(r) : null;
+    return r ? { ...r } : null;
   }
-  async findAuthByInviteHash(h: string) { return this.auth(this.auditors.find((a) => a.inviteHash === h)); }
-  async findAuthByTokenHash(h: string) { return this.auth(this.auditors.find((a) => a.tokenHash !== null && a.tokenHash === h)); }
-  async findAuthByAuditorId(id: number) { return this.auth(this.auditors.find((a) => a.id === id)); }
-  async findPasswordLoginAuditor() {
-    const session = [...this.sessions].filter((s) => s.status === "ACTIVE").sort((a, b) => b.id - a.id)[0];
-    if (!session) return null;
-    const row = this.auditors
-      .filter((a) => a.sessionId === session.id && a.revokedAt === null)
-      .sort((a, b) => a.id - b.id)[0];
-    return this.auth(row);
+  async findAuditorBySessionAccount(sessionId: number, accountId: number) {
+    const r = this.auditors.find((a) => a.sessionId === sessionId && a.accountId === accountId);
+    return r ? { ...r } : null;
   }
-  async claimInvitation(inviteHash: string, tokenHash: string, now: Date) {
-    const a = this.auditors.find((x) => x.inviteHash === inviteHash);
-    if (!a || a.claimedAt !== null || a.revokedAt !== null || a.inviteExpiresAt.getTime() <= now.getTime()) return null;
-    a.claimedAt = now;
-    a.tokenHash = tokenHash;
-    return this.publicAuditor(a);
-  }
-  async clearAuditorToken(id: number) {
-    const a = this.auditors.find((x) => x.id === id);
-    if (a) a.tokenHash = null;
-  }
-  async reissueInvitation(id: number, inviteHash: string, inviteExpiresAt: Date) {
-    const a = this.auditors.find((x) => x.id === id);
-    if (!a) return;
-    Object.assign(a, { inviteHash, inviteExpiresAt, tokenHash: null, claimedAt: null, revokedAt: null });
+  async listMembershipsForAccount(accountId: number): Promise<AuthRecord[]> {
+    const out: AuthRecord[] = [];
+    for (const a of this.auditors.filter((x) => x.accountId === accountId && x.revokedAt === null)) {
+      const session = this.sessions.find((s) => s.id === a.sessionId);
+      if (session) out.push({ auditor: { ...a }, session });
+    }
+    return out;
   }
   async revokeAuditor(id: number, now: Date) {
     const a = this.auditors.find((x) => x.id === id);
-    if (a) Object.assign(a, { revokedAt: now, tokenHash: null });
+    if (a) a.revokedAt = now;
+  }
+  async restoreAuditor(id: number) {
+    const a = this.auditors.find((x) => x.id === id);
+    if (a) a.revokedAt = null;
+  }
+  async linkAuditorAccount(id: number, accountId: number) {
+    const a = this.auditors.find((x) => x.id === id);
+    if (!a || a.accountId !== null) return false;
+    if (this.auditors.some((x) => x.sessionId === a.sessionId && x.accountId === accountId)) {
+      throw new UniqueViolationError("sessionId_accountId");
+    }
+    a.accountId = accountId;
+    return true;
   }
   async listExclusions(auditorId: number) {
     return this.exclusions.filter((e) => e.auditorId === auditorId).map((e) => e.departmentId);

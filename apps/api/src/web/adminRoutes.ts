@@ -3,17 +3,22 @@ import { z } from "zod";
 import { parseInput } from "../domain/auditSchemas.js";
 import {
   activateSession,
+  addAuditorToSession,
   addChecklistItem,
   closeSession,
   createAssignment,
-  createAuditor,
+  createAuditorAccount,
   createChecklistVersion,
   createDepartment,
   createSession,
   createStandard,
   extendSession,
+  linkAuditorAccount,
+  resetAuditorPassword,
+  restoreAuditor,
+  setAuditorAccountActive,
+  updateDraftSessionDeadline,
   publishChecklistVersion,
-  reissueInvitation,
   revokeAuditor,
 } from "../services/adminService.js";
 import { AppError } from "../utils/errors.js";
@@ -61,14 +66,24 @@ const documentSchema = z.object({
   isPublished: z.boolean(),
 });
 
+const trainingResourceSchema = z.object({
+  categoryId: z.number().int().positive(),
+  type: z.enum(["VIDEO", "BLOOKET", "CASE_STUDY", "SYLLABUS"]),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(4000).transform((v) => (v === "" ? null : v)),
+  url: z.string().trim().min(1).max(1024).refine(httpsOnly, "Tautan harus berupa URL https:// tanpa kredensial"),
+  sortOrder: z.number().int().min(0).max(100000),
+  isPublished: z.boolean(),
+});
+
 const ok = "?ok=1";
 
-/** Halaman Admin (satu akun dari ADMIN_PASSWORD untuk UAT). Semua operasi memakai service Admin yang sudah diuji. */
+/** Halaman Admin memakai ADMIN_PASSWORD. Semua operasi memakai service Admin yang sudah diuji. */
 export function createAdminRouter(deps: WebDeps): Router {
   const router = Router();
-  const { sec } = deps;
+  const { sec, loginEmails } = deps;
 
-  // Masuk ditangani gerbang bersama (loginRoutes.ts). Semua rute /admin wajib login Admin.
+  // Masuk ditangani gerbang role (loginRoutes.ts). Semua rute /admin wajib login Admin.
   router.use("/admin", sec.requireAdmin);
 
   router.post("/admin/keluar", sec.checkOrigin, sec.requireCsrf, (_req, res) => {
@@ -171,6 +186,31 @@ export function createAdminRouter(deps: WebDeps): Router {
     res.redirect(303, `/admin/checklist/${versionId}${ok}`);
   });
 
+  // ---------- Akun Auditor ----------
+
+  router.get("/admin/auditor", async (req, res) => {
+    const accounts = await requireAdminStore(deps).listAuditorAccounts();
+    res.render("admin/auditor", { title: "Akun Auditor", accounts, saved: req.query["ok"] === "1" });
+  });
+
+  router.post("/admin/auditor", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const email = trimmed(req, "email").toLowerCase();
+    // Email Admin tidak boleh dipakai akun Auditor: gerbang login memeriksa email Admin lebih dulu.
+    if (email === loginEmails.admin) throw new AppError(422, "EMAIL_RESERVED", "Email ini dicadangkan untuk Admin");
+    await createAuditorAccount(requireStore(deps), { name: trimmed(req, "name"), email, password: field(req, "password") });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
+  router.post("/admin/auditor/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    await setAuditorAccountActive(requireStore(deps), { accountId: intParam(req.params["id"]), isActive: trimmed(req, "value") === "1" });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
+  router.post("/admin/auditor/:id/password", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    await resetAuditorPassword(requireStore(deps), { accountId: intParam(req.params["id"]), password: field(req, "password") });
+    res.redirect(303, `/admin/auditor${ok}`);
+  });
+
   // ---------- Sesi audit ----------
 
   router.get("/admin/sesi", async (req, res) => {
@@ -197,18 +237,18 @@ export function createAdminRouter(deps: WebDeps): Router {
     req: Request,
     res: Response,
     id: number,
-    extra: { invite?: { name: string; link: string; expires: Date } | undefined } = {},
   ) => {
     const admin = requireAdminStore(deps);
     const detail = Number.isNaN(id) ? null : await admin.getSession(id);
     if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
-    const departments = await admin.listDepartments();
+    const [departments, accounts] = await Promise.all([admin.listDepartments(), admin.listAuditorAccounts()]);
     res.render("admin/sesi-detail", {
       title: detail.session.title,
       ...detail,
       departments,
-      invite: extra.invite,
+      accounts,
       saved: req.query["ok"] === "1",
+      setupError: typeof req.query["error"] === "string" ? req.query["error"] : null,
     });
   };
 
@@ -218,7 +258,24 @@ export function createAdminRouter(deps: WebDeps): Router {
 
   router.post("/admin/sesi/:id/aktifkan", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const id = intParam(req.params["id"]);
+    const detail = await requireAdminStore(deps).getSession(id);
+    if (!detail) throw new AppError(404, "NOT_FOUND", "Sesi tidak ditemukan");
+
+    if (detail.session.expiresAt.getTime() <= Date.now()) return res.redirect(303, `/admin/sesi/${id}?error=deadline-past#status-sesi`);
+    const eligibleAuditorIds = new Set(
+      detail.auditors.filter((a) => a.state !== "DICABUT" && a.accountId !== null && a.accountActive).map((a) => a.id),
+    );
+    if (eligibleAuditorIds.size === 0) return res.redirect(303, `/admin/sesi/${id}?error=auditor-missing#auditor`);
+    const readyAssignments = detail.assignments.filter((a) => eligibleAuditorIds.has(a.auditorId) && a.total > 0);
+    if (readyAssignments.length === 0) return res.redirect(303, `/admin/sesi/${id}?error=assignment-missing#penugasan`);
+
     await activateSession(requireStore(deps), { sessionId: id });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  router.post("/admin/sesi/:id/batas-waktu", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const id = intParam(req.params["id"]);
+    await updateDraftSessionDeadline(requireStore(deps), { sessionId: id, to: wibInput(field(req, "to")) });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
 
@@ -238,35 +295,31 @@ export function createAdminRouter(deps: WebDeps): Router {
     res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
 
-  const inviteLink = (req: Request, token: string): string => {
-    const base = deps.appOrigin ?? `${req.protocol}://${req.get("host") ?? ""}`;
-    return `${base}/undangan/${token}`;
-  };
-
   router.post("/admin/sesi/:id/auditor", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const id = intParam(req.params["id"]);
-    const ttl = intField(req, "inviteTtlHours");
-    const result = await createAuditor(requireStore(deps), {
+    await addAuditorToSession(requireStore(deps), {
       sessionId: id,
-      name: trimmed(req, "name"),
+      accountId: intField(req, "accountId"),
       excludeDepartmentIds: intList(req, "exclude"),
       noExclusions: trimmed(req, "noExclusions") === "1",
-      ...(Number.isNaN(ttl) ? {} : { inviteTtlHours: ttl }),
     });
-    // Token hanya ada di respons ini; tidak disimpan dan tidak diulang.
-    res.set("Cache-Control", "no-store");
-    await renderSession(req, res, id, {
-      invite: { name: result.auditor.name, link: inviteLink(req, result.inviteToken), expires: result.auditor.inviteExpiresAt },
-    });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
 
-  router.post("/admin/sesi/:id/auditor/:auditorId/terbit-ulang", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+  router.post("/admin/sesi/:id/auditor/:auditorId/pulihkan", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const id = intParam(req.params["id"]);
-    const result = await reissueInvitation(requireStore(deps), { sessionId: id, auditorId: intParam(req.params["auditorId"]) });
-    res.set("Cache-Control", "no-store");
-    await renderSession(req, res, id, {
-      invite: { name: result.auditor.name, link: inviteLink(req, result.inviteToken), expires: result.auditor.inviteExpiresAt },
+    await restoreAuditor(requireStore(deps), { sessionId: id, auditorId: intParam(req.params["auditorId"]) });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  router.post("/admin/sesi/:id/auditor/:auditorId/akun", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const id = intParam(req.params["id"]);
+    await linkAuditorAccount(requireStore(deps), {
+      sessionId: id,
+      auditorId: intParam(req.params["auditorId"]),
+      accountId: intField(req, "accountId"),
     });
+    res.redirect(303, `/admin/sesi/${id}${ok}`);
   });
 
   router.post("/admin/sesi/:id/auditor/:auditorId/cabut", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
@@ -283,6 +336,38 @@ export function createAdminRouter(deps: WebDeps): Router {
       departmentId: intField(req, "departmentId"),
     });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  // ---------- Program Training ----------
+
+  router.get("/admin/program-training", async (req, res) => {
+    const admin = requireAdminStore(deps);
+    const [rooms, resources] = await Promise.all([admin.listRooms(), admin.listTrainingResources()]);
+    res.render("admin/program-training", {
+      title: "Manajemen Program Training", rooms, resources,
+      saved: req.query["ok"] === "1", nav: "program-training",
+    });
+  });
+
+  router.post("/admin/program-training/sumber", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const sort = intField(req, "sortOrder");
+    const data = parseInput(trainingResourceSchema, {
+      categoryId: intField(req, "categoryId"),
+      type: trimmed(req, "type"),
+      title: trimmed(req, "title"),
+      description: trimmed(req, "description"),
+      url: trimmed(req, "url"),
+      sortOrder: Number.isNaN(sort) ? 0 : sort,
+      isPublished: trimmed(req, "isPublished") === "1",
+    });
+    await requireAdminStore(deps).createTrainingResource(data);
+    res.redirect(303, `/admin/program-training${ok}`);
+  });
+
+  router.post("/admin/program-training/sumber/:id/publikasi", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const found = await requireAdminStore(deps).setTrainingResourcePublished(intParam(req.params["id"]), trimmed(req, "value") === "1");
+    if (!found) throw new AppError(404, "NOT_FOUND", "Konten program tidak ditemukan");
+    res.redirect(303, `/admin/program-training${ok}`);
   });
 
   // ---------- Pustaka SOP ----------

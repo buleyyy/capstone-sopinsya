@@ -9,7 +9,7 @@ import { AppError } from "../utils/errors.js";
 
 export type VersionStatus = "DRAFT" | "PUBLISHED" | "RETIRED";
 export type SessionStatusRow = "DRAFT" | "ACTIVE" | "CLOSED";
-export type InviteState = "BELUM_DIKLAIM" | "AKTIF" | "DICABUT" | "KEDALUWARSA";
+export type AuditorAccessState = "AKSES_TERSEDIA" | "DICABUT";
 
 export interface DepartmentRow { id: number; name: string }
 export interface StandardRow { id: number; code: string; name: string }
@@ -41,13 +41,25 @@ export interface SessionRow {
   standardCode: string;
   auditorCount: number;
   assignmentCount: number;
+  eligibleAuditorCount: number;
+  eligibleAssignmentCount: number;
 }
 export interface AuditorRow {
   id: number;
   name: string;
-  state: InviteState;
-  inviteExpiresAt: Date;
+  state: AuditorAccessState;
+  /** null = keanggotaan lama tanpa akun (belum dapat login). */
+  accountId: number | null;
+  email: string | null;
+  accountActive: boolean;
   excluded: string[];
+}
+export interface AccountRow {
+  id: number;
+  email: string;
+  name: string;
+  isActive: boolean;
+  sessionCount: number;
 }
 export interface AssignmentRow {
   id: number;
@@ -88,6 +100,18 @@ export interface DocumentRow {
   pdfUrl: string | null;
   isPublished: boolean;
 }
+export type TrainingResourceTypeRow = "VIDEO" | "BLOOKET" | "CASE_STUDY" | "SYLLABUS";
+export interface TrainingResourceRow {
+  id: number;
+  categoryId: number;
+  categoryName: string;
+  type: TrainingResourceTypeRow;
+  title: string;
+  description: string | null;
+  url: string;
+  sortOrder: number;
+  isPublished: boolean;
+}
 
 export interface AdminReadStore {
   listDepartments(): Promise<DepartmentRow[]>;
@@ -95,6 +119,7 @@ export interface AdminReadStore {
   listVersions(): Promise<VersionRow[]>;
   getVersion(versionId: number): Promise<{ version: VersionRow; items: VersionItemRow[] } | null>;
   listSessions(): Promise<SessionRow[]>;
+  listAuditorAccounts(): Promise<AccountRow[]>;
   getSession(sessionId: number, now?: Date): Promise<
     | {
         session: SessionRow;
@@ -106,6 +131,9 @@ export interface AdminReadStore {
   >;
   listRooms(): Promise<RoomRow[]>;
   listDocuments(): Promise<DocumentRow[]>;
+  listTrainingResources(): Promise<TrainingResourceRow[]>;
+  createTrainingResource(data: { categoryId: number; type: TrainingResourceTypeRow; title: string; description: string | null; url: string; sortOrder: number; isPublished: boolean }): Promise<void>;
+  setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
   createRoom(data: { name: string; description: string | null; sortOrder: number; isPublished: boolean }): Promise<RoomRow>;
   createDocument(data: {
     code: string;
@@ -120,6 +148,14 @@ export interface AdminReadStore {
 }
 
 const duplicate = (what: string) => new AppError(409, "ALREADY_EXISTS", `${what} sudah ada`);
+
+/** Keanggotaan auditor yang benar-benar dapat login: belum dicabut, punya akun, dan akun aktif. */
+interface LoginReady {
+  revokedAt: Date | null;
+  accountId: number | null;
+  account: { isActive: boolean } | null;
+}
+const isLoginReady = (a: LoginReady): boolean => a.revokedAt === null && a.accountId !== null && a.account?.isActive === true;
 
 async function guardUnique<T>(what: string, run: () => Promise<T>): Promise<T> {
   try {
@@ -203,6 +239,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
     checklistVersionId: number;
     checklistVersion: { versionLabel: string; standard: { code: string } };
     _count: { auditors: number; assignments: number };
+    auditors: LoginReady[];
+    assignments: { departmentId: number; auditor: LoginReady }[];
   }): SessionRow {
     return {
       id: r.id,
@@ -216,6 +254,8 @@ export class PrismaAdminReadStore implements AdminReadStore {
       standardCode: r.checklistVersion.standard.code,
       auditorCount: r._count.auditors,
       assignmentCount: r._count.assignments,
+      eligibleAuditorCount: r.auditors.filter(isLoginReady).length,
+      eligibleAssignmentCount: r.assignments.filter((a) => isLoginReady(a.auditor)).length,
     };
   }
 
@@ -225,9 +265,18 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
+        auditors: { include: { account: true } },
+        assignments: { select: { departmentId: true, auditor: { include: { account: true } } } },
       },
     });
-    return rows.map((r) => this.toSessionRow(r));
+    return Promise.all(rows.map(async (r) => {
+      const row = this.toSessionRow(r);
+      const activeAssignments = r.assignments.filter((a) => isLoginReady(a.auditor));
+      const checklistCounts = await Promise.all(activeAssignments.map((a) =>
+        this.db.checklistItem.count({ where: { versionId: r.checklistVersionId, departmentId: a.departmentId } }),
+      ));
+      return { ...row, eligibleAssignmentCount: checklistCounts.filter((count) => count > 0).length };
+    }));
   }
 
   async getSession(sessionId: number, now: Date = new Date()) {
@@ -236,23 +285,21 @@ export class PrismaAdminReadStore implements AdminReadStore {
       include: {
         checklistVersion: { include: { standard: true } },
         _count: { select: { auditors: true, assignments: true } },
-        auditors: { orderBy: { id: "asc" }, include: { exclusions: { include: { department: true } } } },
-        assignments: { orderBy: { id: "asc" }, include: { auditor: true, department: true } },
+        auditors: { orderBy: { id: "asc" }, include: { exclusions: { include: { department: true } }, account: true } },
+        assignments: { orderBy: { id: "asc" }, include: { auditor: { include: { account: true } }, department: true } },
       },
     });
     if (!s) return null;
 
     const auditors: AuditorRow[] = s.auditors.map((a) => {
-      let state: InviteState;
-      if (a.revokedAt) state = "DICABUT";
-      else if (a.claimedAt) state = "AKTIF";
-      else if (a.inviteExpiresAt.getTime() <= now.getTime()) state = "KEDALUWARSA";
-      else state = "BELUM_DIKLAIM";
+      const state: AuditorAccessState = a.revokedAt ? "DICABUT" : "AKSES_TERSEDIA";
       return {
         id: a.id,
         name: a.name,
         state,
-        inviteExpiresAt: a.inviteExpiresAt,
+        accountId: a.accountId,
+        email: a.account?.email ?? null,
+        accountActive: a.account?.isActive ?? false,
         excluded: a.exclusions.map((e) => e.department.name),
       };
     });
@@ -295,6 +342,20 @@ export class PrismaAdminReadStore implements AdminReadStore {
     }));
 
     return { session: this.toSessionRow(s), auditors, assignments, findings };
+  }
+
+  async listAuditorAccounts(): Promise<AccountRow[]> {
+    const rows = await this.db.auditorAccount.findMany({
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      include: { _count: { select: { memberships: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      isActive: r.isActive,
+      sessionCount: r._count.memberships,
+    }));
   }
 
   async listRooms(): Promise<RoomRow[]> {
@@ -355,6 +416,29 @@ export class PrismaAdminReadStore implements AdminReadStore {
     isPublished: boolean;
   }): Promise<void> {
     await guardUnique("Dokumen dengan kode ini", () => this.db.sopDocument.create({ data }));
+  }
+
+  async listTrainingResources(): Promise<TrainingResourceRow[]> {
+    const rows = await this.db.trainingResource.findMany({
+      orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+      include: { category: { select: { name: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id, categoryId: r.categoryId, categoryName: r.category.name,
+      type: r.type, title: r.title, description: r.description, url: r.url,
+      sortOrder: r.sortOrder, isPublished: r.isPublished,
+    }));
+  }
+
+  async createTrainingResource(data: { categoryId: number; type: TrainingResourceTypeRow; title: string; description: string | null; url: string; sortOrder: number; isPublished: boolean }): Promise<void> {
+    const category = await this.db.materialCategory.findUnique({ where: { id: data.categoryId }, select: { id: true } });
+    if (!category) throw new AppError(404, "NOT_FOUND", "Program training tidak ditemukan");
+    await this.db.trainingResource.create({ data });
+  }
+
+  async setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean> {
+    const r = await this.db.trainingResource.updateMany({ where: { id }, data: { isPublished } });
+    return r.count > 0;
   }
 
   async setRoomPublished(roomId: number, isPublished: boolean): Promise<boolean> {

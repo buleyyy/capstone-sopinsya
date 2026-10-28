@@ -19,7 +19,7 @@
   <div class="gate-form">
     <span class="eyebrow">Otentikasi Kepatuhan</span>
     <h1>Masuk ke Portal Audit SMAP</h1>
-    <p class="muted">Peran (Admin atau Auditor) ditentukan dari email. Peserta pelatihan tidak perlu masuk.</p>
+    <p class="muted">Masuk dengan email dan kata sandi akun Anda. Sistem menentukan akses (Admin atau Auditor) dari akun tersebut. Akun Auditor dibuat oleh Admin. Peserta pelatihan tidak perlu masuk.</p>
 
     <% if (error) { %>
       <div class="alert error" role="alert"><svg class="icon"><use href="#i-alert"/></svg><div><%= error %></div></div>
@@ -29,7 +29,7 @@
       <label for="email">Email</label>
       <div class="field-icon">
         <svg class="icon"><use href="#i-mail"/></svg>
-        <input id="email" type="text" name="email" required maxlength="120" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="<%= auditorEmail %>">
+        <input id="email" type="text" name="email" required maxlength="120" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="nama@instansi">
       </div>
       <label for="secret">Kata sandi</label>
       <div class="field-icon">
@@ -42,14 +42,14 @@
     <div class="role-grid">
       <section>
         <h3><svg class="icon sm"><use href="#i-shield"/></svg>Admin</h3>
-        <p>Email <code><%= adminEmail %></code> dan kata sandi Admin. Masuk ke Dashboard Admin.</p>
+        <p>Mengelola sesi audit, akun Auditor, dan penugasan. Masuk ke Dashboard Admin.</p>
         <% if (!adminEnabled) { %><p class="hint">Login Admin belum diaktifkan di server.</p><% } %>
       </section>
       <section>
         <h3><svg class="icon sm"><use href="#i-checklist"/></svg>Auditor</h3>
-        <p>Email <code><%= auditorEmail %></code> dan kata sandi Auditor. Masuk ke Dashboard Audit.</p>
-        <% if (!auditorEnabled) { %><p class="hint">Login Auditor belum diaktifkan di server.</p><% } %>
+        <p>Memakai email dan kata sandi akun dari Admin, tanpa tautan undangan. Hanya sesi dan unit yang ditugaskan kepada Anda yang terbuka.</p>
       </section>
+
     </div>
   </div>
 </div>

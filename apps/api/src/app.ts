@@ -12,9 +12,9 @@ import { createPublicRouter } from "./routes/publicContent.js";
 import { createParticipantTestRouter } from "./routes/participantTests.js";
 import type { AdminReadStore } from "./web/adminReadStore.js";
 import {
+  ACCESS_LABEL,
   CLASS_LABEL,
   formatDateTime,
-  INVITE_LABEL,
   percent,
   SESSION_LABEL,
   VERSION_LABEL,
@@ -47,7 +47,7 @@ export function createApp({ env, db, publicContent, participantTests, audit }: A
   app.locals["percent"] = percent;
   app.locals["sessionLabel"] = SESSION_LABEL;
   app.locals["versionLabel"] = VERSION_LABEL;
-  app.locals["inviteLabel"] = INVITE_LABEL;
+  app.locals["accessLabel"] = ACCESS_LABEL;
   app.locals["classLabel"] = CLASS_LABEL;
 
   app.use(
@@ -68,7 +68,6 @@ export function createApp({ env, db, publicContent, participantTests, audit }: A
   const sec = new WebSecurity({
     secret: env.CSRF_SECRET,
     adminPassword: env.ADMIN_PASSWORD,
-    auditorPassword: env.AUDITOR_PASSWORD,
     appOrigin: env.APP_ORIGIN,
     production: env.NODE_ENV === "production",
   });
@@ -78,11 +77,7 @@ export function createApp({ env, db, publicContent, participantTests, audit }: A
       admin: audit?.admin,
       publicContent,
       sec,
-      appOrigin: env.APP_ORIGIN,
-      loginEmails: {
-        admin: env.ADMIN_LOGIN_EMAIL ?? "admin@sopinsya",
-        auditor: env.AUDITOR_LOGIN_EMAIL ?? "auditor@sopinsya",
-      },
+      loginEmails: { admin: env.ADMIN_LOGIN_EMAIL ?? "admin@sopinsya" },
     }),
   );
 

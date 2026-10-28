@@ -1,6 +1,5 @@
-import { assertCanAccess, assertCanWrite, canWrite, isInviteClaimable } from "../domain/auditRules.js";
+import { assertCanAccess, assertCanWrite, canAccess, canWrite } from "../domain/auditRules.js";
 import {
-  claimSchema,
   closeFindingSchema,
   createFindingSchema,
   followUpSchema,
@@ -14,6 +13,7 @@ import type {
   AssignmentRecord,
   AssignmentSummary,
   AuditStore,
+  AuditorAccountRecord,
   AuditorRecord,
   ChecklistItemDetail,
   ChecklistItemRecord,
@@ -25,11 +25,12 @@ import type {
 } from "../domain/auditStore.js";
 import { UniqueViolationError } from "../domain/auditStore.js";
 import { findingPayloadHash } from "../domain/payloadHash.js";
-import { generateSessionToken, sha256Hex } from "../lib/tokens.js";
+import { verifyAgainstOptional } from "../lib/passwords.js";
 import { AppError } from "../utils/errors.js";
 
 /**
- * Identitas pemanggil. Diisi middleware dari database (cookie sesi), TIDAK PERNAH dari body request.
+ * Identitas pemanggil. Diisi middleware dari database (cookie bertanda tangan -> akun -> keanggotaan sesi),
+ * TIDAK PERNAH dari body/query request.
  * `session` adalah keadaan sesi pada awal request; penulisan tetap diperiksa ulang di dalam transaksi.
  */
 export interface AuditContext {
@@ -41,48 +42,7 @@ export interface AuditContext {
 
 const notFound = () => new AppError(404, "NOT_FOUND", "Data tidak ditemukan");
 
-// ---------- Undangan dan sesi login ----------
-
-export interface ClaimResult {
-  auditor: AuditorRecord;
-  session: SessionRecord;
-  /** Token sesi untuk cookie. Hanya hash yang disimpan di database. */
-  token: string;
-}
-
-/**
- * Klaim undangan. Undangan tidak dikenal, kedaluwarsa, dicabut, atau sudah diklaim -> 404 identik.
- * Undangan valid tetapi sesi tidak dapat diakses -> 403 (hanya dicapai pemegang token 256-bit yang sah).
- * Pemeriksaan sesi di sini hanya early fail; batas keamanan sebenarnya ada pada pemeriksaan setiap request.
- */
-export async function claimInvitation(store: AuditStore, rawInput: unknown, now: Date = new Date()): Promise<ClaimResult> {
-  const { token: inviteToken } = parseInput(claimSchema, rawInput);
-  const inviteHash = sha256Hex(inviteToken);
-  const notClaimable = () => new AppError(404, "INVITATION_NOT_FOUND", "Undangan tidak ditemukan atau tidak berlaku");
-
-  const found = await store.findAuthByInviteHash(inviteHash);
-  if (!found || !isInviteClaimable(found.auditor, now)) throw notClaimable();
-  assertCanAccess(found.session, now);
-
-  const token = generateSessionToken();
-  const auditor = await store.claimInvitation(inviteHash, sha256Hex(token), now);
-  if (!auditor) throw notClaimable(); // kalah balapan dengan klaim lain
-  return { auditor, session: found.session, token };
-}
-
-/** Mengenali pemanggil dari token sesi (cookie). Dipakai middleware pada setiap request. */
-export async function authenticate(store: AuditStore, sessionToken: string, now: Date = new Date()): Promise<AuditContext> {
-  const found = await store.findAuthByTokenHash(sha256Hex(sessionToken));
-  const unauthenticated = () => new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-  if (!found || found.auditor.revokedAt !== null || found.auditor.claimedAt === null) throw unauthenticated();
-  assertCanAccess(found.session, now);
-  return {
-    sessionId: found.session.id,
-    auditorId: found.auditor.id,
-    checklistVersionId: found.session.checklistVersionId,
-    session: found.session,
-  };
-}
+// ---------- Login akun dan resolusi sesi ----------
 
 const toContext = (found: { auditor: AuditorRecord; session: SessionRecord }): AuditContext => ({
   sessionId: found.session.id,
@@ -92,33 +52,41 @@ const toContext = (found: { auditor: AuditorRecord; session: SessionRecord }): A
 });
 
 /**
- * Login kata sandi bersama (tanpa undangan): kata sandi sudah diverifikasi pemanggil (WebSecurity).
- * Memilih akun Auditor pada sesi ACTIVE terbaru. Tidak ada sesi ACTIVE atau auditor -> 409 dengan petunjuk untuk Admin.
+ * Memverifikasi email + kata sandi akun Auditor. Mengembalikan id akun, atau null bila email tidak terdaftar,
+ * kata sandi salah, atau akun dinonaktifkan. Semua kegagalan sengaja tidak dibedakan agar tidak membocorkan
+ * apakah email terdaftar; verifikasi tetap dijalankan walau email tidak ditemukan (waktu respons seragam).
  */
-export async function resolvePasswordLogin(store: AuditStore, now: Date = new Date()): Promise<AuditContext> {
-  const found = await store.findPasswordLoginAuditor();
-  if (!found) {
-    throw new AppError(
-      409,
-      "NO_ACTIVE_AUDIT_SESSION",
-      "Belum ada sesi audit aktif dengan akun Auditor. Minta Admin mengaktifkan sesi dan menambahkan auditor.",
-    );
-  }
-  assertCanAccess(found.session, now);
-  return toContext(found);
+export async function verifyAuditorCredentials(store: AuditStore, email: string, password: string): Promise<number | null> {
+  const credential = await store.findAuditorCredentialByEmail(email.trim().toLowerCase());
+  const passwordOk = await verifyAgainstOptional(password, credential?.passwordHash ?? null);
+  return credential && credential.isActive && passwordOk ? credential.id : null;
 }
 
-/** Mengenali pemanggil dari id auditor pada cookie bertanda tangan. Status sesi dibaca ulang pada setiap request. */
-export async function authenticateById(store: AuditStore, auditorId: number, now: Date = new Date()): Promise<AuditContext> {
-  const found = await store.findAuthByAuditorId(auditorId);
-  if (!found || found.auditor.revokedAt !== null) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
-  assertCanAccess(found.session, now);
-  return toContext(found);
+export interface AuditorAccess {
+  account: AuditorAccountRecord;
+  /**
+   * Keanggotaan pada sesi yang dapat diakses saat ini. null bila akun aktif tetapi belum ditambahkan ke sesi
+   * yang dapat diakses (belum ditugaskan, sesi masih DRAFT, atau sesi sudah ditutup).
+   */
+  context: AuditContext | null;
 }
 
-/** Logout (L2): token dikosongkan; auditor butuh undangan baru dari Admin untuk masuk lagi. */
-export async function logout(store: AuditStore, ctx: AuditContext): Promise<void> {
-  await store.clearAuditorToken(ctx.auditorId);
+/**
+ * Mengenali pemanggil dari id akun pada cookie bertanda tangan. Dibaca ulang dari database pada SETIAP request:
+ * akun yang dinonaktifkan atau keanggotaan yang dicabut langsung kehilangan akses. Bila akun punya beberapa
+ * sesi yang dapat diakses, dipakai sesi ACTIVE terbaru (kemudian sesi lain dengan jendela akses).
+ */
+export async function authenticateAccount(store: AuditStore, accountId: number, now: Date = new Date()): Promise<AuditorAccess> {
+  const account = await store.findAuditorAccount(accountId);
+  if (!account || !account.isActive) throw new AppError(401, "UNAUTHENTICATED", "Sesi login tidak valid");
+  const memberships = await store.listMembershipsForAccount(account.id);
+  const best = memberships
+    .filter((m) => m.auditor.revokedAt === null && m.auditor.accountId === account.id && canAccess(m.session, now))
+    .sort((a, b) => {
+      const rank = (s: SessionRecord) => (s.status === "ACTIVE" ? 1 : 0);
+      return rank(b.session) - rank(a.session) || b.session.id - a.session.id;
+    })[0];
+  return { account, context: best ? toContext(best) : null };
 }
 
 export interface MeResult {

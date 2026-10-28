@@ -1,5 +1,7 @@
 <%- include('../partials/header') %>
-<p><a href="/admin/sesi">&larr; Semua sesi</a></p>
+<% var now = new Date(); %>
+<% var canConfigure = session.status === 'DRAFT' || (session.status === 'ACTIVE' && new Date(session.expiresAt).getTime() > now.getTime()); %>
+<p><a href="/admin/sesi" class="backlink">&larr; Semua sesi</a></p>
 <h1><%= session.title %> <span class="badge <%= session.status.toLowerCase() %>"><%= sessionLabel[session.status] %></span></h1>
 <p class="muted">
   Checklist <%= session.standardCode %> <%= session.versionLabel %> &middot; Batas tulis: <%= fmt(session.expiresAt) %>
@@ -7,21 +9,30 @@
   <% if (session.status === 'CLOSED') { %> &middot; Akses auditor sampai: <%= session.auditorAccessUntil ? fmt(session.auditorAccessUntil) : 'tidak ada' %><% } %>
 </p>
 <% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
-
-<% if (invite) { %>
-  <div class="alert info">
-    <strong>Undangan untuk <%= invite.name %></strong> (berlaku sampai <%= fmt(invite.expires) %>).
-    <p>Salin dan kirim tautan ini sekarang. Tautan <strong>tidak akan ditampilkan lagi</strong> setelah halaman ini ditutup; bila hilang, gunakan "Terbitkan ulang".</p>
-    <div class="link-box"><%= invite.link %></div>
-  </div>
+<% if (setupError === 'auditor-missing') { %>
+  <div class="alert error" role="alert">Tambahkan minimal satu auditor dengan akun aktif yang belum dicabut sebelum mengaktifkan sesi.</div>
+<% } else if (setupError === 'assignment-missing') { %>
+  <div class="alert error" role="alert">Buat minimal satu penugasan untuk auditor yang belum dicabut pada unit yang memiliki poin checklist sebelum mengaktifkan sesi.</div>
+<% } else if (setupError === 'deadline-past') { %>
+  <div class="alert error" role="alert">Batas waktu sesi draf sudah lewat. Atur batas waktu baru di bagian Status sesi sebelum mengaktifkan sesi.</div>
 <% } %>
 
-<h2>Status sesi</h2>
+<h2 id="status-sesi">Status sesi</h2>
 <div class="card">
   <% if (session.status === 'DRAFT') { %>
+    <form method="post" action="/admin/sesi/<%= session.id %>/batas-waktu" class="row">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div>
+        <label for="draftDeadline">Atur batas tulis (WIB)</label>
+        <input id="draftDeadline" type="datetime-local" name="to" required>
+      </div>
+      <button class="btn secondary" type="submit">Simpan batas waktu</button>
+    </form>
+    <p class="muted small">Batas waktu harus di masa depan. Jika draf terlalu lama tersimpan dan tenggatnya lewat, perbarui di sini sebelum mengaktifkan sesi.</p>
+    <hr>
     <form method="post" action="/admin/sesi/<%= session.id %>/aktifkan">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
-      <p>Aktifkan sesi agar auditor dapat mengisi checklist. Pastikan auditor dan penugasan sudah dibuat. Setelah aktif, poin checklist yang dipakai tidak berubah.</p>
+      <p>Aktifkan sesi setelah checklist terbit, auditor ditambahkan, dan setidaknya satu penugasan valid tersedia. Checklist pada versi terbit tidak dapat diubah.</p>
       <button class="btn" type="submit">Aktifkan sesi</button>
     </form>
   <% } else if (session.status === 'ACTIVE') { %>
@@ -49,26 +60,40 @@
   <% } %>
 </div>
 
-<h2>Auditor dan undangan</h2>
+<h2 id="auditor">Auditor dan akses</h2>
 <div class="card tablewrap">
   <table>
-    <thead><tr><th>Nama</th><th>Status</th><th>Unit terlarang</th><th>Undangan berlaku sampai</th><th></th></tr></thead>
+    <thead><tr><th>Nama</th><th>Email login</th><th>Status akses</th><th>Unit terlarang</th><th>Aksi</th></tr></thead>
     <tbody>
       <% auditors.forEach(function (a) { %>
         <tr>
           <td><%= a.name %></td>
-          <td><span class="badge <%= a.state.toLowerCase() %>"><%= inviteLabel[a.state] %></span></td>
+          <td>
+            <% if (a.email) { %><%= a.email %><% if (!a.accountActive) { %> <span class="muted small">(akun nonaktif)</span><% } %>
+            <% } else { %><span class="muted">Belum ada akun (data lama)</span><% } %>
+          </td>
+          <td><span class="badge <%= a.state.toLowerCase() %>"><%= accessLabel[a.state] %></span></td>
           <td><%= a.excluded.length ? a.excluded.join(', ') : '-' %></td>
-          <td><%= fmt(a.inviteExpiresAt) %></td>
           <td class="nowrap">
             <% if (a.state !== 'DICABUT') { %>
-              <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/terbit-ulang">
-                <input type="hidden" name="_csrf" value="<%= csrf %>">
-                <button class="btn small secondary" type="submit">Terbitkan ulang</button>
-              </form>
               <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/cabut">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <button class="btn small danger" type="submit">Cabut akses</button>
+              </form>
+            <% } else if (canConfigure) { %>
+              <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/pulihkan">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <button class="btn small secondary" type="submit">Pulihkan akses</button>
+              </form>
+            <% } %>
+            <% if (!a.accountId && canConfigure) { %>
+              <form class="inline" method="post" action="/admin/sesi/<%= session.id %>/auditor/<%= a.id %>/akun">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <select name="accountId" required aria-label="Kaitkan akun untuk <%= a.name %>">
+                  <option value="">Kaitkan akun...</option>
+                  <% accounts.filter(function (x) { return x.isActive; }).forEach(function (x) { %><option value="<%= x.id %>"><%= x.name %> (<%= x.email %>)</option><% }) %>
+                </select>
+                <button class="btn small secondary" type="submit">Kaitkan</button>
               </form>
             <% } %>
           </td>
@@ -79,13 +104,16 @@
   </table>
 </div>
 
-<% if (session.status !== 'CLOSED') { %>
+<% if (canConfigure) { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/auditor" class="card">
-    <h3>Tambah auditor</h3>
-    <p class="muted small">Auditor masuk lewat halaman Masuk dengan email dan kata sandi Auditor (tanpa tautan undangan). Akun Auditor memakai auditor pertama yang belum dicabut pada sesi aktif terbaru, jadi buat auditor ini lalu tambahkan penugasannya. Tautan undangan yang muncul setelah ini tidak diperlukan.</p>
+    <h3>Tambah auditor ke sesi</h3>
+    <p class="muted small">Pilih akun Auditor yang sudah dibuat di <a href="/admin/auditor">Akun Auditor</a>. Auditor masuk langsung dengan email dan kata sandinya, lalu hanya melihat sesi dan unit yang ditugaskan di bawah.</p>
     <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <label for="name">Nama auditor</label>
-    <input id="name" type="text" name="name" required maxlength="120">
+    <label for="accountId">Akun auditor</label>
+    <select id="accountId" name="accountId" required>
+      <option value="">Pilih...</option>
+      <% accounts.filter(function (x) { return x.isActive && !auditors.some(function (a) { return a.accountId === x.id; }); }).forEach(function (x) { %><option value="<%= x.id %>"><%= x.name %> (<%= x.email %>)</option><% }) %>
+    </select>
     <fieldset>
       <legend>Unit yang tidak boleh diaudit auditor ini (cegah self-audit)</legend>
       <% departments.forEach(function (d) { %>
@@ -94,17 +122,11 @@
       <label class="check"><input type="checkbox" name="noExclusions" value="1"> Tidak ada unit terlarang untuk auditor ini</label>
       <p class="muted small">Pilih unit asal auditor, atau centang "tidak ada". Salah satunya wajib.</p>
     </fieldset>
-    <label for="inviteTtlHours">Masa berlaku undangan</label>
-    <select id="inviteTtlHours" name="inviteTtlHours">
-      <option value="24">1 hari</option>
-      <option value="72">3 hari</option>
-      <option value="168" selected>7 hari</option>
-    </select>
     <p><button class="btn" type="submit">Tambah auditor</button></p>
   </form>
 <% } %>
 
-<h2>Penugasan</h2>
+<h2 id="penugasan">Penugasan</h2>
 <div class="card tablewrap">
   <table>
     <thead><tr><th>Auditor</th><th>Unit diaudit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Temuan</th></tr></thead>
@@ -124,7 +146,7 @@
   </table>
 </div>
 
-<% if (session.status !== 'CLOSED' && auditors.length > 0) { %>
+<% if (canConfigure && auditors.length > 0) { %>
   <form method="post" action="/admin/sesi/<%= session.id %>/penugasan" class="card">
     <h3>Tambah penugasan</h3>
     <input type="hidden" name="_csrf" value="<%= csrf %>">

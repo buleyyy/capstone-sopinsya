@@ -1,22 +1,27 @@
-import { assertCanAccess, assertCanWrite, assertNotExcluded, canWrite } from "../domain/auditRules.js";
+import { assertCanWrite, assertNotExcluded, canWrite } from "../domain/auditRules.js";
 import {
+  addAuditorToSessionSchema,
   addItemSchema,
   auditorRefSchema,
   closeSessionSchema,
   createAssignmentSchema,
-  createAuditorSchema,
+  createAuditorAccountSchema,
   createDepartmentSchema,
   createSessionSchema,
   createStandardSchema,
   createVersionSchema,
   extendSessionSchema,
+  linkAuditorAccountSchema,
   parseInput,
+  resetAuditorPasswordSchema,
   sessionRefSchema,
+  setAuditorAccountActiveSchema,
   versionRefSchema,
 } from "../domain/auditSchemas.js";
 import type {
   AssignmentRecord,
   AuditStore,
+  AuditorAccountRecord,
   AuditorRecord,
   ChecklistItemRecord,
   ChecklistVersionRecord,
@@ -25,15 +30,14 @@ import type {
   StandardRecord,
 } from "../domain/auditStore.js";
 import { UniqueViolationError } from "../domain/auditStore.js";
-import { generateInviteToken, sha256Hex } from "../lib/tokens.js";
+import { hashPassword } from "../lib/passwords.js";
 import { AppError } from "../utils/errors.js";
 
 /**
- * Operasi Admin. Dipanggil dari CLI (belum ada autentikasi HTTP Admin).
+ * Operasi Admin (halaman /admin). Otorisasi Admin dilakukan di lapisan web (WebSecurity.requireAdmin).
  * Tidak ada operasi yang membuka kembali sesi CLOSED.
  */
 
-const HOUR_MS = 3_600_000;
 const duplicate = (what: string) => new AppError(409, "ALREADY_EXISTS", `${what} sudah ada`);
 const notFound = (what: string) => new AppError(404, "NOT_FOUND", `${what} tidak ditemukan`);
 const stateError = (message: string) => new AppError(409, "INVALID_STATE", message);
@@ -146,6 +150,18 @@ export async function activateSession(store: AuditStore, raw: unknown, now: Date
   });
 }
 
+/** Mengatur ulang batas tulis sesi DRAFT sebelum aktivasi. */
+export async function updateDraftSessionDeadline(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
+  const { sessionId, to } = parseInput(extendSessionSchema, raw);
+  const session = await store.findSession(sessionId);
+  if (!session) throw notFound("Sesi");
+  if (session.status !== "DRAFT") throw stateError("Batas waktu hanya dapat diubah saat sesi masih DRAFT");
+  if (to.getTime() <= now.getTime()) {
+    throw new AppError(422, "EXPIRES_IN_PAST", "Batas waktu tulis harus berada di masa depan");
+  }
+  if (!(await store.updateDraftSessionDeadline(sessionId, to))) throw stateError("Batas waktu sesi draf tidak dapat diperbarui");
+}
+
 /** Memperpanjang batas tulis. Hanya sesi ACTIVE, hanya ke masa depan. Tidak pernah membuka sesi CLOSED. */
 export async function extendSession(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
   const { sessionId, to } = parseInput(extendSessionSchema, raw);
@@ -170,13 +186,36 @@ export async function closeSession(store: AuditStore, raw: unknown, now: Date = 
   if (!(await store.closeSession(sessionId, now, accessUntil ?? null))) throw stateError("Sesi sudah tidak berstatus ACTIVE");
 }
 
-// ---------- Auditor dan undangan ----------
+// ---------- Akun Auditor ----------
 
-export interface InvitationResult {
-  auditor: AuditorRecord;
-  /** Token undangan. Hanya ditampilkan sekali; database hanya menyimpan hash-nya. */
-  inviteToken: string;
+/**
+ * Admin membuat akun login Auditor (email + kata sandi awal). Tidak ada undangan atau token: Auditor langsung
+ * masuk lewat halaman login yang sama dengan Admin. Hanya hash kata sandi yang disimpan.
+ */
+export async function createAuditorAccount(store: AuditStore, raw: unknown): Promise<AuditorAccountRecord> {
+  const input = parseInput(createAuditorAccountSchema, raw);
+  const passwordHash = await hashPassword(input.password);
+  try {
+    return await store.createAuditorAccount({ email: input.email, name: input.name, passwordHash });
+  } catch (e) {
+    if (e instanceof UniqueViolationError) throw duplicate("Email Auditor");
+    throw e;
+  }
 }
+
+/** Menonaktifkan akun langsung memutus akses (dicek ulang pada setiap request). Data audit tidak berubah. */
+export async function setAuditorAccountActive(store: AuditStore, raw: unknown): Promise<void> {
+  const { accountId, isActive } = parseInput(setAuditorAccountActiveSchema, raw);
+  if (!(await store.setAuditorAccountActive(accountId, isActive))) throw notFound("Akun auditor");
+}
+
+export async function resetAuditorPassword(store: AuditStore, raw: unknown): Promise<void> {
+  const { accountId, password } = parseInput(resetAuditorPasswordSchema, raw);
+  const passwordHash = await hashPassword(password);
+  if (!(await store.setAuditorAccountPassword(accountId, passwordHash))) throw notFound("Akun auditor");
+}
+
+// ---------- Auditor pada sesi ----------
 
 async function requireSession(store: AuditStore, sessionId: number): Promise<SessionRecord> {
   const session = await store.findSession(sessionId);
@@ -184,45 +223,73 @@ async function requireSession(store: AuditStore, sessionId: number): Promise<Ses
   return session;
 }
 
-/** Admin: auditor:create hanya pada sesi DRAFT atau selama canWrite. */
-export async function createAuditor(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<InvitationResult> {
-  const input = parseInput(createAuditorSchema, raw);
+/**
+ * Admin menambahkan akun Auditor ke sesi dan menyatakan unit yang tidak boleh diaudit (self-audit).
+ * Hanya pada sesi DRAFT atau selama canWrite. Satu akun hanya sekali per sesi.
+ */
+export async function addAuditorToSession(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<AuditorRecord> {
+  const input = parseInput(addAuditorToSessionSchema, raw);
   const session = await requireSession(store, input.sessionId);
   if (session.status !== "DRAFT") assertCanWrite(session, now);
+  const account = await store.findAuditorAccount(input.accountId);
+  if (!account) throw notFound("Akun auditor");
+  if (!account.isActive) throw new AppError(422, "ACCOUNT_INACTIVE", "Akun auditor tidak aktif");
   for (const departmentId of input.excludeDepartmentIds) {
     if (!(await store.departmentExists(departmentId))) throw notFound(`Departemen ${departmentId}`);
   }
-  const inviteToken = generateInviteToken();
-  const auditor = await store.createAuditor({
-    sessionId: session.id,
-    name: input.name,
-    inviteHash: sha256Hex(inviteToken),
-    inviteExpiresAt: new Date(now.getTime() + input.inviteTtlHours * HOUR_MS),
-    excludedDepartmentIds: [...new Set(input.excludeDepartmentIds)],
-  });
-  return { auditor, inviteToken };
+  if (await store.findAuditorBySessionAccount(session.id, account.id)) throw duplicate("Auditor pada sesi ini");
+  try {
+    return await store.createAuditor({
+      sessionId: session.id,
+      accountId: account.id,
+      name: account.name,
+      excludedDepartmentIds: [...new Set(input.excludeDepartmentIds)],
+    });
+  } catch (e) {
+    if (e instanceof UniqueViolationError) throw duplicate("Auditor pada sesi ini");
+    throw e;
+  }
 }
 
-/** Terbit ulang: token lama dan sesi login hangus. Hanya selama sesi dapat diakses (canAccess). */
-export async function reissueInvitation(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<InvitationResult> {
-  const input = parseInput(auditorRefSchema, raw);
-  const session = await requireSession(store, input.sessionId);
-  assertCanAccess(session, now);
-  const auditor = await store.findAuditor(session.id, input.auditorId);
-  if (!auditor) throw notFound("Auditor");
-  const inviteToken = generateInviteToken();
-  await store.reissueInvitation(auditor.id, sha256Hex(inviteToken), new Date(now.getTime() + input.inviteTtlHours * HOUR_MS));
-  const refreshed = await store.findAuditor(session.id, auditor.id);
-  if (!refreshed) throw notFound("Auditor");
-  return { auditor: refreshed, inviteToken };
-}
-
-/** Cabut: selalu diizinkan dan idempoten. Token sesi langsung tidak berlaku. */
+/** Cabut: selalu diizinkan dan idempoten. Auditor langsung kehilangan akses ke sesi ini. */
 export async function revokeAuditor(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
   const input = parseInput(auditorRefSchema, raw);
   const auditor = await store.findAuditor(input.sessionId, input.auditorId);
   if (!auditor) throw notFound("Auditor");
   await store.revokeAuditor(auditor.id, now);
+}
+
+/** Memulihkan akses auditor yang dicabut. Hanya pada sesi DRAFT atau selama canWrite. */
+export async function restoreAuditor(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
+  const input = parseInput(auditorRefSchema, raw);
+  const session = await requireSession(store, input.sessionId);
+  if (session.status !== "DRAFT") assertCanWrite(session, now);
+  const auditor = await store.findAuditor(session.id, input.auditorId);
+  if (!auditor) throw notFound("Auditor");
+  await store.restoreAuditor(auditor.id);
+}
+
+/**
+ * Mengaitkan akun ke keanggotaan lama yang belum punya akun (data sebelum akun individual), tanpa menyentuh
+ * penugasan, jawaban, atau temuan yang sudah ada. Hanya pada sesi DRAFT atau selama canWrite.
+ */
+export async function linkAuditorAccount(store: AuditStore, raw: unknown, now: Date = new Date()): Promise<void> {
+  const input = parseInput(linkAuditorAccountSchema, raw);
+  const session = await requireSession(store, input.sessionId);
+  if (session.status !== "DRAFT") assertCanWrite(session, now);
+  const auditor = await store.findAuditor(session.id, input.auditorId);
+  if (!auditor) throw notFound("Auditor");
+  if (auditor.accountId !== null) throw stateError("Auditor ini sudah memiliki akun");
+  const account = await store.findAuditorAccount(input.accountId);
+  if (!account) throw notFound("Akun auditor");
+  if (!account.isActive) throw new AppError(422, "ACCOUNT_INACTIVE", "Akun auditor tidak aktif");
+  if (await store.findAuditorBySessionAccount(session.id, account.id)) throw duplicate("Auditor pada sesi ini");
+  try {
+    if (!(await store.linkAuditorAccount(auditor.id, account.id))) throw stateError("Auditor ini sudah memiliki akun");
+  } catch (e) {
+    if (e instanceof UniqueViolationError) throw duplicate("Auditor pada sesi ini");
+    throw e;
+  }
 }
 
 // ---------- Penugasan ----------
