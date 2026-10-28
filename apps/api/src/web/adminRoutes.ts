@@ -358,6 +358,23 @@ export function createAdminRouter(deps: WebDeps): Router {
     res.redirect(303, `/admin/program-training?tab=materi${ok}`);
   });
 
+  router.post("/admin/program-training/resource/:id", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const sort = intField(req, "sortOrder");
+    const data = parseInput(trainingResourceSchema, {
+      programSlug: trimmed(req, "programSlug"),
+      meetingNo: intField(req, "meetingNo"),
+      type: trimmed(req, "type"),
+      title: trimmed(req, "title"),
+      description: trimmed(req, "description"),
+      url: trimmed(req, "url"),
+      sortOrder: Number.isNaN(sort) ? 0 : sort,
+      isPublished: trimmed(req, "isPublished") === "1",
+    });
+    const found = await requireAdminStore(deps).updateTrainingResource(intParam(req.params["id"]), data);
+    if (!found) throw new AppError(404, "NOT_FOUND", "Konten training tidak ditemukan");
+    res.redirect(303, `/admin/program-training?tab=materi${ok}`);
+  });
+
   router.post("/admin/program-training/resource/:id/publikasi", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const found = await requireAdminStore(deps).setTrainingResourcePublished(intParam(req.params["id"]), trimmed(req, "value") === "1");
     if (!found) throw new AppError(404, "NOT_FOUND", "Konten training tidak ditemukan");
