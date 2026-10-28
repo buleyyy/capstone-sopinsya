@@ -702,3 +702,8 @@ body.gate { background: var(--surface); }
 }
 .tab:hover { border-color: #2563eb; color: #2563eb; }
 .tab.active { color: #fff; background: #2563eb; border-color: #2563eb; }
+
+.compact-form { display: grid; gap: 8px; min-width: 250px; margin: 10px 0; }
+.compact-form label { display: grid; gap: 4px; font-size: 0.9rem; }
+.compact-form input:not([type="checkbox"]), .compact-form select, .compact-form textarea { width: 100%; }
+details > summary { cursor: pointer; color: #2563eb; font-weight: 600; margin-bottom: 6px; }
