@@ -61,6 +61,39 @@ const documentSchema = z.object({
   isPublished: z.boolean(),
 });
 
+const trainingResourceSchema = z.object({
+  programSlug: z.enum(["iso-9001", "iso-14001", "iso-45001", "iso-37001"]),
+  meetingNo: z.number().int().min(1).max(2),
+  type: z.enum(["SILABUS", "MATERI", "STUDI_KASUS", "VIDEO", "BLOOKET", "LINK_LAIN"]),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(4000).transform((v) => v === "" ? null : v),
+  url: z.string().trim().min(1).max(1024).refine(httpsOnly, "URL harus https:// tanpa kredensial"),
+  sortOrder: z.number().int().min(0).max(100000),
+  isPublished: z.boolean(),
+});
+const trainingTestSchema = z.object({
+  programSlug: z.enum(["iso-9001", "iso-14001", "iso-45001", "iso-37001"]),
+  meetingNo: z.number().int().min(1).max(2),
+  type: z.enum(["PRE", "POST"]),
+  title: z.string().trim().min(1).max(160),
+  isActive: z.boolean(),
+});
+const trainingQuestionSchema = z.object({
+  text: z.string().trim().min(1).max(4000),
+  optionA: z.string().trim().max(500).optional().default(""),
+  optionB: z.string().trim().max(500).optional().default(""),
+  optionC: z.string().trim().max(500).optional().default(""),
+  optionD: z.string().trim().max(500).optional().default(""),
+  correctOption: z.enum(["A", "B", "C", "D"]),
+});
+
+const trainingPrograms = [
+  { slug: "iso-9001", label: "ISO 9001: 2015" },
+  { slug: "iso-14001", label: "ISO 14001: 2015" },
+  { slug: "iso-45001", label: "ISO 45001: 2018" },
+  { slug: "iso-37001", label: "ISO 37001: 2025" },
+];
+
 const ok = "?ok=1";
 
 /** Halaman Admin (satu akun dari ADMIN_PASSWORD untuk UAT). Semua operasi memakai service Admin yang sudah diuji. */
@@ -283,6 +316,102 @@ export function createAdminRouter(deps: WebDeps): Router {
       departmentId: intField(req, "departmentId"),
     });
     res.redirect(303, `/admin/sesi/${id}${ok}`);
+  });
+
+  // ---------- Manajemen Program Training ----------
+  // Program dan pertemuan masih didefinisikan di apps/web/src/lib/programs.ts.
+  // Halaman ini mengelola konten pendukung dan tes yang terikat pada slug/pertemuan tersebut.
+  router.get("/admin/program-training", async (req, res) => {
+    const admin = requireAdminStore(deps);
+    const [resources, tests, questions] = await Promise.all([
+      admin.listTrainingResources(),
+      admin.listTrainingTests(),
+      admin.listTrainingQuestions(),
+    ]);
+    const tab = ["program", "materi", "tes"].includes(String(req.query["tab"])) ? String(req.query["tab"]) : "program";
+    res.render("admin/program-training", {
+      title: "Manajemen Program Training",
+      nav: "program-training",
+      tab,
+      programs: trainingPrograms,
+      resources,
+      tests,
+      questions,
+      saved: req.query["ok"] === "1",
+    });
+  });
+
+  router.post("/admin/program-training/resource", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const sort = intField(req, "sortOrder");
+    const data = parseInput(trainingResourceSchema, {
+      programSlug: trimmed(req, "programSlug"),
+      meetingNo: intField(req, "meetingNo"),
+      type: trimmed(req, "type"),
+      title: trimmed(req, "title"),
+      description: trimmed(req, "description"),
+      url: trimmed(req, "url"),
+      sortOrder: Number.isNaN(sort) ? 0 : sort,
+      isPublished: trimmed(req, "isPublished") === "1",
+    });
+    await requireAdminStore(deps).createTrainingResource(data);
+    res.redirect(303, `/admin/program-training?tab=materi${ok}`);
+  });
+
+  router.post("/admin/program-training/resource/:id/publikasi", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const found = await requireAdminStore(deps).setTrainingResourcePublished(intParam(req.params["id"]), trimmed(req, "value") === "1");
+    if (!found) throw new AppError(404, "NOT_FOUND", "Konten training tidak ditemukan");
+    res.redirect(303, `/admin/program-training?tab=materi${ok}`);
+  });
+
+  router.post("/admin/program-training/test", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const data = parseInput(trainingTestSchema, {
+      programSlug: trimmed(req, "programSlug"),
+      meetingNo: intField(req, "meetingNo"),
+      type: trimmed(req, "type"),
+      title: trimmed(req, "title"),
+      isActive: trimmed(req, "isActive") === "1",
+    });
+    await requireAdminStore(deps).saveTrainingTest(data);
+    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+  });
+
+  router.post("/admin/program-training/test/:id/question", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const testId = intParam(req.params["id"]);
+    const raw = parseInput(trainingQuestionSchema, {
+      text: trimmed(req, "text"),
+      optionA: trimmed(req, "optionA"),
+      optionB: trimmed(req, "optionB"),
+      optionC: trimmed(req, "optionC"),
+      optionD: trimmed(req, "optionD"),
+      correctOption: trimmed(req, "correctOption"),
+    });
+    const options = [
+      { label: "A", text: raw.optionA },
+      { label: "B", text: raw.optionB },
+      { label: "C", text: raw.optionC },
+      { label: "D", text: raw.optionD },
+    ].filter((option) => option.text !== "");
+    if (options.length < 2 || !options.some((option) => option.label === raw.correctOption)) {
+      throw new AppError(422, "VALIDATION_ERROR", "Isi minimal dua pilihan dan pastikan kunci jawaban termasuk pilihan yang diisi.");
+    }
+    await requireAdminStore(deps).addTrainingQuestion(testId, {
+      text: raw.text,
+      options: options.map((option) => ({ ...option, isCorrect: option.label === raw.correctOption })),
+    });
+    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+  });
+
+  router.post("/admin/program-training/test/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const testId = intParam(req.params["id"]);
+    const active = trimmed(req, "value") === "1";
+    await requireAdminStore(deps).saveTrainingTestStatus(testId, active);
+    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+  });
+
+  router.post("/admin/program-training/question/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const found = await requireAdminStore(deps).setTrainingQuestionActive(intParam(req.params["id"]), trimmed(req, "value") === "1");
+    if (!found) throw new AppError(404, "NOT_FOUND", "Soal tidak ditemukan");
+    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
   });
 
   // ---------- Pustaka SOP ----------
