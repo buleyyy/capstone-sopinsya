@@ -405,7 +405,8 @@ export function createAdminRouter(deps: WebDeps): Router {
   router.post("/admin/program-training/test/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const testId = intParam(req.params["id"]);
     const active = trimmed(req, "value") === "1";
-    await requireAdminStore(deps).saveTrainingTestStatus(testId, active);
+    const found = await requireAdminStore(deps).saveTrainingTestStatus(testId, active);
+    if (!found) throw new AppError(404, "NOT_FOUND", "Tes tidak ditemukan");
     res.redirect(303, `/admin/program-training?tab=tes${ok}`);
   });
 
