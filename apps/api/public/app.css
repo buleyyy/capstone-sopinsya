@@ -677,3 +677,28 @@ body.gate { background: var(--surface); }
   .f-table tr { page-break-inside: avoid; }
   .f-sign, .f-notes { page-break-inside: avoid; }
 }
+
+
+/* Manajemen Program Training */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 24px;
+  border-bottom: 1px solid var(--line, #dbe3ee);
+  padding-bottom: 10px;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--line, #dbe3ee);
+  border-radius: 10px;
+  color: var(--text, #243247);
+  background: var(--surface, #fff);
+  text-decoration: none;
+  font-weight: 600;
+}
+.tab:hover { border-color: #2563eb; color: #2563eb; }
+.tab.active { color: #fff; background: #2563eb; border-color: #2563eb; }
