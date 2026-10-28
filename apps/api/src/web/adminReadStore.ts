@@ -89,6 +89,21 @@ export interface DocumentRow {
   isPublished: boolean;
 }
 
+export type TrainingResourceKind = "SILABUS" | "MATERI" | "STUDI_KASUS" | "VIDEO" | "BLOOKET" | "LINK_LAIN";
+export type ParticipantTestKind = "PRE" | "POST";
+export interface TrainingResourceRow {
+  id: number; programSlug: string; meetingNo: number; type: TrainingResourceKind;
+  title: string; description: string | null; url: string; sortOrder: number; isPublished: boolean;
+}
+export interface TrainingTestRow {
+  id: number; programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string;
+  isActive: boolean; questionCount: number; attemptCount: number;
+}
+export interface TrainingQuestionInput {
+  text: string;
+  options: { label: string; text: string; isCorrect: boolean }[];
+}
+
 export interface AdminReadStore {
   listDepartments(): Promise<DepartmentRow[]>;
   listStandards(): Promise<StandardRow[]>;
@@ -117,6 +132,13 @@ export interface AdminReadStore {
   }): Promise<void>;
   setRoomPublished(roomId: number, isPublished: boolean): Promise<boolean>;
   setDocumentPublished(documentId: number, isPublished: boolean): Promise<boolean>;
+  listTrainingResources(): Promise<TrainingResourceRow[]>;
+  createTrainingResource(data: Omit<TrainingResourceRow, "id">): Promise<TrainingResourceRow>;
+  setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
+  listTrainingTests(): Promise<TrainingTestRow[]>;
+  saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void>;
+  addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void>;
+  setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean>;
 }
 
 const duplicate = (what: string) => new AppError(409, "ALREADY_EXISTS", `${what} sudah ada`);
@@ -364,6 +386,58 @@ export class PrismaAdminReadStore implements AdminReadStore {
 
   async setDocumentPublished(documentId: number, isPublished: boolean): Promise<boolean> {
     const r = await this.db.sopDocument.updateMany({ where: { id: documentId }, data: { isPublished } });
+    return r.count > 0;
+  }
+
+  async listTrainingResources(): Promise<TrainingResourceRow[]> {
+    return this.db.trainingResource.findMany({
+      orderBy: [{ programSlug: "asc" }, { meetingNo: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+      select: { id: true, programSlug: true, meetingNo: true, type: true, title: true, description: true, url: true, sortOrder: true, isPublished: true },
+    });
+  }
+
+  async createTrainingResource(data: Omit<TrainingResourceRow, "id">): Promise<TrainingResourceRow> {
+    return this.db.trainingResource.create({ data });
+  }
+
+  async setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean> {
+    const r = await this.db.trainingResource.updateMany({ where: { id }, data: { isPublished } });
+    return r.count > 0;
+  }
+
+  async listTrainingTests(): Promise<TrainingTestRow[]> {
+    const rows = await this.db.test.findMany({
+      orderBy: [{ programSlug: "asc" }, { meetingNo: "asc" }, { type: "asc" }],
+      include: { _count: { select: { questions: true, attempts: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id, programSlug: r.programSlug, meetingNo: r.meetingNo, type: r.type, title: r.title,
+      isActive: r.isActive, questionCount: r._count.questions, attemptCount: r._count.attempts,
+    }));
+  }
+
+  async saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void> {
+    await this.db.test.upsert({
+      where: { programSlug_meetingNo_type: { programSlug: data.programSlug, meetingNo: data.meetingNo, type: data.type } },
+      create: data,
+      update: { title: data.title, isActive: data.isActive },
+    });
+  }
+
+  async addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void> {
+    await this.db.$transaction(async (tx) => {
+      const question = await tx.testQuestion.create({
+        data: { testId, text: data.text, orderNo: await tx.testQuestion.count({ where: { testId } }) + 1 },
+        select: { id: true },
+      });
+      await tx.testOption.createMany({
+        data: data.options.map((option) => ({ questionId: question.id, ...option })),
+      });
+    });
+  }
+
+  async setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean> {
+    const r = await this.db.testQuestion.updateMany({ where: { id: questionId }, data: { isActive } });
     return r.count > 0;
   }
 }
