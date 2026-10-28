@@ -73,6 +73,73 @@ enum TrainingResourceType {
   SYLLABUS
 }
 
+// Program pelatihan ISO (9001/14001/45001/37001) dan pertemuannya. TERPISAH dari MaterialCategory (13 kamar BNSP).
+enum MeetingResourceType {
+  SOP
+  SYLLABUS
+  MATERIAL
+  CASE_STUDY
+  BLOOKET
+  VIDEO
+}
+
+// slug dan number bersifat tetap setelah dibuat: Test mengikat tes lewat programSlug + meetingNo.
+model TrainingProgram {
+  id          Int              @id @default(autoincrement())
+  slug        String           @unique @db.VarChar(80)
+  code        String           @db.VarChar(10)
+  title       String           @db.VarChar(80)
+  fullTitle   String           @db.VarChar(120)
+  subtitle    String           @db.VarChar(160)
+  summary     String           @db.VarChar(300)
+  description String           @db.Text
+  duration    String           @db.VarChar(40)
+  mode        String           @db.VarChar(40)
+  trainer     String           @db.VarChar(120)
+  category    String           @db.VarChar(60)
+  tone        String           @default("blue") @db.VarChar(10)
+  sortOrder   Int              @default(0)
+  isPublished Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  meetings    ProgramMeeting[]
+
+  @@index([isPublished, sortOrder])
+}
+
+model ProgramMeeting {
+  id          Int               @id @default(autoincrement())
+  programId   Int
+  number      Int // nomor pertemuan pada URL peserta dan pada Test.meetingNo
+  title       String            @db.VarChar(160)
+  sortOrder   Int               @default(0)
+  isPublished Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  program     TrainingProgram   @relation(fields: [programId], references: [id], onDelete: Restrict)
+  resources   MeetingResource[]
+
+  @@unique([programId, number])
+  @@index([programId, isPublished, sortOrder])
+}
+
+// Satu baris = satu tautan (materi/PDF, studi kasus, Blooket, video, ...). url wajib https.
+// Penyimpanan file (upload) belum ada; kolom file dapat ditambahkan kelak tanpa mengubah baris yang ada.
+model MeetingResource {
+  id          Int                 @id @default(autoincrement())
+  meetingId   Int
+  type        MeetingResourceType
+  title       String              @db.VarChar(200)
+  url         String              @db.VarChar(1024)
+  sortOrder   Int                 @default(0)
+  isPublished Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  meeting     ProgramMeeting      @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+
+  @@index([meetingId, type, isPublished, sortOrder])
+}
+
 // Satu tes per jenis per pertemuan. Program/pertemuan belum ada di basis data, jadi diikat lewat slug + nomor.
 model Test {
   id          Int            @id @default(autoincrement())

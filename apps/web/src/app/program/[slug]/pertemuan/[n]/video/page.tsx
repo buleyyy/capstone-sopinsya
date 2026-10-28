@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { PlayIcon } from "@/components/Icons";
 import { ProgramMeta } from "@/components/ProgramMeta";
-import { getMeeting, getProgram } from "@/lib/programs";
+import { ErrorState } from "@/components/StateMessage";
+import { fetchProgram, getMeeting } from "@/lib/programs";
 
 type Props = { params: Promise<{ slug: string; n: string }> };
+
+export const dynamic = "force-dynamic";
 
 /** ID video YouTube dari youtu.be/ID, youtube.com/watch?v=ID, atau youtube.com/embed/ID; selain itu null. */
 function youtubeId(url: string | null): string | null {
@@ -24,9 +27,18 @@ function youtubeId(url: string | null): string | null {
 
 export default async function VideoPage({ params }: Props) {
   const { slug, n } = await params;
-  const program = getProgram(slug);
-  const meeting = program ? getMeeting(program, Number(n)) : undefined;
-  if (!program || !meeting) notFound();
+  const result = await fetchProgram(slug);
+  if (result.status === "not_found") notFound();
+  if (result.status === "unavailable") {
+    return (
+      <div className="container section">
+        <ErrorState message={result.message} />
+      </div>
+    );
+  }
+  const program = result.data;
+  const meeting = getMeeting(program, Number(n));
+  if (!meeting) notFound();
 
   return (
     <div className="container">

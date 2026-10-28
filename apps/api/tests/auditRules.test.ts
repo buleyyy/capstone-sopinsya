@@ -3,7 +3,6 @@ import {
   assertNotExcluded,
   canAccess,
   canWrite,
-  isInviteClaimable,
   type SessionState,
 } from "../src/domain/auditRules.js";
 
@@ -49,18 +48,6 @@ describe("canAccess / canWrite (matriks status sesi)", () => {
     expect(canAccess(s({ status: "CLOSED", auditorAccessUntil: null }), now)).toBe(false);
     expect(canAccess(s({ status: "CLOSED", auditorAccessUntil: before }), now)).toBe(false);
     expect(canAccess(s({ status: "CLOSED", auditorAccessUntil: now }), now)).toBe(false);
-  });
-});
-
-describe("isInviteClaimable (invarian I3)", () => {
-  const base = { claimedAt: null, revokedAt: null, inviteExpiresAt: after };
-  it("valid bila belum diklaim, tidak dicabut, belum kedaluwarsa", () => {
-    expect(isInviteClaimable(base, now)).toBe(true);
-  });
-  it("ditolak bila sudah diklaim, dicabut, atau kedaluwarsa", () => {
-    expect(isInviteClaimable({ ...base, claimedAt: before }, now)).toBe(false);
-    expect(isInviteClaimable({ ...base, revokedAt: before }, now)).toBe(false);
-    expect(isInviteClaimable({ ...base, inviteExpiresAt: before }, now)).toBe(false);
   });
 });
 

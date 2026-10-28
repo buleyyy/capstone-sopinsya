@@ -4,7 +4,7 @@ import { T0, finding, login, seed } from "./helpers/seed.js";
 
 async function setup(classification: "MAJOR" | "MINOR" | "OBSERVASI" = "MINOR") {
   const s = await seed();
-  const ctx = await login(s.store, s.inv1.inviteToken);
+  const ctx = await login(s.store, s.acc1.id);
   const { finding: f } = await createFinding(s.store, ctx, s.assign1.id, finding({ classification }), T0);
   return { s, ctx, f };
 }
@@ -65,7 +65,7 @@ describe("tindak lanjut temuan", () => {
 
   it("404 untuk temuan milik auditor lain", async () => {
     const { s, f } = await setup("MINOR");
-    const other = await login(s.store, s.inv2.inviteToken);
+    const other = await login(s.store, s.acc2.id);
     await expect(saveFindingFollowUp(s.store, other, f.id, capa, T0)).rejects.toMatchObject({ statusCode: 404 });
   });
 

@@ -1,0 +1,75 @@
+<%- include('../partials/header', { nav: 'program-iso' }) %>
+<%
+  var base = '/admin/program/' + program.id + '/pertemuan/' + meeting.id + '/tes/' + kindSlug;
+  var activeCount = test.questions.filter(function (q) { return q.isActive; }).length;
+  var nextOrder = test.questions.reduce(function (m, q) { return Math.max(m, q.orderNo); }, 0) + 1;
+%>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain"><a href="/admin/program/<%= program.id %>/pertemuan/<%= meeting.id %>"><%= meeting.title %></a> / <%= program.fullTitle %></span>
+    <h1><%= kind === 'PRE' ? 'Pre-test' : 'Post-test' %></h1>
+    <p>Peserta mengerjakan tes ini di situs; penilaian dilakukan server dan kunci jawaban tidak pernah dikirim ke peserta. Tes tampil bila aktif, memiliki soal aktif, dan pertemuan serta program berstatus terbit.</p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Perubahan tersimpan.</div><% } %>
+
+<form method="post" action="<%= base %>" class="card" autocomplete="off">
+  <h2>Pengaturan tes</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="t-title">Judul tes</label>
+  <input id="t-title" name="title" type="text" required maxlength="160" value="<%= test.title %>">
+  <label><input type="checkbox" name="isActive" value="1"<%= test.isActive ? ' checked' : '' %>> Aktif (<%= activeCount %> soal aktif)</label>
+  <p><button class="btn" type="submit">Simpan pengaturan</button></p>
+</form>
+
+<section class="card">
+  <h2>Soal (<%= test.questions.length %>)</h2>
+  <% test.questions.forEach(function (q) { %>
+    <details>
+      <summary>
+        <strong><%= q.orderNo %>.</strong> <%= q.text.length > 90 ? q.text.slice(0, 90) + '...' : q.text %>
+        <span class="badge <%= q.isActive ? 'published' : 'draft' %>"><%= q.isActive ? 'Aktif' : 'Nonaktif' %></span>
+        <% if (q.answerCount > 0) { %><span class="muted small"> &middot; <%= q.answerCount %> jawaban peserta</span><% } %>
+      </summary>
+      <form method="post" action="<%= base %>/soal/<%= q.id %>" autocomplete="off">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>No. urut <input name="orderNo" type="number" min="0" max="1000" value="<%= q.orderNo %>"></label>
+        <label>Pertanyaan <textarea name="text" rows="3" required maxlength="2000"><%= q.text %></textarea></label>
+        <% q.options.forEach(function (o) { %>
+          <label>Opsi <%= o.label %> <input name="option<%= o.label %>" type="text" required maxlength="500" value="<%= o.text %>"></label>
+        <% }) %>
+        <label>Jawaban benar
+          <select name="correctLabel"><% q.options.forEach(function (o) { %><option value="<%= o.label %>"<%= o.isCorrect ? ' selected' : '' %>><%= o.label %></option><% }) %></select>
+        </label>
+        <button class="btn small" type="submit">Simpan soal</button>
+      </form>
+      <form method="post" action="<%= base %>/soal/<%= q.id %>/status" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <input type="hidden" name="value" value="<%= q.isActive ? '0' : '1' %>">
+        <button class="btn secondary small" type="submit"><%= q.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button>
+      </form>
+      <form method="post" action="<%= base %>/soal/<%= q.id %>/hapus" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <button class="btn danger small" type="submit"<%= q.answerCount > 0 ? ' disabled title="Sudah dijawab peserta; nonaktifkan saja"' : '' %>>Hapus</button>
+      </form>
+    </details>
+  <% }) %>
+  <% if (test.questions.length === 0) { %><p class="muted">Belum ada soal.</p><% } %>
+</section>
+
+<form method="post" action="<%= base %>/soal" class="card" autocomplete="off">
+  <h2>Tambah soal</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="q-order">No. urut</label>
+  <input id="q-order" name="orderNo" type="number" min="0" max="1000" value="<%= nextOrder %>">
+  <label for="q-text">Pertanyaan</label>
+  <textarea id="q-text" name="text" rows="3" required maxlength="2000"></textarea>
+  <% ['A', 'B', 'C', 'D'].forEach(function (l) { %>
+    <label for="q-<%= l %>">Opsi <%= l %></label>
+    <input id="q-<%= l %>" name="option<%= l %>" type="text" required maxlength="500">
+  <% }) %>
+  <label for="q-correct">Jawaban benar</label>
+  <select id="q-correct" name="correctLabel" required><option>A</option><option>B</option><option>C</option><option>D</option></select>
+  <p><button class="btn" type="submit">Simpan soal</button></p>
+</form>
+<%- include('../partials/footer') %>

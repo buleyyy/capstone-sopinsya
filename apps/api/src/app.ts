@@ -5,11 +5,13 @@ import type { Env } from "./config/env.js";
 import type { AuditStore } from "./domain/auditStore.js";
 import type { PublicContentStore } from "./domain/publicContent.js";
 import type { ParticipantTestStore } from "./domain/participantTest.js";
+import type { PublicProgramStore, TrainingAdminStore } from "./domain/training.js";
 import type { Database } from "./lib/database.js";
 import { createErrorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createPublicRouter } from "./routes/publicContent.js";
 import { createParticipantTestRouter } from "./routes/participantTests.js";
+import { createProgramRouter } from "./routes/programs.js";
 import type { AdminReadStore } from "./web/adminReadStore.js";
 import {
   ACCESS_LABEL,
@@ -29,12 +31,16 @@ export interface AppDeps {
   publicContent?: PublicContentStore;
   /** Pre/Post-test peserta. Bila kosong, /api/public/.../tests menjawab 503. */
   participantTests?: ParticipantTestStore;
+  /** Program ISO untuk peserta (publik). Bila kosong, /api/public/programs menjawab 503. */
+  programs?: PublicProgramStore;
+  /** Pengelolaan program/pertemuan/tes oleh Admin. Bila kosong, halaman /admin/program menjawab 503. */
+  training?: TrainingAdminStore;
   /** Penyimpanan audit untuk antarmuka web. Bila kosong, halaman Auditor/Admin menjawab 503. */
   audit?: { store: AuditStore; admin: AdminReadStore };
 }
 
 /** Membangun aplikasi Express tanpa membuka port, sehingga mudah diuji dengan supertest. */
-export function createApp({ env, db, publicContent, participantTests, audit }: AppDeps): Express {
+export function createApp({ env, db, publicContent, participantTests, programs, training, audit }: AppDeps): Express {
   const app = express();
 
   app.disable("x-powered-by");
@@ -64,6 +70,7 @@ export function createApp({ env, db, publicContent, participantTests, audit }: A
   app.use("/api/health", createHealthRouter(db));
   app.use("/api/public", createPublicRouter(publicContent));
   app.use("/api/public", createParticipantTestRouter(participantTests));
+  app.use("/api/public", createProgramRouter(programs));
 
   const sec = new WebSecurity({
     secret: env.CSRF_SECRET,
@@ -76,6 +83,7 @@ export function createApp({ env, db, publicContent, participantTests, audit }: A
       store: audit?.store,
       admin: audit?.admin,
       publicContent,
+      training,
       sec,
       loginEmails: { admin: env.ADMIN_LOGIN_EMAIL ?? "admin@sopinsya" },
     }),

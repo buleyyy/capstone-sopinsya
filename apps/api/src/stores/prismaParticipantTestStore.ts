@@ -17,8 +17,18 @@ import type {
 export class PrismaParticipantTestStore implements ParticipantTestStore {
   constructor(private readonly getClient: () => Promise<PrismaClient>) {}
 
+  /** Tes hanya tampil bila program DAN pertemuannya berstatus terbit (dikelola Admin di /admin/program). */
+  private async isLive(db: PrismaClient, programSlug: string, meetingNo: number): Promise<boolean> {
+    const row = await db.programMeeting.findFirst({
+      where: { number: meetingNo, isPublished: true, program: { slug: programSlug, isPublished: true } },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
   async getTest(programSlug: string, meetingNo: number, type: TestKind): Promise<PublicTest | null> {
     const db = await this.getClient();
+    if (!(await this.isLive(db, programSlug, meetingNo))) return null;
     const row = await db.test.findFirst({
       where: { programSlug, meetingNo, type, isActive: true },
       select: {
@@ -47,6 +57,8 @@ export class PrismaParticipantTestStore implements ParticipantTestStore {
       where: { id: testId, isActive: true },
       select: {
         id: true,
+        programSlug: true,
+        meetingNo: true,
         questions: {
           where: { isActive: true },
           orderBy: [{ orderNo: "asc" }, { id: "asc" }],
@@ -54,7 +66,7 @@ export class PrismaParticipantTestStore implements ParticipantTestStore {
         },
       },
     });
-    if (!row) return null;
+    if (!row || !(await this.isLive(db, row.programSlug, row.meetingNo))) return null;
     return {
       testId: row.id,
       questions: row.questions.map((q) => ({

@@ -1,0 +1,41 @@
+<%- include('../partials/header', { nav: 'program-iso' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain">Konten Peserta</span>
+    <h1>Program Pelatihan ISO</h1>
+    <p>Kelola program ISO 9001, 14001, 45001, 37001 beserta pertemuannya. Yang berstatus terbit tampil di situs peserta. Dikelola terpisah dari 13 kamar BNSP di <a href="/admin/program-training">Program Training</a>.</p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Perubahan tersimpan.</div><% } %>
+
+<section class="card">
+  <h2>Daftar program (<%= programs.length %>)</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Urutan</th><th>Program</th><th>Slug</th><th>Pertemuan</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% programs.forEach(function (p) { %>
+          <tr>
+            <td><%= p.sortOrder %></td>
+            <td><strong><%= p.fullTitle %></strong><div class="muted small"><%= p.subtitle %></div></td>
+            <td><code><%= p.slug %></code></td>
+            <td><%= p.meetingCount %></td>
+            <td><span class="badge <%= p.isPublished ? 'published' : 'draft' %>"><%= p.isPublished ? 'Terbit' : 'Draf' %></span></td>
+            <td><a class="btn secondary small" href="/admin/program/<%= p.id %>">Kelola</a></td>
+          </tr>
+        <% }) %>
+        <% if (programs.length === 0) { %><tr><td colspan="6" class="muted">Belum ada program.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<form method="post" action="/admin/program" class="card" autocomplete="off">
+  <h2>Tambah program</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="f-slug">Slug (alamat URL, tidak dapat diubah setelah dibuat)</label>
+  <input id="f-slug" name="slug" type="text" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="mis. iso-9001">
+  <%- include('_program-fields', { p: {} }) %>
+  <p><button class="btn" type="submit">Simpan program</button></p>
+</form>
+<%- include('../partials/footer') %>

@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { HomeProgramList } from "@/components/HomeProgramList";
-import { PROGRAMS } from "@/lib/programs";
+import { ErrorState } from "@/components/StateMessage";
+import { fetchPrograms } from "@/lib/programs";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const programs = await fetchPrograms();
   return (
     <>
       <section className="hero-band" aria-labelledby="hero-title">
@@ -33,7 +37,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <HomeProgramList programs={PROGRAMS} />
+      {programs.status === "ok" ? (
+        <HomeProgramList programs={programs.data} />
+      ) : (
+        <section className="container section" aria-labelledby="home-programs">
+          <h2 id="home-programs" className="section-title">
+            Pelatihan tersedia
+          </h2>
+          <ErrorState message={programs.status === "unavailable" ? programs.message : "Daftar program tidak ditemukan."} />
+        </section>
+      )}
 
       <section className="container section" aria-labelledby="features">
         <h2 id="features" className="section-title">

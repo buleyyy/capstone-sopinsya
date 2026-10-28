@@ -11,6 +11,7 @@ const room: PublicRoomDetail = {
   name: "Program1",
   description: "Pengantar",
   documentCount: 2,
+  resources: [],
   documents: [
     { id: 10, code: "SOP-1", title: "Dokumen aman", url: "https://example.test/a.pdf" },
     { id: 11, code: "SOP-2", title: "Dokumen tautan buruk", url: "javascript:alert(1)" },

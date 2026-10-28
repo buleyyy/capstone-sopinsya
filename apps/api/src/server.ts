@@ -5,6 +5,7 @@ import { createDatabase } from "./lib/database.js";
 import { PrismaAuditStore } from "./stores/prismaAuditStore.js";
 import { PrismaPublicContentStore } from "./stores/prismaPublicContentStore.js";
 import { PrismaParticipantTestStore } from "./stores/prismaParticipantTestStore.js";
+import { PrismaTrainingStore } from "./stores/prismaTrainingStore.js";
 import { PrismaAdminReadStore } from "./web/adminReadStore.js";
 
 function bootEnv() {
@@ -22,6 +23,7 @@ async function main() {
   const getPrisma = db.prisma?.bind(db);
   const publicContent = getPrisma ? new PrismaPublicContentStore(getPrisma) : undefined;
   const participantTests = getPrisma ? new PrismaParticipantTestStore(getPrisma) : undefined;
+  const trainingStore = getPrisma ? new PrismaTrainingStore(getPrisma) : undefined;
 
   // Prisma Client dibuat saat boot agar store audit dapat dipakai antarmuka web. Bila gagal (mis. belum
   // `prisma generate`), server tetap hidup; halaman Auditor/Admin menjawab 503 dan health check tetap jalan.
@@ -41,6 +43,7 @@ async function main() {
     db,
     ...(publicContent ? { publicContent } : {}),
     ...(participantTests ? { participantTests } : {}),
+    ...(trainingStore ? { programs: trainingStore, training: trainingStore } : {}),
     ...(audit ? { audit } : {}),
   });
 

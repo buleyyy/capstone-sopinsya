@@ -14,7 +14,7 @@ Sopinsya memiliki dua area aplikasi yang dipakai untuk kebutuhan berbeda: portal
 | Data | MySQL 8, Prisma | Backend | Penyimpanan sesi, auditor, checklist, jawaban, temuan dan konten publik |
 | Pengujian API | Vitest, Supertest | Developer | Pengujian service, route, dan aturan keamanan |
 
-**Pemisahan akses:** peserta tidak memerlukan login. Admin masuk memakai `admin@sopinsya` + `ADMIN_PASSWORD`; Auditor memakai `auditor@sopinsya` + `AUDITOR_PASSWORD`. Token undangan tidak digunakan untuk login.
+**Pemisahan akses:** peserta tidak memerlukan login. Admin dan Auditor masuk dari halaman yang sama (`/masuk`) dengan email dan kata sandi; sistem menentukan hak akses dari role. Admin memakai `ADMIN_LOGIN_EMAIL` + `ADMIN_PASSWORD` (environment). Akun Auditor dibuat Admin di halaman **Akun Auditor** (tersimpan di database, kata sandi di-hash scrypt). Tidak ada undangan atau token.
 
 ## Struktur repository
 
@@ -138,17 +138,18 @@ Jalankan dari root:
 1. Buat departemen / unit yang diaudit.
 2. Buat standar serta versi checklist, isi poin, lalu terbitkan versi.
 3. Buat sesi dari checklist yang sudah terbit dan tentukan batas waktu.
-4. Tambahkan auditor, tetapkan pengecualian self-audit, dan buat penugasan.
-5. Aktifkan sesi setelah auditor dan penugasan valid tersedia.
-6. Pastikan `AUDITOR_PASSWORD` sudah diatur pada server; pantau kemajuan dan temuan dari detail sesi.
+4. Buat akun Auditor (email + kata sandi awal) di **Akun Auditor**, lalu pada detail sesi tambahkan akun tersebut, tetapkan pengecualian self-audit, dan buat penugasan unit.
+5. Aktifkan sesi setelah auditor (dengan akun aktif) dan penugasan valid tersedia.
+6. Sampaikan email dan kata sandi awal langsung kepada tiap Auditor; pantau kemajuan dan temuan dari detail sesi.
 
 ### Auditor
 
-1. Buka portal staf `/masuk` dan login dengan `auditor@sopinsya` serta `AUDITOR_PASSWORD`.
-2. Isi checklist untuk unit yang ditugaskan, simpan catatan dan bukti.
-3. Catat temuan Major, Minor, atau Observasi.
-4. Isi tindak lanjut dan tutup temuan setelah verifikasi.
-5. Buka laporan unit untuk ditinjau atau dicetak.
+1. Buka portal staf `/masuk` dan login dengan email dan kata sandi akun milik sendiri.
+2. Hanya sesi dan unit yang ditugaskan kepada akun tersebut yang terlihat dan dapat dikerjakan. Akun yang belum ditugaskan melihat halaman kosong dan Pustaka SOP.
+3. Isi checklist untuk unit yang ditugaskan, simpan catatan dan bukti.
+4. Catat temuan Major, Minor, atau Observasi.
+5. Isi tindak lanjut dan tutup temuan setelah verifikasi.
+6. Buka laporan unit untuk ditinjau atau dicetak.
 
 Panduan lengkap serta skenario penerimaan tersedia di [Runbook UAT](docs/RUNBOOK-UAT.md). Artefak alur, temuan UX dan acceptance criteria tersedia di [Flow & UX Review](docs/FLOW-AND-UX-REVIEW.md).
 
@@ -163,8 +164,9 @@ Panduan lengkap serta skenario penerimaan tersedia di [Runbook UAT](docs/RUNBOOK
 ## Keamanan
 
 - Gunakan secret CSRF acak berukuran minimal 32 karakter; wajib di production.
-- Password production minimal 12 karakter sesuai validasi environment.
-- Kredensial Auditor merupakan satu akun role bersama dan memilih Auditor pertama yang belum dicabut pada sesi aktif terbaru. Ini tidak membedakan identitas login banyak auditor; untuk audit multi-auditor dengan atribusi per orang, tiap auditor membutuhkan kredensial unik.
+- Password production minimal 12 karakter sesuai validasi environment untuk `ADMIN_PASSWORD`; kata sandi akun Auditor minimal 8 karakter (validasi di service) dan disimpan sebagai hash scrypt.
+- Akun Auditor bersifat individual: setiap Auditor memiliki email dan kata sandi sendiri, dan otorisasi per penugasan dicek di server pada setiap request. Auditor belum dapat mengganti kata sandi sendiri; Admin mengatur ulang dari halaman Akun Auditor.
+- Bila satu akun ditugaskan pada beberapa sesi yang dapat diakses, yang dipakai adalah sesi ACTIVE terbaru.
 - Dokumen internal tidak boleh menggunakan URL publik yang membuka akses di luar kontrol Sopinsya.
 - Gunakan HTTPS dan tinjau konfigurasi origin, cookie serta reverse proxy sebelum deployment produksi.
 

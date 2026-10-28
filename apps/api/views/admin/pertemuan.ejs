@@ -1,0 +1,104 @@
+<%- include('../partials/header', { nav: 'program-iso' }) %>
+<%
+  var base = '/admin/program/' + program.id + '/pertemuan/' + meeting.id;
+  var typeLabel = { SOP: 'Pustaka SOP', SYLLABUS: 'Silabus', MATERIAL: 'Materi / PDF', CASE_STUDY: 'Studi kasus', BLOOKET: 'Kuis Blooket', VIDEO: 'Video referensi' };
+  var typeKeys = ['SOP', 'SYLLABUS', 'MATERIAL', 'CASE_STUDY', 'BLOOKET', 'VIDEO'];
+%>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain"><a href="/admin/program">Program ISO</a> / <a href="/admin/program/<%= program.id %>"><%= program.fullTitle %></a></span>
+    <h1><%= meeting.title %> <small class="muted">(pertemuan <%= meeting.number %>)</small></h1>
+    <p>Status: <span class="badge <%= meeting.isPublished ? 'published' : 'draft' %>"><%= meeting.isPublished ? 'Terbit' : 'Draf' %></span>. Peserta hanya melihat sumber berstatus terbit pada pertemuan terbit di program terbit.</p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Perubahan tersimpan.</div><% } %>
+
+<section class="card">
+  <h2>Sumber belajar (<%= meeting.resources.length %>)</h2>
+  <p class="muted small">Materi/PDF, silabus, SOP, studi kasus, dan Blooket menampilkan sumber terbit pertama menurut urutan; video dapat lebih dari satu. Gunakan tautan https:// (mis. Google Drive, YouTube).</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Urutan</th><th>Jenis</th><th>Judul</th><th>Status</th><th>Ubah</th></tr></thead>
+      <tbody>
+        <% meeting.resources.forEach(function (r) { %>
+          <tr>
+            <td><%= r.sortOrder %></td>
+            <td><%= typeLabel[r.type] || r.type %></td>
+            <td><strong><%= r.title %></strong><div class="small"><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer">Buka tautan</a></div></td>
+            <td><span class="badge <%= r.isPublished ? 'published' : 'draft' %>"><%= r.isPublished ? 'Terbit' : 'Draf' %></span></td>
+            <td>
+              <details>
+                <summary>Ubah / hapus</summary>
+                <form method="post" action="<%= base %>/sumber/<%= r.id %>" autocomplete="off">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <label>Jenis
+                    <select name="type"><% typeKeys.forEach(function (k) { %><option value="<%= k %>"<%= r.type === k ? ' selected' : '' %>><%= typeLabel[k] %></option><% }) %></select>
+                  </label>
+                  <label>Judul <input name="title" type="text" required maxlength="200" value="<%= r.title %>"></label>
+                  <label>URL https:// <input name="url" type="url" required maxlength="1024" pattern="https://.*" value="<%= r.url %>"></label>
+                  <label>Urutan <input name="sortOrder" type="number" min="0" max="100000" value="<%= r.sortOrder %>"></label>
+                  <label><input type="checkbox" name="isPublished" value="1"<%= r.isPublished ? ' checked' : '' %>> Terbit</label>
+                  <button class="btn small" type="submit">Simpan</button>
+                </form>
+                <form method="post" action="<%= base %>/sumber/<%= r.id %>/hapus">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <button class="btn danger small" type="submit">Hapus sumber</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (meeting.resources.length === 0) { %><tr><td colspan="5" class="muted">Belum ada sumber belajar.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<form method="post" action="<%= base %>/sumber" class="card" autocomplete="off">
+  <h2>Tambah sumber belajar</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="r-type">Jenis</label>
+  <select id="r-type" name="type" required><% typeKeys.forEach(function (k) { %><option value="<%= k %>"><%= typeLabel[k] %></option><% }) %></select>
+  <label for="r-title">Judul</label>
+  <input id="r-title" name="title" type="text" required maxlength="200" placeholder="mis. Materi ISO 9001 Pertemuan 1 (PDF)">
+  <label for="r-url">URL https://</label>
+  <input id="r-url" name="url" type="url" required maxlength="1024" pattern="https://.*" placeholder="https://...">
+  <label for="r-sort">Urutan tampil</label>
+  <input id="r-sort" name="sortOrder" type="number" min="0" max="100000" value="0">
+  <label><input type="checkbox" name="isPublished" value="1"> Terbitkan ke peserta</label>
+  <p><button class="btn" type="submit">Simpan sumber</button></p>
+</form>
+
+<section class="card">
+  <h2>Pre-test dan Post-test</h2>
+  <ul>
+    <% [['pre', 'Pre-test', tests.pre], ['post', 'Post-test', tests.post]].forEach(function (t) { %>
+      <li>
+        <a href="<%= base %>/tes/<%= t[0] %>"><strong><%= t[1] %></strong></a>
+        <% if (t[2]) { %>
+          &mdash; <%= t[2].questions.filter(function (q) { return q.isActive; }).length %> soal aktif,
+          <span class="badge <%= t[2].isActive ? 'published' : 'draft' %>"><%= t[2].isActive ? 'Aktif' : 'Nonaktif' %></span>
+        <% } else { %>&mdash; <span class="muted">belum dibuat (dibuat saat dibuka)</span><% } %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+
+<form method="post" action="<%= base %>" class="card" autocomplete="off">
+  <h2>Ubah pertemuan</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="m-title">Judul</label>
+  <input id="m-title" name="title" type="text" required maxlength="160" value="<%= meeting.title %>">
+  <label for="m-sort">Urutan tampil</label>
+  <input id="m-sort" name="sortOrder" type="number" min="0" max="100000" value="<%= meeting.sortOrder %>">
+  <label><input type="checkbox" name="isPublished" value="1"<%= meeting.isPublished ? ' checked' : '' %>> Terbitkan ke peserta</label>
+  <p><button class="btn" type="submit">Simpan perubahan</button></p>
+</form>
+
+<form method="post" action="<%= base %>/hapus" class="card">
+  <h2>Hapus pertemuan</h2>
+  <p class="muted">Menghapus pertemuan beserta sumber belajarnya. Pertemuan yang sudah memiliki pre/post-test tidak dapat dihapus; ubah statusnya menjadi draf.</p>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <button class="btn danger" type="submit">Hapus pertemuan</button>
+</form>
+<%- include('../partials/footer') %>

@@ -1,0 +1,59 @@
+<%- include('../partials/header', { nav: 'program-iso' }) %>
+<div class="page-head">
+  <div>
+    <span class="eyebrow plain"><a href="/admin/program">Program Pelatihan ISO</a></span>
+    <h1><%= program.fullTitle %></h1>
+    <p>Slug <code><%= program.slug %></code>. Status: <span class="badge <%= program.isPublished ? 'published' : 'draft' %>"><%= program.isPublished ? 'Terbit' : 'Draf' %></span></p>
+  </div>
+</div>
+<% if (saved) { %><div class="alert ok">Perubahan tersimpan.</div><% } %>
+
+<section class="card">
+  <h2>Pertemuan (<%= program.meetings.length %>)</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Urutan</th><th>No.</th><th>Judul</th><th>Sumber</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% program.meetings.forEach(function (m) { %>
+          <tr>
+            <td><%= m.sortOrder %></td>
+            <td><%= m.number %></td>
+            <td><strong><%= m.title %></strong></td>
+            <td><%= m.resources.length %></td>
+            <td><span class="badge <%= m.isPublished ? 'published' : 'draft' %>"><%= m.isPublished ? 'Terbit' : 'Draf' %></span></td>
+            <td><a class="btn secondary small" href="/admin/program/<%= program.id %>/pertemuan/<%= m.id %>">Kelola</a></td>
+          </tr>
+        <% }) %>
+        <% if (program.meetings.length === 0) { %><tr><td colspan="6" class="muted">Belum ada pertemuan.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<form method="post" action="/admin/program/<%= program.id %>/pertemuan" class="card" autocomplete="off">
+  <h2>Tambah pertemuan</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label for="m-number">Nomor pertemuan (1-50, tidak dapat diubah; dipakai pada URL dan tes)</label>
+  <input id="m-number" name="number" type="number" required min="1" max="50">
+  <label for="m-title">Judul</label>
+  <input id="m-title" name="title" type="text" required maxlength="160" placeholder="mis. Pertemuan 3">
+  <label for="m-sort">Urutan tampil</label>
+  <input id="m-sort" name="sortOrder" type="number" min="0" max="100000" value="0">
+  <label><input type="checkbox" name="isPublished" value="1"> Terbitkan ke peserta</label>
+  <p><button class="btn" type="submit">Tambah pertemuan</button></p>
+</form>
+
+<form method="post" action="/admin/program/<%= program.id %>" class="card" autocomplete="off">
+  <h2>Ubah program</h2>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <%- include('_program-fields', { p: program }) %>
+  <p><button class="btn" type="submit">Simpan perubahan</button></p>
+</form>
+
+<form method="post" action="/admin/program/<%= program.id %>/hapus" class="card">
+  <h2>Hapus program</h2>
+  <p class="muted">Hanya dapat dihapus bila tidak punya pertemuan. Untuk menyembunyikan dari peserta, cukup ubah status menjadi draf.</p>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <button class="btn danger" type="submit"<%= program.meetings.length > 0 ? ' disabled' : '' %>>Hapus program</button>
+</form>
+<%- include('../partials/footer') %>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as admin from "../src/services/adminService.js";
 import * as audit from "../src/services/auditService.js";
 import { MemoryStore } from "./helpers/memoryStore.js";
-import { addDays, seed, T0 } from "./helpers/seed.js";
+import { addDays, makeAccount, seed, T0 } from "./helpers/seed.js";
 
 const fail = async (p: Promise<unknown>) => {
   try {
@@ -131,19 +131,87 @@ describe("lifecycle sesi", () => {
   });
 });
 
-describe("auditor dan penugasan", () => {
-  it("undangan wajib menyatakan pengecualian self-audit secara eksplisit", async () => {
-    const s = await seed();
-    expect(await fail(admin.createAuditor(s.store, { sessionId: s.session.id, name: "X" }, T0))).toMatchObject({
+describe("akun Auditor", () => {
+  it("membuat akun: email dinormalkan, kata sandi hanya tersimpan sebagai hash, email ganda ditolak", async () => {
+    const store = new MemoryStore();
+    const acc = await admin.createAuditorAccount(store, { name: "Budi", email: "  Budi@Instansi ", password: "rahasia-panjang-1" });
+    expect(acc).toMatchObject({ email: "budi@instansi", name: "Budi", isActive: true });
+    expect("passwordHash" in acc).toBe(false);
+    expect(JSON.stringify(store.accounts)).not.toContain("rahasia-panjang-1");
+    expect(await fail(admin.createAuditorAccount(store, { name: "Lain", email: "BUDI@instansi", password: "rahasia-panjang-2" }))).toMatchObject({
+      code: "ALREADY_EXISTS",
+    });
+  });
+
+  it("kata sandi pendek ditolak dan reset mengganti hash", async () => {
+    const store = new MemoryStore();
+    expect(await fail(admin.createAuditorAccount(store, { name: "A", email: "a@x", password: "pendek" }))).toMatchObject({
       code: "VALIDATION_ERROR",
     });
+    const acc = await admin.createAuditorAccount(store, { name: "A", email: "a@x", password: "kata-sandi-awal-1" });
+    const before = store.accounts[0]?.passwordHash;
+    await admin.resetAuditorPassword(store, { accountId: acc.id, password: "kata-sandi-baru-22" });
+    expect(store.accounts[0]?.passwordHash).not.toBe(before);
+    expect(await audit.verifyAuditorCredentials(store, "a@x", "kata-sandi-baru-22")).toBe(acc.id);
+    expect(await audit.verifyAuditorCredentials(store, "a@x", "kata-sandi-awal-1")).toBeNull();
+  });
+
+  it("akun yang tidak ada: 404", async () => {
+    const store = new MemoryStore();
+    expect(await fail(admin.setAuditorAccountActive(store, { accountId: 99, isActive: false }))).toMatchObject({ statusCode: 404 });
+    expect(await fail(admin.resetAuditorPassword(store, { accountId: 99, password: "kata-sandi-baru-22" }))).toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("auditor dan penugasan", () => {
+  it("menambah auditor ke sesi wajib menyatakan pengecualian self-audit secara eksplisit", async () => {
+    const s = await seed();
+    const acc = await makeAccount(s.store, "Baru", "baru@sopinsya");
+    expect(await fail(admin.addAuditorToSession(s.store, { sessionId: s.session.id, accountId: acc.id }, T0))).toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
+  });
+
+  it("satu akun hanya sekali per sesi, akun nonaktif atau tidak ada ditolak", async () => {
+    const s = await seed();
+    expect(
+      await fail(admin.addAuditorToSession(s.store, { sessionId: s.session.id, accountId: s.acc1.id, noExclusions: true }, T0)),
+    ).toMatchObject({ code: "ALREADY_EXISTS" });
+    const acc = await makeAccount(s.store, "Nonaktif", "off@sopinsya");
+    await admin.setAuditorAccountActive(s.store, { accountId: acc.id, isActive: false });
+    expect(
+      await fail(admin.addAuditorToSession(s.store, { sessionId: s.session.id, accountId: acc.id, noExclusions: true }, T0)),
+    ).toMatchObject({ code: "ACCOUNT_INACTIVE" });
+    expect(
+      await fail(admin.addAuditorToSession(s.store, { sessionId: s.session.id, accountId: 999, noExclusions: true }, T0)),
+    ).toMatchObject({ statusCode: 404 });
+  });
+
+  it("Admin menambah akun ke sesi lalu menugaskan unit langsung, tanpa token apa pun", async () => {
+    const s = await seed();
+    const acc = await makeAccount(s.store, "Citra", "citra@sopinsya");
+    const member = await admin.addAuditorToSession(
+      s.store,
+      { sessionId: s.session.id, accountId: acc.id, excludeDepartmentIds: [s.deptB.id] },
+      T0,
+    );
+    expect(member).toMatchObject({ accountId: acc.id, name: "Citra", revokedAt: null });
+    const assignment = await admin.createAssignment(
+      s.store,
+      { sessionId: s.session.id, auditorId: member.id, departmentId: s.deptA.id },
+      T0,
+    );
+    expect(assignment.auditorId).toBe(member.id);
+    const ctx = await audit.authenticateAccount(s.store, acc.id, T0);
+    expect(ctx.context?.auditorId).toBe(member.id);
+    expect(await audit.getDashboard(s.store, ctx.context!)).toHaveLength(1);
   });
 
   it("penugasan ke unit terlarang ditolak (self-audit) dan tidak membuat baris", async () => {
     const s = await seed();
     const before = s.store.assignments.length;
     expect(
-      await fail(admin.createAssignment(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id, departmentId: s.deptA.id }, T0)),
+      await fail(admin.createAssignment(s.store, { sessionId: s.session.id, auditorId: s.aud1.id, departmentId: s.deptA.id }, T0)),
     ).toMatchObject({ statusCode: 422, code: "SELF_AUDIT_FORBIDDEN" });
     expect(s.store.assignments).toHaveLength(before);
   });
@@ -152,7 +220,7 @@ describe("auditor dan penugasan", () => {
     const s = await seed();
     const again = await admin.createAssignment(
       s.store,
-      { sessionId: s.session.id, auditorId: s.inv1.auditor.id, departmentId: s.deptB.id },
+      { sessionId: s.session.id, auditorId: s.aud1.id, departmentId: s.deptB.id },
       T0,
     );
     expect(again.id).toBe(s.assign1.id);
@@ -163,56 +231,52 @@ describe("auditor dan penugasan", () => {
     const s = await seed();
     const session2 = await admin.createSession(s.store, { title: "Lain", checklistVersionId: s.v1.id, expiresAt: addDays(T0, 7) }, T0);
     expect(
-      await fail(admin.createAssignment(s.store, { sessionId: session2.id, auditorId: s.inv1.auditor.id, departmentId: s.deptB.id }, T0)),
+      await fail(admin.createAssignment(s.store, { sessionId: session2.id, auditorId: s.aud1.id, departmentId: s.deptB.id }, T0)),
     ).toMatchObject({ statusCode: 404 });
   });
 
-  it("penugasan dan auditor baru ditolak setelah batas waktu tulis", async () => {
+  it("penambahan auditor dan penugasan ditolak setelah batas waktu tulis", async () => {
     const s = await seed();
     const late = addDays(T0, 8);
-    expect(await fail(admin.createAuditor(s.store, { sessionId: s.session.id, name: "T", noExclusions: true }, late))).toMatchObject({
-      code: "SESSION_NOT_WRITABLE",
-    });
+    const acc = await makeAccount(s.store, "Telat", "telat@sopinsya");
     expect(
-      await fail(admin.createAssignment(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id, departmentId: s.deptB.id }, late)),
+      await fail(admin.addAuditorToSession(s.store, { sessionId: s.session.id, accountId: acc.id, noExclusions: true }, late)),
+    ).toMatchObject({ code: "SESSION_NOT_WRITABLE" });
+    expect(
+      await fail(admin.createAssignment(s.store, { sessionId: s.session.id, auditorId: s.aud1.id, departmentId: s.deptB.id }, late)),
     ).toMatchObject({ code: "SESSION_NOT_WRITABLE" });
   });
 
-  it("undangan dapat diterbitkan ulang pada DRAFT, tetapi tidak dapat diklaim sebelum sesi aktif", async () => {
+  it("akun dapat ditambahkan ke sesi DRAFT, tetapi baru dapat dipakai setelah sesi aktif", async () => {
     const s = await seed();
-    const draft = await admin.createSession(
-      s.store,
-      { title: "Draft", checklistVersionId: s.v1.id, expiresAt: addDays(T0, 7) },
-      T0,
-    );
-    const created = await admin.createAuditor(s.store, {
-      sessionId: draft.id,
-      name: "Auditor Draft",
-      noExclusions: true,
-    }, T0);
-    const renewed = await admin.reissueInvitation(s.store, { sessionId: draft.id, auditorId: created.auditor.id }, T0);
-    expect(renewed.inviteToken).not.toBe(created.inviteToken);
-    expect(
-      await fail(audit.claimInvitation(s.store, { token: renewed.inviteToken }, T0)),
-    ).toMatchObject({ code: "SESSION_NOT_ACCESSIBLE" });
-    expect(
-      await fail(audit.claimInvitation(s.store, { token: created.inviteToken }, T0)),
-    ).toMatchObject({ code: "INVITATION_NOT_FOUND" });
+    const draft = await admin.createSession(s.store, { title: "Draft", checklistVersionId: s.v1.id, expiresAt: addDays(T0, 7) }, T0);
+    const acc = await makeAccount(s.store, "Draft", "draft@sopinsya");
+    await admin.addAuditorToSession(s.store, { sessionId: draft.id, accountId: acc.id, noExclusions: true }, T0);
+    expect((await audit.authenticateAccount(s.store, acc.id, T0)).context).toBeNull();
   });
 
-  it("terbit ulang ditolak bila sesi tidak dapat diakses", async () => {
+  it("pencabutan selalu diizinkan dan idempoten; pemulihan hanya pada sesi yang dapat ditulis", async () => {
     const s = await seed();
     await admin.closeSession(s.store, { sessionId: s.session.id, noAccess: true }, T0);
-    expect(
-      await fail(admin.reissueInvitation(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id }, T0)),
-    ).toMatchObject({ code: "SESSION_NOT_ACCESSIBLE" });
+    await admin.revokeAuditor(s.store, { sessionId: s.session.id, auditorId: s.aud1.id }, T0);
+    await admin.revokeAuditor(s.store, { sessionId: s.session.id, auditorId: s.aud1.id }, T0);
+    expect(s.store.auditors.find((a) => a.id === s.aud1.id)?.revokedAt).not.toBeNull();
+    expect(await fail(admin.restoreAuditor(s.store, { sessionId: s.session.id, auditorId: s.aud1.id }, T0))).toMatchObject({
+      code: "SESSION_NOT_WRITABLE",
+    });
   });
 
-  it("pencabutan selalu diizinkan dan idempoten", async () => {
+  it("mengaitkan akun ke keanggotaan lama tanpa akun, tanpa mengubah penugasan yang ada", async () => {
     const s = await seed();
-    await admin.closeSession(s.store, { sessionId: s.session.id, noAccess: true }, T0);
-    await admin.revokeAuditor(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id }, T0);
-    await admin.revokeAuditor(s.store, { sessionId: s.session.id, auditorId: s.inv1.auditor.id }, T0);
-    expect(s.store.auditors.find((a) => a.id === s.inv1.auditor.id)?.revokedAt).not.toBeNull();
+    const legacy = await s.store.createAuditor({ sessionId: s.session.id, accountId: s.acc1.id, name: "Lama", excludedDepartmentIds: [] }).catch(() => null);
+    expect(legacy).toBeNull(); // pastikan unik (sessionId, accountId) ditegakkan
+    const row = { id: 900, sessionId: s.session.id, accountId: null, name: "Lama", revokedAt: null };
+    s.store.auditors.push(row);
+    const acc = await makeAccount(s.store, "Pengganti", "ganti@sopinsya");
+    await admin.linkAuditorAccount(s.store, { sessionId: s.session.id, auditorId: row.id, accountId: acc.id }, T0);
+    expect(s.store.auditors.find((a) => a.id === row.id)?.accountId).toBe(acc.id);
+    expect(await fail(admin.linkAuditorAccount(s.store, { sessionId: s.session.id, auditorId: row.id, accountId: s.acc2.id }, T0))).toMatchObject({
+      statusCode: 409,
+    });
   });
 });

@@ -5,6 +5,7 @@ import { createAdminRouter } from "./adminRoutes.js";
 import { createAuditorRouter } from "./auditorRoutes.js";
 import type { WebDeps } from "./deps.js";
 import { createLoginRouter } from "./loginRoutes.js";
+import { createTrainingRouter } from "./trainingRoutes.js";
 
 /** src/web atau dist/web -> apps/api/public (sama untuk tsx dan hasil build). */
 const publicDir = path.resolve(__dirname, "../../public");
@@ -75,6 +76,7 @@ export function createWebRouter(deps: WebDeps): Router {
   router.use(createLoginRouter(deps));
   router.use(createAuditorRouter(deps));
   router.use(createAdminRouter(deps));
+  router.use(createTrainingRouter(deps));
 
   // Rute /api yang tidak dikenal tetap dijawab JSON oleh notFoundHandler global.
   router.use((req, res, next) => {

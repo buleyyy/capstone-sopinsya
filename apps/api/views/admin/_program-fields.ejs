@@ -1,0 +1,28 @@
+<%# Bidang form program. Variabel: p (nilai awal; boleh objek kosong). %>
+<label for="f-code">Kode urut</label>
+<input id="f-code" name="code" type="text" required maxlength="10" value="<%= p.code || '' %>" placeholder="mis. 05">
+<label for="f-title">Judul singkat</label>
+<input id="f-title" name="title" type="text" required maxlength="80" value="<%= p.title || '' %>" placeholder="mis. ISO 9001">
+<label for="f-full">Judul lengkap</label>
+<input id="f-full" name="fullTitle" type="text" required maxlength="120" value="<%= p.fullTitle || '' %>" placeholder="mis. ISO 9001: 2015">
+<label for="f-sub">Subjudul</label>
+<input id="f-sub" name="subtitle" type="text" required maxlength="160" value="<%= p.subtitle || '' %>" placeholder="mis. Sistem Manajemen Mutu">
+<label for="f-sum">Ringkasan (kartu program)</label>
+<input id="f-sum" name="summary" type="text" required maxlength="300" value="<%= p.summary || '' %>">
+<label for="f-desc">Deskripsi</label>
+<textarea id="f-desc" name="description" rows="4" required maxlength="4000"><%= p.description || '' %></textarea>
+<label for="f-dur">Durasi</label>
+<input id="f-dur" name="duration" type="text" required maxlength="40" value="<%= p.duration || '3 Hari' %>">
+<label for="f-mode">Moda</label>
+<input id="f-mode" name="mode" type="text" required maxlength="40" value="<%= p.mode || 'Offline' %>">
+<label for="f-trainer">Trainer</label>
+<input id="f-trainer" name="trainer" type="text" required maxlength="120" value="<%= p.trainer || '' %>">
+<label for="f-cat">Kategori (filter peserta)</label>
+<input id="f-cat" name="category" type="text" required maxlength="60" value="<%= p.category || '' %>" placeholder="mis. ISO 9001">
+<label for="f-tone">Warna kartu</label>
+<select id="f-tone" name="tone">
+  <% ['blue', 'teal', 'navy'].forEach(function (t) { %><option value="<%= t %>"<%= (p.tone || 'blue') === t ? ' selected' : '' %>><%= t %></option><% }) %>
+</select>
+<label for="f-sort">Urutan tampil (angka kecil lebih dulu)</label>
+<input id="f-sort" name="sortOrder" type="number" min="0" max="100000" value="<%= p.sortOrder || 0 %>">
+<label><input type="checkbox" name="isPublished" value="1"<%= p.isPublished ? ' checked' : '' %>> Terbitkan ke peserta</label>

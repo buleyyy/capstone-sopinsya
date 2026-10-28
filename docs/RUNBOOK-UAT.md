@@ -11,7 +11,7 @@ Runbook ini mengikuti flow yang tersedia pada branch ini. Lakukan UAT dengan dat
 | Health API | Express | `http://localhost:4000/api/health` | Probe/debug |
 | Health database | Express | `http://localhost:4000/api/health/db` | Probe/debug |
 
-Admin masuk dari `/masuk` dengan `admin@sopinsya` dan `ADMIN_PASSWORD`. Auditor masuk dari halaman yang sama dengan `auditor@sopinsya` dan `AUDITOR_PASSWORD`. Tautan undangan bukan lagi jalur login.
+Admin dan Auditor masuk dari halaman yang sama (`/masuk`) dengan email dan kata sandi. Admin memakai `ADMIN_LOGIN_EMAIL` (bawaan `admin@sopinsya`) dan `ADMIN_PASSWORD`. Akun Auditor dibuat Admin di menu **Akun Auditor**. Tidak ada tautan undangan.
 
 ## 2. Setup pertama kali (Windows PowerShell)
 
@@ -27,7 +27,7 @@ Isi `apps/api/.env` sekurang-kurangnya dengan:
 - `DATABASE_URL` yang mengarah ke database MySQL lokal `sopinsya`.
 - `APP_ORIGIN=http://localhost:4000`.
 - `CSRF_SECRET` acak dan minimal 32 karakter; buat dengan `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
-- `ADMIN_PASSWORD` dan `AUDITOR_PASSWORD` untuk UAT lokal. Minimal 8 karakter saat development, minimal 12 karakter saat production. Ganti nilai contoh sebelum server dapat diakses orang lain.
+- `ADMIN_PASSWORD` untuk UAT lokal. Minimal 8 karakter saat development, minimal 12 karakter saat production. Ganti nilai contoh sebelum server dapat diakses orang lain. Tidak ada variabel password Auditor; akun Auditor dibuat dari halaman Admin.
 
 Buat database bila belum ada:
 
@@ -74,23 +74,24 @@ Alamat IP tersebut hanya contoh. Pastikan firewall mengizinkan port UAT dan audi
 2. Buka **Departemen** dan tambahkan semua unit yang akan diaudit.
 3. Buka **Master Checklist**. Buat standar, buat versi checklist, lalu isi poin menggunakan format `Rujukan | Pertanyaan`. Pastikan tiap unit yang ditugaskan memiliki poin checklist. Terbitkan versi; versi terbit tidak dapat diedit.
 4. Buka **Sesi Audit**, buat sesi dari versi terbit dan tentukan batas tulis dalam waktu lokal/WIB.
-5. Pada detail sesi, tambahkan setiap auditor secara terpisah. Tentukan unit yang tidak boleh diaudit auditor tersebut untuk mencegah self-audit.
-6. Buat penugasan untuk auditor dan unitnya. Sistem menolak penugasan ke unit yang dikecualikan.
-7. Aktifkan sesi. Sistem harus menolak aktivasi bila belum ada auditor yang belum dicabut atau belum ada penugasan aktif yang memiliki poin checklist.
-8. Pastikan `AUDITOR_PASSWORD` tersedia di environment server. Auditor masuk melalui `/masuk` dengan email `auditor@sopinsya`. Tidak ada tautan undangan yang perlu dibagikan.
+5. Buka **Akun Auditor** dan buat satu akun (nama, email, kata sandi awal) untuk setiap Auditor.
+6. Pada detail sesi, tambahkan setiap akun Auditor ke sesi. Tentukan unit yang tidak boleh diaudit auditor tersebut untuk mencegah self-audit.
+7. Buat penugasan untuk auditor dan unitnya. Sistem menolak penugasan ke unit yang dikecualikan.
+8. Aktifkan sesi. Sistem harus menolak aktivasi bila belum ada auditor dengan akun aktif yang belum dicabut atau belum ada penugasan aktif yang memiliki poin checklist.
+9. Sampaikan email dan kata sandi awal langsung kepada tiap Auditor. Tidak ada tautan undangan atau token yang perlu dibagikan.
 
 Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian status sesi, auditor, dan penugasan.
 
 ## 5. Flow Auditor — mengerjakan audit
 
 1. Buka `http://<server>:4000/masuk`.
-2. Login dengan email `auditor@sopinsya` dan password yang diset melalui `AUDITOR_PASSWORD`.
-3. Auditor diarahkan ke Dashboard Audit. Pastikan unit pada dashboard sesuai dengan penugasan.
+2. Login dengan email dan kata sandi akun yang dibuat Admin.
+3. Auditor diarahkan ke Dashboard Audit. Pastikan hanya unit yang ditugaskan kepadanya yang tampil.
 4. Buka Checklist untuk tiap unit, isi **YA/TIDAK**, catatan, dan URL bukti HTTPS bila diperlukan; simpan jawaban.
 5. Untuk jawaban **TIDAK**, catat temuan dengan klasifikasi **Major, Minor, atau Observasi**. Lengkapi tindak lanjut yang relevan dan tutup temuan setelah verifikasi.
 6. Buka laporan unit dan cetak untuk pemeriksaan output.
 7. Pustaka SOP hanya menampilkan program dan dokumen yang dipublikasikan.
-8. Saat logout, cookie sesi di browser dihapus. Untuk masuk kembali, login ulang dengan email dan password Auditor.
+8. Saat logout, cookie sesi di browser dihapus. Untuk masuk kembali, login ulang dengan email dan kata sandi akun.
 
 ## 6. Checklist UAT
 
@@ -105,9 +106,10 @@ Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian stat
 | 7 | Aktifkan sesi tanpa penugasan valid atau tanpa poin checklist untuk unit yang ditugaskan | Ditolak |
 | 7a | Coba aktivasi ketika tenggat sesi DRAFT sudah lewat | Dialihkan ke editor batas waktu; setelah diperbarui ke masa depan, aktivasi dapat dicoba kembali |
 | 7b | Login dengan email Auditor dan password Admin | Ditolak |
-| 7c | Login dengan `auditor@sopinsya` dan `AUDITOR_PASSWORD` yang benar | Dashboard Auditor terbuka tanpa tautan undangan |
+| 7c | Login dengan email dan kata sandi akun Auditor yang benar | Dashboard Auditor terbuka tanpa tautan undangan; hanya unit miliknya yang tampil |
+| 7d | Admin menonaktifkan akun Auditor yang sedang login | Request berikutnya ditolak |
 | 8 | Penugasan ke unit pengecualian auditor | Ditolak (self-audit) |
-| 9 | Buka URL undangan lama | Dialihkan ke halaman login password |
+| 9 | Buka `/undangan/<apa-saja>` | 404 (route undangan tidak ada) |
 | 10 | Login Auditor dengan password benar | Cookie sesi bertanda tangan terbit dan Dashboard Auditor terbuka |
 | 11 | Login Auditor dengan password salah | Ditolak tanpa membuka Dashboard Auditor |
 | 12 | Auditor mencoba membuka penugasan auditor lain | Data tidak boleh terungkap/diakses |
@@ -115,7 +117,7 @@ Dashboard Admin memandu langkah setup dan memberi tautan langsung ke bagian stat
 | 14 | Isi checklist dan simpan bukti HTTPS | Jawaban tersimpan; kemajuan dashboard berubah |
 | 15 | Catat Major/Minor/Observasi lalu isi tindak lanjut | Temuan dan tindak lanjut terlihat konsisten di register/laporan |
 | 16 | Logout lalu buka dashboard tanpa cookie | Dialihkan ke halaman login |
-| 17 | Undangan kedaluwarsa/dicabut atau sesi tidak dapat diakses | Klaim tidak berhasil |
+| 17 | Akun Auditor dicabut dari sesi, atau sesi tidak dapat diakses | Auditor melihat halaman "Belum ada penugasan"; halaman penugasan 403 |
 | 18 | Sesi melewati batas tulis | Data tidak lagi bisa diubah |
 | 19 | Buka program/materi publik saat API mati | Pengguna mendapat empty/error state yang jelas, bukan halaman crash |
 | 20 | Cek tampilan pada lebar desktop dan mobile | Navigasi, tombol, form, tabel, dan feedback tetap dapat digunakan |
@@ -124,9 +126,9 @@ Rekam hasil aktual, browser/perangkat, akun uji, dan bukti untuk setiap kasus. J
 
 ## 7. Batasan dan pemulihan
 
-- Email/password Auditor digunakan bersama dan sistem otomatis memilih Auditor pertama yang belum dicabut pada sesi ACTIVE terbaru. Kredensial bersama tidak dapat membedakan identitas individu; jangan menganggapnya sebagai autentikasi per orang untuk audit formal.
+- Setiap Auditor memakai akun sendiri sehingga tindakan dapat diatribusikan per orang. Auditor belum dapat mengganti kata sandi sendiri; Admin mengatur ulang dari menu Akun Auditor. Bila satu akun berada di beberapa sesi yang dapat diakses, yang dipakai adalah sesi ACTIVE terbaru.
 - Bila tenggat sesi DRAFT lewat, Admin dapat memperbarui batas tulis dari bagian Status Sesi. Aktivasi tetap diblokir sampai batas tulis masa depan, auditor yang belum dicabut, dan penugasan dengan poin checklist siap.
-- Batasi distribusi password Auditor bersama kepada tim yang berwenang. Untuk beberapa auditor dengan tanggung jawab berbeda, buat kredensial individual sebelum penggunaan formal.
+- Sampaikan kata sandi awal hanya kepada Auditor yang bersangkutan, melalui kanal yang aman.
 - URL PDF/bukti adalah referensi eksternal; akses dokumennya tetap ditentukan penyedia URL. Jangan memakai tautan publik untuk dokumen rahasia.
 - Web peserta menyimpan pilihan “Ikuti Pelatihan” di browser saat ini; status pendaftaran belum menjadi enrollment persisten di server. Hasil tes peserta disimpan oleh API, tetapi alur registrasi/akun peserta bukan bagian dari gerbang Admin/Auditor.
 - Web staf saat ini memiliki peran Admin dan Auditor. Jangan mengasumsikan peran Trainer yang terpisah sebelum hak aksesnya disetujui.

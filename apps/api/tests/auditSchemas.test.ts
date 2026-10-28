@@ -8,7 +8,8 @@ import {
   FINDING_STATUSES,
   SESSION_STATUSES,
   closeSessionSchema,
-  createAuditorSchema,
+  addAuditorToSessionSchema,
+  createAuditorAccountSchema,
   createFindingSchema,
   saveAnswerSchema,
 } from "../src/domain/auditSchemas.js";
@@ -100,17 +101,35 @@ describe("findingPayloadHash", () => {
   });
 });
 
-describe("closeSessionSchema dan createAuditorSchema (pilihan eksplisit)", () => {
+describe("closeSessionSchema dan addAuditorToSessionSchema (pilihan eksplisit)", () => {
   it("penutupan wajib memilih tepat satu: accessUntil atau noAccess", () => {
     expect(closeSessionSchema.safeParse({ sessionId: 1 }).success).toBe(false);
     expect(closeSessionSchema.safeParse({ sessionId: 1, noAccess: true, accessUntil: "2030-01-01" }).success).toBe(false);
     expect(closeSessionSchema.safeParse({ sessionId: 1, noAccess: true }).success).toBe(true);
     expect(closeSessionSchema.safeParse({ sessionId: 1, accessUntil: "2030-01-01" }).success).toBe(true);
   });
-  it("undangan wajib menyatakan pengecualian: daftar unit atau noExclusions", () => {
-    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A" }).success).toBe(false);
-    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", noExclusions: true, excludeDepartmentIds: [2] }).success).toBe(false);
-    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", noExclusions: true }).success).toBe(true);
-    expect(createAuditorSchema.safeParse({ sessionId: 1, name: "A", excludeDepartmentIds: [2] }).success).toBe(true);
+  it("menambah auditor ke sesi wajib menyatakan pengecualian: daftar unit atau noExclusions", () => {
+    expect(addAuditorToSessionSchema.safeParse({ sessionId: 1, accountId: 3 }).success).toBe(false);
+    expect(addAuditorToSessionSchema.safeParse({ sessionId: 1, accountId: 3, noExclusions: true, excludeDepartmentIds: [2] }).success).toBe(false);
+    expect(addAuditorToSessionSchema.safeParse({ sessionId: 1, accountId: 3, noExclusions: true }).success).toBe(true);
+    expect(addAuditorToSessionSchema.safeParse({ sessionId: 1, accountId: 3, excludeDepartmentIds: [2] }).success).toBe(true);
+  });
+  it("tidak ada lagi parameter undangan pada skema auditor", () => {
+    const parsed = addAuditorToSessionSchema.parse({ sessionId: 1, accountId: 3, noExclusions: true, inviteTtlHours: 5 });
+    expect(Object.keys(parsed)).not.toContain("inviteTtlHours");
+  });
+});
+
+describe("createAuditorAccountSchema", () => {
+  const base = { name: "Auditor", email: "  Nama@Instansi ", password: "kata-sandi-1" };
+  it("menormalkan email ke huruf kecil dan menerima domain tanpa TLD", () => {
+    expect(createAuditorAccountSchema.parse(base).email).toBe("nama@instansi");
+  });
+  it("menolak email tidak valid dan kata sandi pendek", () => {
+    expect(createAuditorAccountSchema.safeParse({ ...base, email: "tanpa-at" }).success).toBe(false);
+    expect(createAuditorAccountSchema.safeParse({ ...base, password: "pendek" }).success).toBe(false);
+  });
+  it("tidak memangkas kata sandi", () => {
+    expect(createAuditorAccountSchema.parse({ ...base, password: " spasi-di-tepi " }).password).toBe(" spasi-di-tepi ");
   });
 });
