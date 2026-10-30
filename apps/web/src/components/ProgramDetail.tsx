@@ -77,6 +77,7 @@ export function ProgramDetail({ program }: { program: Program }) {
         <a href="#kuis">Kuis</a>
         <a href="#video-referensi">Video</a>
         <a href="#pustaka-sop">Pustaka SOP</a>
+        <a href="#ulasan">Rating &amp; Ulasan</a>
       </nav>
 
       <div className="program-content">
