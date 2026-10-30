@@ -1,5 +1,3 @@
-"use client";
-
 import { ProgramGrid } from "./ProgramCard";
 import type { Program } from "@/lib/programs";
 
