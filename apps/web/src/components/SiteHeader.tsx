@@ -5,8 +5,7 @@ import { usePathname } from "next/navigation";
 import { CONTACT_HREF, CONTACT_IS_EXTERNAL } from "@/lib/config";
 
 const LINKS = [
-  { href: "/", label: "Beranda", active: (p: string) => p === "/" },
-  { href: "/program", label: "Program", active: (p: string) => p.startsWith("/program") },
+  { href: "/#program", label: "Program", active: (p: string) => p === "/" || p.startsWith("/program") },
   { href: "/tentang-kami", label: "Tentang Kami", active: (p: string) => p.startsWith("/tentang-kami") },
 ];
 
@@ -14,14 +13,14 @@ export function SiteHeader() {
   const pathname = usePathname();
 
   return (
-    <header className={`site-header${pathname === "/program" ? " soft" : ""}`}>
+    <header className="site-header">
       <div className="container header-row">
         <Link href="/" className="brand">
           SOPINSYA
         </Link>
         <nav aria-label="Menu utama" className="nav">
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className={l.active(pathname) ? "active" : undefined} aria-current={l.active(pathname) ? "page" : undefined}>
+            <Link key={l.href} href={l.href} className={l.active(pathname) ? "active" : undefined}>
               {l.label}
             </Link>
           ))}

@@ -242,3 +242,30 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .nav { gap: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { .progress span { transition: none; } }
+
+
+/* Katalog dan halaman detail program — alur peserta opsi A */
+.program-catalog { scroll-margin-top: 1.5rem; }
+.program-catalog .eyebrow { margin-bottom: 0.4rem; }
+.catalog-intro { color: var(--muted); margin: -0.4rem 0 1.25rem; font-size: 0.92rem; }
+.back-link { display: inline-block; color: var(--blue); text-decoration: none; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.8rem; }
+.back-link:hover { text-decoration: underline; }
+.program-outline { display: flex; flex-wrap: wrap; gap: 0.55rem; padding: 1.1rem 0; margin: 1.5rem 0 0; border-bottom: 1px solid var(--line); }
+.program-outline a { color: var(--blue); background: var(--soft); border-radius: 999px; padding: 0.45rem 0.8rem; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+.program-outline a:hover { background: #dfeafb; }
+.program-content { display: grid; gap: 1rem; padding-top: 1.25rem; }
+.content-section { border: 1px solid var(--line); border-radius: 14px; padding: 1.25rem 1.5rem; scroll-margin-top: 1rem; }
+.content-section h2 { font-size: 1.15rem; font-weight: 700; }
+.content-help { color: var(--muted); font-size: 0.88rem; margin-top: 0.25rem; }
+.content-resource-list { margin-top: 0.8rem; }
+.content-resource-list li + li { margin-top: 0.15rem; }
+.content-resource-list .row { font-size: 0.95rem; }
+.content-resource-list button.row { cursor: pointer; }
+.resource-action { margin-left: auto; color: var(--blue); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.content-pending { background: #fafbfd; }
+@media (max-width: 48rem) {
+  .content-section { padding: 1rem; }
+  .program-outline { gap: 0.4rem; }
+  .program-outline a { font-size: 0.75rem; }
+  .content-resource-list .row { gap: 0.65rem; font-size: 0.88rem; }
+}

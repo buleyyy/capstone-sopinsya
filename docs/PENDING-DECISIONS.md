@@ -47,3 +47,12 @@ sampai scope final dikonfirmasi.
 - Kode sesi bukan autentikasi: pemegang kode dapat mendaftar dengan nama dan departemen yang ia klaim sendiri.
 - Mitigasi: kode berumur pendek (`expiresAt`), dapat ditutup (`CLOSED`), hanya hash yang disimpan,
   token auditor acak per perangkat. Rate limit pada endpoint join belum dibuat.
+
+## Keputusan UX peserta — 30 Oktober 2026
+
+| Area | Keputusan | Implementasi |
+| --- | --- | --- |
+| Pola halaman program | **Opsi A:** homepage berisi katalog; setiap kartu membuka halaman detail `/program/:slug` | Diterapkan pada branch `feature/url-structure-sync` |
+| Isi detail | Satu halaman panjang dengan urutan Silabus, Materi, Studi Kasus, Pre-test, Post-test, Kuis, Video Referensi, Pustaka SOP, dan Rating/Ulasan | Bagian yang sudah memiliki data/resource ditampilkan; Rating/Ulasan masih placeholder sampai mekanisme penyimpanan disepakati |
+| Navigasi | Program, Tentang Kami, Hubungi Kami; tidak ada menu Beranda terpisah | Diterapkan pada header |
+| API tes | Pertahankan endpoint tes berbasis pertemuan untuk sementara | Tidak ada perubahan kontrak API atau skema database pada pekerjaan UI ini |
