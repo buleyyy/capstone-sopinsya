@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { HomeProgramList } from "@/components/HomeProgramList";
 import { PROGRAMS } from "@/lib/programs";
 
@@ -14,10 +13,12 @@ export default function HomePage() {
               <br />
               melalui pelatihan standar ISO
             </h1>
-            <p className="hero-lead">Pelajari standar, pahami penerapannya, dan ikuti evaluasi pembelajaran dalam satu platform yang praktis.</p>
-            <Link href="/program" className="btn btn-primary">
-              Jelajahi Pelatihan
-            </Link>
+            <p className="hero-lead">
+              Pelajari standar, pahami penerapannya, dan ikuti evaluasi pembelajaran dalam satu platform yang praktis.
+            </p>
+            <a href="#program" className="btn btn-primary">
+              Jelajahi Program
+            </a>
           </div>
           <div className="hero-card-outer" aria-hidden="true">
             <div className="hero-card">
@@ -34,38 +35,6 @@ export default function HomePage() {
       </section>
 
       <HomeProgramList programs={PROGRAMS} />
-
-      <section className="container section" aria-labelledby="features">
-        <h2 id="features" className="section-title">
-          Program Pelatihan
-        </h2>
-        <div className="feature">
-          <div className="photo photo-iso" role="img" aria-label="Peserta mengikuti pelatihan di ruang rapat" />
-          <div className="feature-card">
-            <h3>Pelatihan ISO</h3>
-            <p>
-              Pelajari persyaratan standar ISO, penerapannya pada proses kerja, serta evaluasi pemahaman melalui pre-test dan post-test pada
-              setiap pertemuan.
-            </p>
-            <Link href="/program" className="btn btn-primary">
-              Lihat
-            </Link>
-          </div>
-        </div>
-        <div className="feature feature-reverse">
-          <div className="feature-card">
-            <h3>Pelatihan Ahli K3 Umum</h3>
-            <p>
-              Bekali diri dengan pemahaman keselamatan dan kesehatan kerja untuk membangun lingkungan kerja yang lebih aman dan patuh pada
-              ketentuan.
-            </p>
-            <Link href="/program" className="btn btn-primary">
-              Lihat
-            </Link>
-          </div>
-          <div className="photo photo-k3" role="img" aria-label="Petugas K3 meninjau lokasi kerja" />
-        </div>
-      </section>
     </>
   );
 }
