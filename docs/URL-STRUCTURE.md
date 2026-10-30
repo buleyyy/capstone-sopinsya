@@ -161,12 +161,12 @@ Arah UX dari pembahasan client terbaru:
 
 **Keputusan dikonfirmasi (30 Oktober 2026): Opsi A — halaman detail per program.** Homepage menampilkan katalog; klik kartu membuka `/program/:slug`; seluruh rangkaian konten program ditampilkan dalam satu halaman panjang (*long-scroll*). Halaman browse/filter terpisah tidak menjadi alur utama. Route `/program` dipertahankan sebagai kompatibilitas dan diarahkan ke `/#program`.
 
-Jika client menyetujui pola section pada satu halaman program, anchor yang dapat dipakai adalah:
+Anchor berikut merupakan bagian dari implementasi Opsi A pada halaman detail program:
 
 | Target URL | Fungsi |
 |---|---|
 | `/#program` | Menuju katalog pada homepage |
-| `/program/:slug#silabus` | Section silabus — hanya jika halaman per program disetujui |
+| `/program/:slug#silabus` | Section silabus pada halaman detail program |
 | `/program/:slug#materi` | Section materi |
 | `/program/:slug#studi-kasus` | Section studi kasus |
 | `/program/:slug#pre-test` | Section pre-test |
@@ -175,7 +175,7 @@ Jika client menyetujui pola section pada satu halaman program, anchor yang dapat
 | `/program/:slug#pustaka-sop` | Section Pustaka SOP |
 | `/program/:slug#ulasan` | Section rating dan ulasan |
 
-Anchor di atas adalah alternatif terhadap route per-konten, bukan permintaan membuat banyak halaman. Jangan membuat route mandiri `/materi`, `/pre-test`, atau `/video` tanpa kebutuhan UX yang telah disetujui.
+Anchor di atas mengarah ke section dalam satu halaman detail, bukan route per-konten. Jangan membuat route mandiri `/materi`, `/pre-test`, atau `/video` tanpa kebutuhan UX baru yang telah disetujui.
 
 CTA **Ikuti Pelatihan** dan daftar pelatihan yang diikuti perlu dipertahankan hanya dengan mekanisme akses yang disepakati. Alur registrasi dan identitas peserta tetap mengikuti keputusan bisnis yang belum final; jangan menganggap localStorage sebagai sistem akun.
 
