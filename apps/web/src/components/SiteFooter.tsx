@@ -23,13 +23,7 @@ export function SiteFooter() {
           <h2>Menu Utama</h2>
           <ul>
             <li>
-              <Link href="/">Beranda</Link>
-            </li>
-            <li>
-              <Link href="/program">Program</Link>
-            </li>
-            <li>
-              <Link href="/Program">Program</Link>
+              <Link href="/#program">Program</Link>
             </li>
             <li>
               <Link href="/tentang-kami#kontak">Hubungi Kami</Link>
