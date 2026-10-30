@@ -171,8 +171,10 @@ Anchor berikut merupakan bagian dari implementasi Opsi A pada halaman detail pro
 | `/program/:slug#studi-kasus` | Section studi kasus |
 | `/program/:slug#pre-test` | Section pre-test |
 | `/program/:slug#post-test` | Section post-test |
+| `/program/:slug#kuis` | Section kuis interaktif |
 | `/program/:slug#video-referensi` | Section video referensi |
 | `/program/:slug#pustaka-sop` | Section Pustaka SOP |
+| `/program/:slug#ulasan` | Section rating dan ulasan (placeholder; belum ada penyimpanan) |
 | `/program/:slug#ulasan` | Section rating dan ulasan |
 
 Anchor di atas mengarah ke section dalam satu halaman detail, bukan route per-konten. Jangan membuat route mandiri `/materi`, `/pre-test`, atau `/video` tanpa kebutuhan UX baru yang telah disetujui.
