@@ -1,21 +1,17 @@
 "use client";
 
 import { ProgramGrid } from "./ProgramCard";
-import { useJoined } from "@/lib/useJoined";
 import type { Program } from "@/lib/programs";
 
-/** Daftar di beranda: pelatihan yang diikuti bila ada, jika belum maka semua program tersedia. */
 export function HomeProgramList({ programs }: { programs: Program[] }) {
-  const { slugs } = useJoined();
-  const joined = programs.filter((p) => slugs.includes(p.slug));
-  const hasJoined = joined.length > 0;
-
   return (
-    <section className="container section" aria-labelledby="home-programs">
+    <section id="program" className="container section program-catalog" aria-labelledby="home-programs">
+      <p className="eyebrow">PILIH PELATIHAN</p>
       <h2 id="home-programs" className="section-title">
-        {hasJoined ? "Pelatihan yang diikuti" : "Pelatihan tersedia"}
+        Program Pelatihan
       </h2>
-      <ProgramGrid programs={hasJoined ? joined : programs} label={hasJoined ? "Pelatihan yang diikuti" : "Pelatihan tersedia"} />
+      <p className="catalog-intro">Pilih program untuk melihat silabus, materi, studi kasus, dan evaluasi pembelajaran.</p>
+      <ProgramGrid programs={programs} label="Daftar program pelatihan" />
     </section>
   );
 }
