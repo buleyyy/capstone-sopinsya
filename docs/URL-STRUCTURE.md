@@ -145,9 +145,11 @@ Temuan berikut berasal dari pemeriksaan implementasi branch acuan, bukan fitur y
 
 ## 4. Target arah produk dan rancangan URL
 
-Bagian ini adalah rancangan untuk implementasi berikutnya, bukan daftar route aktif.
+Bagian ini memuat rancangan produk. Keputusan pola halaman peserta opsi A sudah dikonfirmasi pada 30 Oktober 2026 dan implementasi awalnya sudah dilakukan pada branch ini.
 
 ### 4.1 Peserta
+
+**Implementasi branch ini:** homepage menampilkan katalog langsung; navigasi Program menuju `/#program`; route `/program` me-redirect ke `/#program`; kartu program menuju `/program/:slug`; halaman detail menyajikan bagian konten dalam satu alur panjang. Pre-test/post-test tetap memanggil API yang ada per pertemuan. Tautan Studi Kasus dan Video Referensi kini dibuka langsung sebagai resource eksternal, bukan menuju route Next.js yang belum ada. Rating/ulasan ditandai belum tersedia karena belum ada alur penyimpanan maupun endpoint.
 
 Arah UX dari pembahasan client terbaru:
 - Homepage menjadi katalog/entry point utama.
@@ -157,7 +159,7 @@ Arah UX dari pembahasan client terbaru:
 - Informasi sesi offline seperti hari, lokasi, dan jadwal tidak ditampilkan; informasi trainer tetap relevan.
 - Peserta tidak membutuhkan login untuk mencoba konten/tes pada alur trial yang dibahas.
 
-**Keputusan URL yang belum boleh dikunci:** pembahasan sebelumnya menyebut halaman panjang, tetapi juga menyebut penghapusan halaman detail/see-more. Perlu dipastikan perilaku ketika kartu program dipilih: apakah konten program dibuka sebagai halaman tersendiri, ditampilkan pada section di homepage, atau memakai pola lain. Karena itu, `/program/:slug` belum boleh dianggap sebagai target final hanya karena route tersebut sudah ada di kode.
+**Keputusan dikonfirmasi (30 Oktober 2026): Opsi A — halaman detail per program.** Homepage menampilkan katalog; klik kartu membuka `/program/:slug`; seluruh rangkaian konten program ditampilkan dalam satu halaman panjang (*long-scroll*). Halaman browse/filter terpisah tidak menjadi alur utama. Route `/program` dipertahankan sebagai kompatibilitas dan diarahkan ke `/#program`.
 
 Jika client menyetujui pola section pada satu halaman program, anchor yang dapat dipakai adalah:
 
@@ -237,9 +239,9 @@ Jangan mengubah URL endpoint sebelum keputusan model data dan migrasi disepakati
 
 ## 7. Checklist validasi implementasi berikutnya
 
-- [ ] Struktur homepage dan perilaku klik katalog sudah dikonfirmasi client.
-- [ ] Header mengikuti menu Program, Tentang Kami, dan Hubungi Kami.
-- [ ] Tidak ada link publik yang menuju halaman tidak tersedia.
+- [x] Struktur homepage dan perilaku klik katalog dikonfirmasi: katalog di homepage, detail per program (Opsi A).
+- [x] Header mengikuti menu Program, Tentang Kami, dan Hubungi Kami.
+- [x] Link Studi Kasus dan Video Referensi pada detail program tidak lagi menuju route yang tidak tersedia; keduanya memakai URL resource yang tersedia.
 - [ ] Struktur konten tidak lagi bergantung pada pertemuan jika keputusan model sudah berubah.
 - [ ] Pre-test/post-test tetap dapat dimuat dan dinilai oleh backend.
 - [ ] Admin dan Auditor memakai satu gerbang login dan redirect sesuai role.
