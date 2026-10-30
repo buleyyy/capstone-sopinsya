@@ -232,7 +232,7 @@ Jangan mengubah URL endpoint sebelum keputusan model data dan migrasi disepakati
 6. Perubahan path wajib memperbarui link, form action, redirect, middleware, dan automated test.
 7. Operasi mutasi tetap memakai POST dengan pemeriksaan origin/CSRF yang sesuai.
 8. Perhatikan case-sensitive path ketika deployment ke Linux.
-9. Jangan menambahkan `/uploads/*) atau menyajikan file lokal sebelum storage, validasi file, kontrol akses, dan kebijakan retensi ditetapkan.
+9. Jangan menambahkan `/uploads/*` atau menyajikan file lokal sebelum storage, validasi file, kontrol akses, dan kebijakan retensi ditetapkan.
 10. Jangan menganggap satu-domain reverse proxy sudah tersedia; tambahkan dan uji konfigurasi deployment secara terpisah.
 
 ## 7. Checklist validasi implementasi berikutnya
