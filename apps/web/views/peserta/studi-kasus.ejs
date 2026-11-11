@@ -1,0 +1,40 @@
+<%- include('_head') %>
+<div class="container">
+  <div class="page-head">
+    <nav class="crumb" aria-label="Jejak halaman">
+      <a href="/peserta/program/<%= program.slug %>">Program</a>
+      <span aria-hidden="true"> › </span>
+      <span aria-current="page">Studi Kasus</span>
+      <span class="crumb-meeting"> · <%= meeting.title %></span>
+    </nav>
+    <h1>Studi Kasus <%= program.fullTitle %></h1>
+    <ul class="meta"><li><svg class="ico meta-icon" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg> Trainer: <%= program.trainer %></li></ul>
+    <hr>
+  </div>
+  <% if (docs.length === 0) { %>
+    <p class="note" role="status">Studi kasus untuk pertemuan ini belum tersedia.</p>
+  <% } %>
+  <% docs.forEach(function (d) { %>
+    <div class="file-card">
+      <div class="file-card-text">
+        <a href="<%= d.url %>" target="_blank" rel="noopener noreferrer"><%= d.title %></a>
+        <span class="file-type"><%= d.type %></span>
+      </div>
+      <div class="file-card-icon"><svg class="ico pd-icon-doc" width="56" height="56" aria-hidden="true"><use href="#i-doc"/></svg></div>
+    </div>
+  <% }) %>
+  <section class="cs-upload" aria-labelledby="cs-title">
+    <h2 id="cs-title">Kumpulkan Tugas Studi Kasus</h2>
+    <p class="note">Unggah jawaban studi kasus Anda (PDF, DOCX, XLSX, JPG, PNG, atau WEBP; maks. 5 MB). Berkas hanya dapat dilihat penyelenggara.</p>
+    <form class="cs-form" data-case-upload="/peserta/program/<%= program.slug %>/pertemuan/<%= meeting.number %>/studi-kasus/kirim" novalidate>
+      <div class="form-row"><label for="cs-name">Nama <span class="req">*</span></label><input id="cs-name" type="text" maxlength="120" autocomplete="name" required></div>
+      <div class="form-row"><label for="cs-inst">Instansi <span class="req">*</span></label><input id="cs-inst" type="text" maxlength="160" autocomplete="organization" required></div>
+      <div class="form-row"><label for="cs-email">Email</label><input id="cs-email" type="email" maxlength="160" autocomplete="email"></div>
+      <div class="form-row"><label for="cs-file">Berkas jawaban <span class="req">*</span></label><input id="cs-file" type="file" accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" required></div>
+      <p class="cs-status" role="status" aria-live="polite"></p>
+      <button class="btn btn-primary" type="submit">Kirim Studi Kasus</button>
+    </form>
+    <p class="note cs-nojs">Pengiriman berkas membutuhkan JavaScript aktif di peramban Anda.</p>
+  </section>
+</div>
+<%- include('_foot') %>

@@ -1,0 +1,11 @@
+<%
+  /* Tombol unggah bukti (hanya tampil bila JavaScript aktif). Parameter: target = id kolom tautan yang diisi,
+     label = teks tombol. Berkas diunggah ke /auditor/bukti dan kolom diisi dengan tautan hasil unggah. */
+%>
+<div class="au-attach" data-target="<%= target %>" data-csrf="<%= csrf %>">
+  <label class="btn small outline au-pick">
+    <svg class="icon sm"><use href="#i-upload"/></svg><%= label %>
+    <input class="au-file-input" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.docx" aria-label="<%= label %>">
+  </label>
+  <span class="au-attach-status" role="status">PDF, JPG, PNG, WEBP, XLSX, DOCX &middot; maks 5 MB</span>
+</div>

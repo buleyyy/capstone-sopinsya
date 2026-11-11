@@ -24,6 +24,8 @@ export interface PublicTest {
   id: number;
   title: string;
   type: TestKind;
+  /** Petunjuk pengerjaan dari Admin (boleh kosong). */
+  instructions: string | null;
   questions: PublicTestQuestion[];
 }
 
@@ -42,6 +44,9 @@ export interface AnswerInput {
 export interface SubmitAttemptInput {
   participantName: string;
   participantInstitution: string;
+  participantEmail?: string | undefined;
+  participantPosition?: string | undefined;
+  participantPhone?: string | undefined;
   clientRequestId: string;
   answers: AnswerInput[];
 }
@@ -65,6 +70,25 @@ export interface GradedAttempt {
   totalQuestions: number;
   score: number;
   results: QuestionResult[];
+}
+
+/**
+ * Tanda terima yang dikembalikan ke PESERTA. Sengaja tanpa skor, jumlah benar, dan status benar/salah per soal:
+ * nilai evaluasi hanya dapat dilihat Admin (SRS). Nilai tetap disimpan di database untuk rekap Admin.
+ */
+export interface SubmissionReceipt {
+  attemptId: number;
+  totalQuestions: number;
+  /** Jumlah soal yang dijawab (bukan jumlah yang benar). */
+  answeredCount: number;
+}
+
+export function toReceipt(result: AttemptResult): SubmissionReceipt {
+  return {
+    attemptId: result.attemptId,
+    totalQuestions: result.totalQuestions,
+    answeredCount: result.results.filter((r) => r.selectedOptionId !== null).length,
+  };
 }
 
 export interface ParticipantTestStore {

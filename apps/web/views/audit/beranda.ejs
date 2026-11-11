@@ -1,0 +1,28 @@
+<%- include('../partials/header') %>
+
+<% if (!me.canWrite) { %>
+  <div class="alert info">
+    <% if (me.sessionStatus === 'CLOSED') { %>
+      Sesi ini sudah ditutup. Anda hanya dapat melihat data
+      <% if (me.auditorAccessUntil) { %>sampai <strong><%= fmt(me.auditorAccessUntil) %></strong><% } %>.
+    <% } else { %>
+      Batas waktu pengisian (<%= fmt(me.expiresAt) %>) sudah lewat, sehingga data hanya dapat dilihat.
+    <% } %>
+  </div>
+<% } %>
+
+<section class="au-hero">
+  <span class="au-chip"><span class="au-dot" aria-hidden="true"></span>Audit Mutu Internal &amp; Pemantauan</span>
+  <h1>Status Tindakan Korektif (CAPA)</h1>
+  <p>Pemantauan kepatuhan persyaratan <%= header.subtitle %>. Seluruh perbaikan dan tindakan korektif diverifikasi efektivitasnya oleh Lead Auditor.</p>
+  <a class="btn small light au-hero-action" href="/auditor/cetak"><svg class="icon sm"><use href="#i-print"/></svg>Format Formulir</a>
+</section>
+
+<% if (dash.length === 0) { %>
+  <div class="card">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div>
+<% } else { %>
+
+<%# Checklist audit tidak lagi dipakai (SRS W-03 no. 5): dashboard hanya berisi ringkasan Register Temuan. %>
+<%- include('../partials/audit-ringkasan', { reporterLabel: auditorName, fullLink: '/auditor/temuan' }) %>
+<% } %>
+<%- include('../partials/footer') %>

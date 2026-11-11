@@ -1,0 +1,124 @@
+<%- include('../partials/header') %>
+<div class="au-pagehead">
+  <h1>Daftar Temuan</h1>
+  <p>Cari, filter, dan kelola seluruh temuan ketidaksesuaian beserta akar masalah, koreksi, tindakan korektif, dan hasil verifikasi.</p>
+</div>
+
+<% if (created) { %><div class="au-toast" role="status"><svg class="icon sm"><use href="#i-check"/></svg>Temuan <%= created %> berhasil disimpan</div><% } %>
+<% if (updated) { %><div class="au-toast" role="status"><svg class="icon sm"><use href="#i-check"/></svg>Temuan <%= updated %> berhasil diperbarui</div><% } %>
+<% if (closed) { %><div class="au-toast" role="status"><svg class="icon sm"><use href="#i-check"/></svg>Temuan <%= closed %> berhasil ditutup (Closed)</div><% } %>
+<% if (deleted) { %><div class="au-toast" role="status"><svg class="icon sm"><use href="#i-check"/></svg>Temuan <%= deleted %> berhasil dihapus</div><% } %>
+
+<form class="au-toolbar" method="get" action="/auditor/temuan">
+  <div class="au-search">
+    <svg class="icon sm"><use href="#i-search"/></svg>
+    <input type="search" name="q" maxlength="100" value="<%= filter.q %>" placeholder="Cari uraian, klausul, PIC..." aria-label="Cari uraian, klausul, PIC">
+  </div>
+  <select name="kat" aria-label="Kategori">
+    <option value="">Semua Kategori</option>
+    <option value="MAJOR" <%= filter.kat === 'MAJOR' ? 'selected' : '' %>>Kategori 1 (Mayor)</option>
+    <option value="MINOR" <%= filter.kat === 'MINOR' ? 'selected' : '' %>>Kategori 2 (Minor)</option>
+    <option value="OBSERVASI" <%= filter.kat === 'OBSERVASI' ? 'selected' : '' %>>Kategori 0 (Observasi)</option>
+  </select>
+  <select name="status" aria-label="Status">
+    <option value="">Semua Status</option>
+    <option value="CLOSED" <%= filter.status === 'CLOSED' ? 'selected' : '' %>>Closed (Terverifikasi)</option>
+    <option value="OPEN" <%= filter.status === 'OPEN' ? 'selected' : '' %>>Open (Belum Selesai)</option>
+  </select>
+  <% if (assignments.length > 1) { %>
+    <select name="unit" aria-label="Unit">
+      <option value="">Semua Unit</option>
+      <% assignments.forEach(function (a) { %>
+        <option value="<%= a.id %>" <%= filter.unit === String(a.id) ? 'selected' : '' %>><%= a.departmentName %></option>
+      <% }) %>
+    </select>
+  <% } %>
+  <button class="btn small secondary au-apply" type="submit">Terapkan</button>
+  <div class="au-toolbar-end">
+    <a class="btn small outline" href="/auditor/temuan"><svg class="icon sm"><use href="#i-refresh"/></svg>Reset Filter</a>
+    <% if (me.canWrite) { %><a class="btn au-add" href="/auditor/temuan/baru"><svg class="icon sm"><use href="#i-plus"/></svg>Tambah Temuan</a><% } %>
+  </div>
+</form>
+
+<div class="au-card">
+  <div class="tablewrap">
+    <table class="au-table au-register">
+      <thead>
+        <tr>
+          <th>No</th><th>Acuan Klausul</th><th>Uraian Ketidaksesuaian (PLOR)</th><th>Auditor &amp; Auditi</th><th>Kat</th>
+          <th>Akar Masalah</th><th>Perbaikan / Koreksi</th><th>Tindakan Korektif</th><th>Verifikasi</th><th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (rows.length === 0) { %>
+          <tr><td colspan="10" class="au-empty"><%= total === 0 ? 'Belum ada temuan. Gunakan tombol Tambah Temuan untuk mencatat.' : 'Tidak ada temuan yang cocok dengan filter.' %></td></tr>
+        <% } %>
+        <% rows.forEach(function (r, i) { var f = r.finding, u = r.followUp; var isObs = f.classification === 'OBSERVASI'; %>
+          <tr>
+            <td class="nowrap"><b><%= i + 1 %></b><div class="pic"><%= r.code %></div></td>
+            <td><span class="au-clause"><%= f.reference %></span></td>
+            <td class="clip">
+              <p><%= f.problem %></p>
+              <div class="pic">Lokasi: <%= f.location %></div>
+              <div class="pic">Bukti objektif: <%= f.objectiveEvidence %></div>
+              <% if (f.evidenceUrl) { %><%- include('../partials/file-chip', { label: 'Bukti Temuan:', url: f.evidenceUrl }) %><% } %>
+            </td>
+            <td class="clip">
+              <div>Auditor: <%= auditorName %></div>
+              <div>Auditi: <%= u.auditeeName || '-' %></div>
+              <div class="pic">Unit: <%= r.departmentName %></div>
+            </td>
+            <td><span class="au-kat <%= f.classification.toLowerCase() %>"><%= f.classification === 'MAJOR' ? 'Kat 1' : (f.classification === 'MINOR' ? 'Kat 2' : 'Obs O') %></span></td>
+            <td class="clip">
+              <% if (isObs) { %><span class="au-na">- Tidak dipersyaratkan -</span><% } else { %><span class="au-root"><%= u.rootCause || '-' %></span><% } %>
+            </td>
+            <td class="clip">
+              <% if (isObs) { %>
+                <span class="au-na">- Cukup Tindakan Peningkatan -</span>
+              <% } else { %>
+                <b><%= u.correction || '-' %></b>
+                <% if (u.correctionPic) { %><div class="pic">Pelaksana: <%= u.correctionPic %></div><% } %>
+                <% if (u.correctionTarget) { %><div class="pic">Target: <%= u.correctionTarget %></div><% } %>
+                <% if (u.correctionEvidenceUrl) { %><%- include('../partials/file-chip', { label: 'Bukti Koreksi:', url: u.correctionEvidenceUrl }) %><% } %>
+              <% } %>
+            </td>
+            <td class="clip">
+              <% if (isObs) { %>
+                <div class="au-improve">
+                  <span class="lbl">TINDAKAN PENINGKATAN</span>
+                  <b><%= u.improvementAction || '-' %></b>
+                  <% if (u.improvementPic) { %><div class="pic">Pelaksana: <%= u.improvementPic %></div><% } %>
+                  <% if (u.improvementTarget) { %><div class="pic">Target: <%= u.improvementTarget %></div><% } %>
+                  <% if (u.improvementEvidenceUrl) { %><%- include('../partials/file-chip', { label: 'Bukti Peningkatan:', url: u.improvementEvidenceUrl }) %><% } %>
+                </div>
+              <% } else { %>
+                <b><%= u.correctiveAction || '-' %></b>
+                <% if (u.correctiveActionPic) { %><div class="pic">Pelaksana: <%= u.correctiveActionPic %></div><% } %>
+                <% if (u.correctiveActionTarget) { %><div class="pic">Target: <%= u.correctiveActionTarget %></div><% } %>
+                <% if (u.correctiveActionEvidenceUrl) { %><%- include('../partials/file-chip', { label: 'Bukti Tindakan:', url: u.correctiveActionEvidenceUrl }) %><% } %>
+              <% } %>
+            </td>
+            <td class="au-verify-cell">
+              <span class="au-status <%= f.status === 'CLOSED' ? 'closed' : 'open' %>"><i class="dot"></i><%= f.status === 'CLOSED' ? 'Closed' : 'Open' %></span>
+              <% if (u.verificationResult) { %><div class="au-note"><%= u.verificationResult %></div><% } %>
+              <% if (u.verifiedDate) { %><div class="au-note">Diverifikasi: <%= fmtDate(u.verifiedDate) %></div><% } %>
+            </td>
+            <td class="nowrap">
+              <div class="au-actions">
+                <a class="au-icon-btn" href="/auditor/temuan/<%= f.id %>/ubah" title="Ubah temuan" aria-label="Ubah temuan <%= r.code %>"><svg class="icon sm"><use href="#i-edit"/></svg></a>
+                <% if (me.canWrite) { %><a class="au-icon-btn danger" href="/auditor/temuan/<%= f.id %>/hapus" title="Hapus temuan" aria-label="Hapus temuan <%= r.code %>"><svg class="icon sm"><use href="#i-trash"/></svg></a><% } %>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="au-card-foot">
+    <span>Menampilkan <b><%= rows.length %></b> dari <b><%= total %></b> temuan</span>
+    <span>Metode Penulisan: Problem, Location, Objective evidence, Reference (PLOR)</span>
+  </div>
+</div>
+
+<% if (modal === 'baru') { %><%- include('temuan-baru') %><% } else if (modal === 'ubah') { %><%- include('temuan-ubah') %><% } else if (modal === 'hapus') { %><%- include('temuan-hapus') %><% } %>
+<%- include('../partials/footer') %>

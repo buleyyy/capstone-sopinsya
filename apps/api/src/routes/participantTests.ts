@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   gradeAttempt,
+  toReceipt,
   type ParticipantTestStore,
   type SubmitAttemptInput,
   type TestKind,
@@ -14,6 +15,15 @@ const SLUG = /^[a-z0-9-]{1,80}$/;
 const attemptBody = z.object({
   participantName: z.string().trim().min(1, "Nama wajib diisi").max(120),
   participantInstitution: z.string().trim().min(1, "Instansi wajib diisi").max(160),
+  // Data diri tambahan (mockup Hasil Evaluasi): email wajib, jabatan & nomor HP opsional.
+  participantEmail: z.string().trim().min(1, "Email wajib diisi").max(160).email("Format email tidak valid"),
+  participantPosition: z.string().trim().max(120).optional(),
+  participantPhone: z
+    .string()
+    .trim()
+    .max(30)
+    .regex(/^[0-9+()\-\s]*$/, "Nomor HP hanya boleh berisi angka")
+    .optional(),
   clientRequestId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, "clientRequestId tidak valid"),
   answers: z
     .array(
@@ -34,7 +44,7 @@ function parseKind(value: string | undefined): TestKind | null {
 /**
  * Rute publik Pre-test/Post-test (tanpa login):
  *  GET  /api/public/programs/:slug/pertemuan/:n/tests/:type   soal tanpa kunci jawaban
- *  POST /api/public/tests/:testId/attempts                    kirim jawaban, terima hasil dari server
+ *  POST /api/public/tests/:testId/attempts                    kirim jawaban; dinilai di server, peserta hanya menerima tanda terima TANPA nilai
  */
 export function createParticipantTestRouter(store: ParticipantTestStore | undefined): Router {
   const router = Router();
@@ -74,7 +84,7 @@ export function createParticipantTestRouter(store: ParticipantTestStore | undefi
     const existing = await s.findAttempt(testId, input.clientRequestId);
     if (existing) {
       res.set("Cache-Control", "no-store");
-      res.status(200).json(ok(existing));
+      res.status(200).json(ok(toReceipt(existing)));
       return;
     }
 
@@ -84,7 +94,7 @@ export function createParticipantTestRouter(store: ParticipantTestStore | undefi
     const graded = gradeAttempt(key, input.answers);
     const saved = await s.saveAttempt(testId, input, graded);
     res.set("Cache-Control", "no-store");
-    res.status(201).json(ok(saved));
+    res.status(201).json(ok(toReceipt(saved)));
   });
 
   return router;

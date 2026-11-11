@@ -1,0 +1,64 @@
+<%
+  var site = locals.site || { siteName: 'SopinsyaEducenter', tagline: 'Pusat Pelatihan dan Sertifikasi Profesional', whatsapp: '+62 812-3456-7890', email: 'info@sopinsyaeducenter.com', hours: 'Senin - Jumat (08.00 - 17.00 WIB)', address: 'Jl. Jenderal Sudirman No. 12, Jakarta, Indonesia', instagram: '', linkedin: '', youtube: '', facebook: '' };
+  var waHref = locals.whatsappUrl || ('tel:' + String(site.whatsapp || '').replace(/[^0-9+]/g, ''));
+  var waExt = !!locals.whatsappUrl;
+  var socials = [['instagram', 'Instagram'], ['linkedin', 'LinkedIn'], ['youtube', 'YouTube'], ['facebook', 'Facebook']];
+%></main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-brand-col">
+      <div class="footer-brand-block">
+        <img src="/static/logo.svg" alt="" width="44" height="44" class="footer-logo">
+        <div>
+          <p class="footer-brand"><%= site.siteName %></p>
+          <% if (site.tagline) { %><p class="footer-tagline"><%= site.tagline %></p><% } %>
+        </div>
+      </div>
+      <p class="footer-about">Lembaga pelatihan dan sertifikasi kompetensi terpercaya untuk mengembangkan keahlian profesional Anda.</p>
+      <% if (site.address) { %><p class="footer-address">
+        <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-pin"/></svg>
+        <span><%= site.address %></span>
+      </p><% } %>
+    </div>
+
+    <nav aria-label="Menu utama">
+      <h2>Menu Utama</h2>
+      <ul>
+        <li><a href="/peserta/#program">Program Pelatihan</a></li>
+        <li><a href="/peserta/#program">Jadwal Kelas</a></li>
+      </ul>
+    </nav>
+
+    <div>
+      <h2>Kontak &amp; Layanan</h2>
+      <ul class="footer-contact">
+        <% if (site.whatsapp) { %><li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-phone"/></svg>
+          <a href="<%= waHref %>"<%- waExt ? ' target="_blank" rel="noopener noreferrer"' : '' %>><%= site.whatsapp %></a>
+        </li><% } %>
+        <% if (site.email) { %><li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-mail"/></svg>
+          <a href="mailto:<%= site.email %>"><%= site.email %></a>
+        </li><% } %>
+        <% if (site.hours) { %><li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-clock"/></svg>
+          <span><%= site.hours %></span>
+        </li><% } %>
+      </ul>
+      <ul class="footer-social" aria-label="Media sosial">
+        <% socials.forEach(function (sc) { %>
+          <li><% if (site[sc[0]]) { %><a href="<%= site[sc[0]] %>" target="_blank" rel="noopener noreferrer" aria-label="<%= sc[1] %>"><svg class="ico" width="26" height="26" aria-hidden="true"><use href="#i-<%= sc[0] %>"/></svg></a><% } else { %><svg class="ico" width="26" height="26" role="img" aria-label="<%= sc[1] %>"><use href="#i-<%= sc[0] %>"/></svg><% } %></li>
+        <% }) %>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container footer-bottom">
+    <p>&copy; <%= new Date().getFullYear() %> <%= site.siteName %>. All Rights Reserved.</p>
+    <p class="footer-legal">
+      <span>Kebijakan Privasi</span><span class="footer-sep" aria-hidden="true">|</span><span>Syarat &amp; Ketentuan</span><span class="footer-sep" aria-hidden="true">|</span><a href="/masuk">Masuk Admin / Auditor</a>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

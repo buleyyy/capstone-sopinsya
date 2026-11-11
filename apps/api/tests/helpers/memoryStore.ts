@@ -10,6 +10,7 @@ import {
   type ChecklistItemRecord,
   type ChecklistVersionRecord,
   type DepartmentRecord,
+  type DocumentHeader,
   type FindingCount,
   type FindingFollowUp,
   type FindingFollowUpRecord,
@@ -56,6 +57,8 @@ export class MemoryStore implements AuditStore {
   findings: FindingRecord[] = [];
   history: FindingHistoryRecord[] = [];
   private followUps = new Map<number, FindingFollowUp>();
+  private deletedAt = new Map<number, { at: Date; byAuditorId: number }>();
+  private headers = new Map<number, DocumentHeader>();
   private seq = 1;
 
   private capture(): State {
@@ -108,6 +111,7 @@ export class MemoryStore implements AuditStore {
     return row;
   }
   async departmentExists(id: number) { return this.departments.some((d) => d.id === id); }
+  async listDepartments(): Promise<DepartmentRecord[]> { return [...this.departments].sort((a, b) => a.id - b.id); }
   async createStandard(data: { code: string; name: string }): Promise<StandardRecord> {
     if (this.standards.some((s) => s.code === data.code)) throw new UniqueViolationError("code");
     const row = { id: this.seq++, ...data };
@@ -126,6 +130,9 @@ export class MemoryStore implements AuditStore {
     return row;
   }
   async findChecklistVersion(id: number) { return this.versions.find((v) => v.id === id) ?? null; }
+  async findLatestPublishedVersion() {
+    return [...this.versions].filter((v) => v.status === "PUBLISHED").sort((a, b) => b.id - a.id)[0] ?? null;
+  }
   async addChecklistItem(data: Omit<ChecklistItemRecord, "id">): Promise<ChecklistItemRecord | null> {
     const v = this.versions.find((x) => x.id === data.versionId);
     if (!v || v.status !== "DRAFT") return null;
@@ -171,12 +178,15 @@ export class MemoryStore implements AuditStore {
   }
 
   // --- Sesi ---
-  async createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord> {
+  async createSession(data: { title: string; checklistVersionId: number | null; expiresAt: Date }): Promise<SessionRecord> {
     const row: SessionRow = { id: this.seq++, ...data, status: "DRAFT", closedAt: null, auditorAccessUntil: null, findingSeq: 0 };
     this.sessions.push(row);
     return row;
   }
   async findSession(id: number) { return this.sessions.find((s) => s.id === id) ?? null; }
+  async findLatestActiveSession() {
+    return [...this.sessions].filter((s) => s.status === "ACTIVE").sort((a, b) => b.id - a.id)[0] ?? null;
+  }
   async activateSession(id: number) {
     const s = this.sessions.find((x) => x.id === id);
     if (!s || s.status !== "DRAFT") return false;
@@ -202,7 +212,51 @@ export class MemoryStore implements AuditStore {
     return !!s && s.status === "ACTIVE" && s.expiresAt.getTime() > now.getTime();
   }
 
-  // --- Auditor ---
+  // --- Penugasan akun Auditor ---
+  async createAccountAuditor(d: {
+    sessionId: number;
+    userId: number;
+    name: string;
+    excludedDepartmentIds: number[];
+    now: Date;
+  }): Promise<AuditorRecord> {
+    if (this.auditors.some((a) => a.sessionId === d.sessionId && a.userId === d.userId)) {
+      throw new UniqueViolationError("sessionId_userId");
+    }
+    const row: AuditorRow = {
+      id: this.seq++,
+      sessionId: d.sessionId,
+      name: d.name,
+      userId: d.userId,
+      inviteHash: `unused-${this.seq}`, // kolom undangan lama: nilai tak terpakai
+      inviteExpiresAt: d.now,
+      claimedAt: d.now,
+      revokedAt: null,
+      tokenHash: null,
+    };
+    this.auditors.push(row);
+    for (const departmentId of d.excludedDepartmentIds) this.exclusions.push({ auditorId: row.id, departmentId });
+    return this.publicAuditor(row);
+  }
+  async findAuditorByUser(sessionId: number, userId: number) {
+    const r = this.auditors.find((a) => a.sessionId === sessionId && a.userId === userId);
+    return r ? this.publicAuditor(r) : null;
+  }
+  async reinstateAuditor(auditorId: number) {
+    const a = this.auditors.find((x) => x.id === auditorId);
+    if (a) a.revokedAt = null;
+  }
+  async findAuthByUserId(userId: number) {
+    const candidates = this.auditors
+      .filter((a) => a.userId === userId && a.revokedAt === null)
+      .map((a) => ({ a, s: this.sessions.find((s) => s.id === a.sessionId) }))
+      .filter((x) => x.s !== undefined && (x.s.status === "ACTIVE" || x.s.status === "CLOSED"))
+      .sort((x, y) => y.a.sessionId - x.a.sessionId);
+    const pick = candidates.find((x) => x.s?.status === "ACTIVE") ?? candidates[0];
+    return pick ? this.auth(pick.a) : null;
+  }
+
+  // --- Auditor (LEGACY: undangan) ---
   async createAuditor(d: {
     sessionId: number;
     name: string;
@@ -218,7 +272,15 @@ export class MemoryStore implements AuditStore {
     return this.publicAuditor(row);
   }
   private publicAuditor(r: AuditorRow): AuditorRecord {
-    return { id: r.id, sessionId: r.sessionId, name: r.name, inviteExpiresAt: r.inviteExpiresAt, claimedAt: r.claimedAt, revokedAt: r.revokedAt };
+    return {
+      id: r.id,
+      sessionId: r.sessionId,
+      name: r.name,
+      inviteExpiresAt: r.inviteExpiresAt,
+      claimedAt: r.claimedAt,
+      revokedAt: r.revokedAt,
+      userId: r.userId ?? null,
+    };
   }
   private auth(row: AuditorRow | undefined): AuthRecord | null {
     if (!row) return null;
@@ -236,7 +298,7 @@ export class MemoryStore implements AuditStore {
     const session = [...this.sessions].filter((s) => s.status === "ACTIVE").sort((a, b) => b.id - a.id)[0];
     if (!session) return null;
     const row = this.auditors
-      .filter((a) => a.sessionId === session.id && a.revokedAt === null)
+      .filter((a) => a.sessionId === session.id && a.revokedAt === null && (a.userId ?? null) === null)
       .sort((a, b) => a.id - b.id)[0];
     return this.auth(row);
   }
@@ -349,13 +411,19 @@ export class MemoryStore implements AuditStore {
     return row;
   }
   async listFindings(assignmentId: number) {
-    return this.findings.filter((f) => f.assignmentId === assignmentId).sort((a, b) => a.seq - b.seq);
+    return this.findings.filter((f) => f.assignmentId === assignmentId && !this.deletedAt.has(f.id)).sort((a, b) => a.seq - b.seq);
   }
-  async findFindingOwned(sessionId: number, auditorId: number, findingId: number) {
+  async findFindingOwned(sessionId: number, auditorId: number, findingId: number, includeDeleted = false) {
     const f = this.findings.find((x) => x.id === findingId && x.sessionId === sessionId);
     if (!f) return null;
+    if (!includeDeleted && this.deletedAt.has(f.id)) return null;
     const a = this.assignments.find((x) => x.id === f.assignmentId);
     return a && a.auditorId === auditorId ? f : null;
+  }
+  async softDeleteFinding(findingId: number, auditorId: number, now: Date) {
+    if (!this.findings.some((f) => f.id === findingId) || this.deletedAt.has(findingId)) return false;
+    this.deletedAt.set(findingId, { at: now, byAuditorId: auditorId });
+    return true;
   }
   async closeFinding(findingId: number, auditorId: number, note: string | null, now: Date) {
     const f = this.findings.find((x) => x.id === findingId);
@@ -378,7 +446,7 @@ export class MemoryStore implements AuditStore {
   }
   async countFindings(assignmentId: number): Promise<FindingCount[]> {
     const map = new Map<string, FindingCount>();
-    for (const f of this.findings.filter((x) => x.assignmentId === assignmentId)) {
+    for (const f of this.findings.filter((x) => x.assignmentId === assignmentId && !this.deletedAt.has(x.id))) {
       const key = `${f.classification}|${f.status}`;
       const cur = map.get(key);
       if (cur) cur.count += 1;
@@ -402,10 +470,26 @@ export class MemoryStore implements AuditStore {
       improvementAction: null,
       improvementPic: null,
       improvementTarget: null,
+      improvementEvidenceUrl: null,
+      auditeeName: null,
+      reportedDate: null,
+      followedUpDate: null,
+      verifiedDate: null,
+      verifierName: null,
+      verificationResult: null,
+      correctionEvidenceUrl: null,
+      correctiveActionEvidenceUrl: null,
     };
     return this.findings
-      .filter((f) => f.assignmentId === assignmentId)
+      .filter((f) => f.assignmentId === assignmentId && !this.deletedAt.has(f.id))
       .sort((a, b) => a.seq - b.seq)
       .map((f) => ({ findingId: f.id, ...(this.followUps.get(f.id) ?? empty) }));
+  }
+  async getDocumentHeader(sessionId: number): Promise<DocumentHeader | null> {
+    const h = this.headers.get(sessionId);
+    return h ? { ...h } : null;
+  }
+  async saveDocumentHeader(sessionId: number, data: DocumentHeader) {
+    this.headers.set(sessionId, { ...data });
   }
 }

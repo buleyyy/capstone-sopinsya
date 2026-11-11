@@ -1,0 +1,31 @@
+<%# Modal "Hapus Temuan": konfirmasi di atas Daftar Temuan (di-include oleh temuan-daftar.ejs, modal = 'hapus'). %>
+<div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="au-modal-card narrow">
+    <div class="au-modal-head">
+      <div>
+        <h2 id="m-title">Hapus Temuan <%= code %>?</h2>
+        <small><%= departmentName %> &middot; <%= finding.classification === 'MAJOR' ? 'Kategori 1 (Mayor)' : (finding.classification === 'MINOR' ? 'Kategori 2 (Minor)' : 'Observasi (O)') %></small>
+      </div>
+      <a class="au-modal-close" href="/auditor/temuan" aria-label="Tutup"><svg class="icon"><use href="#i-x"/></svg></a>
+    </div>
+    <% if (!me.canWrite) { %>
+      <div class="au-modal-body"><div class="alert info">Sesi tidak menerima perubahan lagi, sehingga temuan tidak dapat dihapus.</div></div>
+      <div class="au-modal-foot"><a class="btn secondary" href="/auditor/temuan">Tutup</a></div>
+    <% } else { %>
+      <form class="au-form" method="post" action="/auditor/temuan/<%= finding.id %>/hapus">
+        <div class="au-modal-body">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <div class="au-readonly">
+            <p><b>Reference:</b> <%= finding.reference %></p>
+            <p><b>Problem:</b> <%= finding.problem %></p>
+          </div>
+          <p class="hint">Temuan tidak akan tampil lagi di Daftar Temuan, dashboard, dan hasil cetak. Nomor temuan tidak dipakai ulang, dan datanya tetap tersimpan di sistem.</p>
+        </div>
+        <div class="au-modal-foot">
+          <a class="btn secondary" href="/auditor/temuan">Batal</a>
+          <button class="btn danger" type="submit"><svg class="icon sm"><use href="#i-trash"/></svg>Hapus Temuan</button>
+        </div>
+      </form>
+    <% } %>
+  </div>
+</div>

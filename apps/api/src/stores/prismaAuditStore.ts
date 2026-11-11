@@ -11,6 +11,7 @@ import {
   type ChecklistItemRecord,
   type ChecklistVersionRecord,
   type DepartmentRecord,
+  type DocumentHeader,
   type FindingCount,
   type FindingFollowUp,
   type FindingFollowUpRecord,
@@ -20,6 +21,7 @@ import {
   type SessionRecord,
   type StandardRecord,
 } from "../domain/auditStore.js";
+import { generateToken, sha256Hex } from "../lib/tokens.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -53,6 +55,7 @@ const toAuditor = (r: AuditorRecord): AuditorRecord => ({
   inviteExpiresAt: r.inviteExpiresAt,
   claimedAt: r.claimedAt,
   revokedAt: r.revokedAt,
+  userId: r.userId ?? null,
 });
 
 /**
@@ -172,7 +175,7 @@ export class PrismaAuditStore implements AuditStore {
 
   // --- Sesi ---
 
-  async createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord> {
+  async createSession(data: { title: string; checklistVersionId: number | null; expiresAt: Date }): Promise<SessionRecord> {
     return toSession(await this.db.auditSession.create({ data }));
   }
 
@@ -212,14 +215,61 @@ export class PrismaAuditStore implements AuditStore {
 
   async lockSessionForWrite(sessionId: number, now: Date): Promise<boolean> {
     // Shared lock: penulis jawaban boleh paralel, tetapi penutupan sesi (UPDATE) menunggu mereka selesai.
-    // `FOR SHARE` membutuhkan MySQL 8.0+ (belum diverifikasi di environment ini).
+    // `LOCK IN SHARE MODE` dipakai (bukan `FOR SHARE`) karena didukung MySQL 5.7/8 sekaligus MariaDB;
+    // `FOR SHARE` hanya ada di MySQL 8.0+ dan menyebabkan syntax error di MariaDB.
     const rows = await this.db.$queryRaw<{ id: number }[]>(
-      Prisma.sql`SELECT id FROM AuditSession WHERE id = ${sessionId} AND status = 'ACTIVE' AND expiresAt > ${now} FOR SHARE`,
+      Prisma.sql`SELECT id FROM AuditSession WHERE id = ${sessionId} AND status = 'ACTIVE' AND expiresAt > ${now} LOCK IN SHARE MODE`,
     );
     return rows.length === 1;
   }
 
-  // --- Auditor dan undangan ---
+  // --- Penugasan akun Auditor (alur aktif) ---
+
+  async createAccountAuditor(data: {
+    sessionId: number;
+    userId: number;
+    name: string;
+    excludedDepartmentIds: number[];
+    now: Date;
+  }): Promise<AuditorRecord> {
+    const row = await unique(() =>
+      this.db.auditor.create({
+        data: {
+          sessionId: data.sessionId,
+          userId: data.userId,
+          name: data.name,
+          // Kolom undangan lama NOT NULL: diisi nilai tak terpakai (hash acak tak terpulihkan, kedaluwarsa, ditandai diklaim).
+          inviteHash: sha256Hex(generateToken()),
+          inviteExpiresAt: data.now,
+          claimedAt: data.now,
+          exclusions: { create: data.excludedDepartmentIds.map((departmentId) => ({ departmentId })) },
+        },
+      }),
+    );
+    return toAuditor(row);
+  }
+
+  async findAuditorByUser(sessionId: number, userId: number): Promise<AuditorRecord | null> {
+    const r = await this.db.auditor.findFirst({ where: { sessionId, userId } });
+    return r ? toAuditor(r) : null;
+  }
+
+  async reinstateAuditor(auditorId: number): Promise<void> {
+    await this.db.auditor.update({ where: { id: auditorId }, data: { revokedAt: null } });
+  }
+
+  async findAuthByUserId(userId: number): Promise<AuthRecord | null> {
+    const rows = await this.db.auditor.findMany({
+      where: { userId, revokedAt: null, session: { status: { in: ["ACTIVE", "CLOSED"] } } },
+      include: { session: true },
+      orderBy: { sessionId: "desc" },
+    });
+    // Sesi ACTIVE terbaru lebih dulu; bila tidak ada, sesi CLOSED terbaru (jendela akses setelah ditutup).
+    const pick = rows.find((r) => r.session.status === "ACTIVE") ?? rows[0];
+    return pick ? { auditor: toAuditor(pick), session: toSession(pick.session) } : null;
+  }
+
+  // --- Auditor dan undangan (LEGACY) ---
 
   async createAuditor(data: {
     sessionId: number;
@@ -260,7 +310,8 @@ export class PrismaAuditStore implements AuditStore {
   async findPasswordLoginAuditor(): Promise<AuthRecord | null> {
     const session = await this.db.auditSession.findFirst({ where: { status: "ACTIVE" }, orderBy: { id: "desc" } });
     if (!session) return null;
-    const r = await this.db.auditor.findFirst({ where: { sessionId: session.id, revokedAt: null }, orderBy: { id: "asc" } });
+    // Fallback lama hanya boleh memakai auditor hasil undangan (userId null), bukan penugasan akun milik orang lain.
+    const r = await this.db.auditor.findFirst({ where: { sessionId: session.id, revokedAt: null, userId: null }, orderBy: { id: "asc" } });
     return r ? { auditor: toAuditor(r), session: toSession(session) } : null;
   }
 
@@ -391,11 +442,22 @@ export class PrismaAuditStore implements AuditStore {
   }
 
   listFindings(assignmentId: number): Promise<FindingRecord[]> {
-    return this.db.finding.findMany({ where: { assignmentId }, orderBy: { seq: "asc" } });
+    return this.db.finding.findMany({ where: { assignmentId, deletedAt: null }, orderBy: { seq: "asc" } });
   }
 
-  findFindingOwned(sessionId: number, auditorId: number, findingId: number): Promise<FindingRecord | null> {
-    return this.db.finding.findFirst({ where: { id: findingId, sessionId, assignment: { auditorId } } });
+  findFindingOwned(sessionId: number, auditorId: number, findingId: number, includeDeleted = false): Promise<FindingRecord | null> {
+    return this.db.finding.findFirst({
+      where: { id: findingId, sessionId, assignment: { auditorId }, ...(includeDeleted ? {} : { deletedAt: null }) },
+    });
+  }
+
+  async softDeleteFinding(findingId: number, auditorId: number, now: Date): Promise<boolean> {
+    // Satu UPDATE bersyarat: hanya satu pemanggil yang menang bila dua permintaan datang bersamaan.
+    const r = await this.db.finding.updateMany({
+      where: { id: findingId, deletedAt: null },
+      data: { deletedAt: now, deletedByAuditorId: auditorId },
+    });
+    return r.count === 1;
   }
 
   async closeFinding(findingId: number, auditorId: number, note: string | null, now: Date): Promise<boolean> {
@@ -415,7 +477,7 @@ export class PrismaAuditStore implements AuditStore {
   }
 
   async countFindings(assignmentId: number): Promise<FindingCount[]> {
-    const rows = await this.db.finding.findMany({ where: { assignmentId }, select: { classification: true, status: true } });
+    const rows = await this.db.finding.findMany({ where: { assignmentId, deletedAt: null }, select: { classification: true, status: true } });
     const map = new Map<string, FindingCount>();
     for (const r of rows) {
       const key = `${r.classification}|${r.status}`;
@@ -432,7 +494,7 @@ export class PrismaAuditStore implements AuditStore {
 
   async listFindingFollowUps(assignmentId: number): Promise<FindingFollowUpRecord[]> {
     const rows = await this.db.finding.findMany({
-      where: { assignmentId },
+      where: { assignmentId, deletedAt: null },
       orderBy: { seq: "asc" },
       select: {
         id: true,
@@ -446,8 +508,36 @@ export class PrismaAuditStore implements AuditStore {
         improvementAction: true,
         improvementPic: true,
         improvementTarget: true,
+        improvementEvidenceUrl: true,
+        auditeeName: true,
+        reportedDate: true,
+        followedUpDate: true,
+        verifiedDate: true,
+        verifierName: true,
+        verificationResult: true,
+        correctionEvidenceUrl: true,
+        correctiveActionEvidenceUrl: true,
       },
     });
     return rows.map(({ id, ...rest }) => ({ findingId: id, ...rest }));
+  }
+
+  async getDocumentHeader(sessionId: number): Promise<DocumentHeader | null> {
+    const r = await this.db.auditDocumentHeader.findUnique({ where: { sessionId } });
+    if (!r) return null;
+    return {
+      organization: r.organization,
+      subtitle: r.subtitle,
+      formTitle: r.formTitle,
+      formCode: r.formCode,
+      revision: r.revision,
+      issuedAt: r.issuedAt,
+    };
+  }
+
+  async saveDocumentHeader(sessionId: number, data: DocumentHeader): Promise<void> {
+    await unique(() =>
+      this.db.auditDocumentHeader.upsert({ where: { sessionId }, create: { sessionId, ...data }, update: data }),
+    );
   }
 }

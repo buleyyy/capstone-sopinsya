@@ -21,6 +21,7 @@ function buildFixture() {
     id: 1,
     title: "Pre-test ISO 37001: 2025",
     type: "PRE",
+    instructions: null,
     questions: Array.from({ length: TOTAL }, (_, i) => ({
       id: i + 1,
       orderNo: i + 1,
@@ -65,7 +66,11 @@ const env = loadEnv({ NODE_ENV: "test" });
 const makeApp = (store?: ParticipantTestStore) =>
   createApp({ env, db: createDatabase(undefined), ...(store ? { participantTests: store } : {}) });
 
-const identity = { participantName: "Budi Santoso", participantInstitution: "BBWS Ciliwung Cisadane" };
+const identity = {
+  participantName: "Budi Santoso",
+  participantInstitution: "BBWS Ciliwung Cisadane",
+  participantEmail: "budi@contoh.test",
+};
 
 /** Jawaban benar untuk soal 1..nCorrect, sisanya sengaja salah atau kosong. */
 function answersFor(key: GradingKey, nCorrect: number, rest: "wrong" | "blank") {
@@ -141,26 +146,30 @@ describe("GET /api/public/programs/:slug/pertemuan/:n/tests/:type", () => {
 });
 
 describe("POST /api/public/tests/:testId/attempts", () => {
-  it("menilai di server dan mengembalikan skor serta hasil per soal", async () => {
-    const { store, key } = memoryStore();
+  it("menilai di server tetapi tidak mengembalikan nilai ke peserta", async () => {
+    const { store, key, attempts } = memoryStore();
     const res = await request(makeApp(store))
       .post("/api/public/tests/1/attempts")
       .send({ ...identity, clientRequestId: "req-00000001", answers: answersFor(key, 2, "wrong") });
     expect(res.status).toBe(201);
-    expect(res.body.data.correctCount).toBe(2);
-    expect(res.body.data.totalQuestions).toBe(TOTAL);
-    expect(res.body.data.score).toBe(20);
-    expect(res.body.data.results).toHaveLength(TOTAL);
-    expect(res.body.data.results.filter((r: { correct: boolean }) => r.correct)).toHaveLength(2);
+    expect(res.body.data).toEqual({ attemptId: 1, totalQuestions: TOTAL, answeredCount: TOTAL });
+    expect(JSON.stringify(res.body)).not.toMatch(/score|correct|results|benar|salah/i);
+    // Nilai tetap dihitung dan disimpan untuk rekap Admin.
+    const stored = attempts.get("1:req-00000001");
+    expect(stored?.correctCount).toBe(2);
+    expect(stored?.score).toBe(20);
+    expect(stored?.results.filter((r) => r.correct)).toHaveLength(2);
   });
 
-  it("soal kosong dihitung salah", async () => {
-    const { store, key } = memoryStore();
+  it("soal kosong dihitung salah (tersimpan) dan tidak dihitung sebagai terjawab", async () => {
+    const { store, key, attempts } = memoryStore();
     const res = await request(makeApp(store))
       .post("/api/public/tests/1/attempts")
       .send({ ...identity, clientRequestId: "req-00000002", answers: answersFor(key, 4, "blank") });
     expect(res.status).toBe(201);
-    expect(res.body.data.score).toBe(40);
+    expect(res.body.data.answeredCount).toBe(4);
+    expect(res.body.data).not.toHaveProperty("score");
+    expect(attempts.get("1:req-00000002")?.score).toBe(40);
   });
 
   it("kirim ganda dengan clientRequestId sama hanya menyimpan satu percobaan", async () => {
@@ -172,6 +181,7 @@ describe("POST /api/public/tests/:testId/attempts", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(200);
     expect(second.body.data.attemptId).toBe(first.body.data.attemptId);
+    expect(JSON.stringify(second.body)).not.toMatch(/score|correct|results/i);
     expect(attempts.size).toBe(1);
   });
 
@@ -182,6 +192,8 @@ describe("POST /api/public/tests/:testId/attempts", () => {
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantName: "   " })).status).toBe(400);
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantInstitution: "" })).status).toBe(400);
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, clientRequestId: "x" })).status).toBe(400);
+    expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantEmail: "bukan-email" })).status).toBe(400);
+    expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantPhone: "08x12" })).status).toBe(400);
   });
 
   it("menolak jawaban dengan soal/opsi asing dan memberi 404 untuk tes tidak ada", async () => {

@@ -1,0 +1,108 @@
+<%- include('_head') %>
+<%
+  var stars = function (avg) { var full = Math.round(avg); var out = ''; for (var i = 1; i <= 5; i++) out += '<svg class="ico star' + (i <= full ? '' : ' off') + '" width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg>'; return out; };
+  var tgl = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' });
+  var icons = { 'silabus': 'pdf', 'materi': 'pdf', 'sop': 'pdf', 'studi-kasus': 'doc', 'pre-test': 'doc', 'post-test': 'doc', 'quiz': 'link', 'video': 'link' };
+%>
+<div class="pd" data-program-slug="<%= program.slug %>" data-program-title="<%= program.fullTitle %>">
+  <div class="container">
+    <section class="pd-hero" aria-labelledby="pd-title">
+      <% if (program.coverUrl) { %><img class="pd-cover pd-cover-img" src="<%= program.coverUrl %>" alt="Sampul <%= program.fullTitle %>"><% } else { %><div class="pd-cover" role="img" aria-label="Ilustrasi program pelatihan"></div><% } %>
+      <div>
+        <a href="/peserta/#program" class="back-link">← Semua Program</a>
+        <h1 id="pd-title" class="pd-title"><%= program.fullTitle %></h1>
+        <p class="pd-trainer"><svg class="ico" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg> Trainer: <%= program.trainer %></p>
+        <p class="pd-desc"><%= program.description %></p>
+        <button type="button" class="btn btn-action" data-join>Ikuti Pelatihan</button>
+      </div>
+    </section>
+
+    <p class="pd-gate">Klik <strong>Ikuti Pelatihan</strong> untuk membuka silabus, materi, tes, dan sumber belajar program ini.</p>
+
+    <div class="pd-acc">
+      <% if (program.meetings.length === 0) { %>
+        <p class="pd-empty-all">Belum ada pertemuan yang dipublikasikan untuk program ini.</p>
+      <% } %>
+      <% sections.forEach(function (s) { %>
+        <details class="pd-sec" id="<%= s.id %>">
+          <summary>
+            <span class="pd-ico" aria-hidden="true"><svg class="ico" width="24" height="24"><use href="#i-book"/></svg></span>
+            <span class="pd-sec-title"><%= s.title %></span>
+            <span class="pd-chev" aria-hidden="true"><svg class="ico" width="18" height="18"><use href="#i-chevron-down"/></svg></span>
+          </summary>
+          <% if (s.rows.length === 0) { %>
+            <p class="pd-empty">Belum ada konten pada bagian ini.</p>
+          <% } else { %>
+            <ul class="pd-rows">
+              <% s.rows.forEach(function (r) { %>
+                <li>
+                  <% if (r.kind === 'off') { %>
+                    <div class="pd-row pd-row-off" aria-disabled="true"><svg class="ico pd-icon pd-icon-<%= icons[s.id] %>" width="30" height="30" aria-hidden="true"><use href="#i-<%= icons[s.id] %>"/></svg><span><%= r.label %></span><small>Belum tersedia</small></div>
+                  <% } else if (r.kind === 'external') { %>
+                    <a class="pd-row" href="<%= r.href %>" target="_blank" rel="noopener noreferrer"><svg class="ico pd-icon pd-icon-<%= icons[s.id] %>" width="30" height="30" aria-hidden="true"><use href="#i-<%= icons[s.id] %>"/></svg><span><%= r.label %></span><svg class="ico pd-row-go" width="18" height="18" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>
+                  <% } else if (r.kind === 'internal') { %>
+                    <a class="pd-row" href="<%= r.href %>"><svg class="ico pd-icon pd-icon-<%= icons[s.id] %>" width="30" height="30" aria-hidden="true"><use href="#i-<%= icons[s.id] %>"/></svg><span><%= r.label %></span><svg class="ico pd-row-go" width="18" height="18" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>
+                  <% } else { %>
+                    <button type="button" class="pd-row" data-test="<%= r.test %>" data-meeting="<%= r.meeting %>"><svg class="ico pd-icon pd-icon-<%= icons[s.id] %>" width="30" height="30" aria-hidden="true"><use href="#i-<%= icons[s.id] %>"/></svg><span><%= r.label %></span><svg class="ico pd-row-go" width="18" height="18" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
+                  <% } %>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </details>
+      <% }) %>
+    </div>
+
+    <section class="pd-reviews" aria-labelledby="pd-rev" id="ulasan">
+      <div class="pd-reviews-top">
+        <div class="pd-reviews-head">
+          <h2 id="pd-rev">Rating &amp; Ulasan</h2>
+          <p>Pengalaman peserta yang telah mengikuti pelatihan ini</p>
+        </div>
+        <% if (reviewSummary.count > 0) { %>
+          <div class="rv-summary"><b><%= reviewSummary.average.toFixed(1) %></b><span><span class="stars"><%- stars(reviewSummary.average) %></span><small><%= reviewSummary.count %> ulasan</small></span></div>
+        <% } %>
+      </div>
+
+      <% if (reviewFlag === 'ok') { %><p class="rv-flash ok" role="status">Terima kasih, ulasan Anda sudah terkirim.</p><% } %>
+      <% if (reviewFlag === 'invalid') { %><p class="rv-flash err" role="alert">Ulasan belum terkirim: pilih rating 1–5 bintang dan tulis ulasan minimal 5 karakter.</p><% } %>
+      <% if (reviewFlag === 'batas') { %><p class="rv-flash err" role="alert">Terlalu banyak ulasan dari perangkat ini. Coba lagi nanti.</p><% } %>
+
+      <% if (reviews.length === 0) { %>
+        <div class="pd-reviews-empty" role="status">Belum ada ulasan untuk program ini. Jadilah yang pertama memberi ulasan.</div>
+      <% } else { %>
+        <ul class="rv-grid">
+          <% reviews.forEach(function (r) { %>
+            <li class="rv-card">
+              <div class="rv-head">
+                <span class="rv-avatar" aria-hidden="true"><svg class="ico" width="20" height="20"><use href="#i-user"/></svg></span>
+                <span class="rv-who"><b><%= r.reviewerName %></b><small><%= tgl.format(r.createdAt) %></small></span>
+                <span class="stars" aria-label="<%= r.rating %> dari 5 bintang"><%- stars(r.rating) %></span>
+              </div>
+              <p><%= r.comment %></p>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+
+      <% if (canReview) { %>
+        <form class="rv-form" method="post" action="/peserta/program/<%= program.slug %>/ulasan">
+          <h3>Tulis Ulasan</h3>
+          <input type="hidden" name="clientRequestId" value="<%= reviewToken %>">
+          <fieldset class="rv-stars">
+            <legend>Rating <span class="req">*</span></legend>
+            <% [5, 4, 3, 2, 1].forEach(function (n) { %>
+              <input type="radio" id="rv-<%= n %>" name="rating" value="<%= n %>" required><label for="rv-<%= n %>" title="<%= n %> bintang"><svg class="ico" width="28" height="28" aria-hidden="true"><use href="#i-star"/></svg><span class="sr-only"><%= n %> bintang</span></label>
+            <% }) %>
+          </fieldset>
+          <label for="rv-name">Nama (opsional)</label>
+          <input id="rv-name" type="text" name="reviewerName" maxlength="120" placeholder="Kosongkan untuk tampil sebagai Anonim">
+          <label for="rv-comment">Ulasan <span class="req">*</span></label>
+          <textarea id="rv-comment" name="comment" rows="4" minlength="5" maxlength="2000" required placeholder="Ceritakan pengalaman Anda mengikuti pelatihan ini"></textarea>
+          <button class="btn btn-primary" type="submit">Kirim Ulasan</button>
+        </form>
+      <% } %>
+    </section>
+  </div>
+</div>
+<%- include('_foot') %>

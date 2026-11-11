@@ -1,0 +1,22 @@
+<%
+  /* Parameter: f = nilai kolom tindak lanjut (boleh berisi null). Nama auditor diambil dari akun (hanya tampil). */
+  var pv = function (k) { return (f && f[k]) ? f[k] : ''; };
+%>
+<div class="au-cols">
+  <div>
+    <label for="auditorNameView">Nama Auditor</label>
+    <input id="auditorNameView" type="text" value="<%= locals.auditorName || '' %>" disabled>
+  </div>
+  <div>
+    <label for="auditeeName">Nama Auditi</label>
+    <input id="auditeeName" type="text" name="auditeeName" maxlength="160" value="<%= pv('auditeeName') %>" placeholder="Contoh: Iqbal Zega">
+  </div>
+  <div>
+    <label for="reportedDate">Tanggal Dilaporkan</label>
+    <input id="reportedDate" type="date" name="reportedDate" value="<%= pv('reportedDate') %>">
+  </div>
+  <div>
+    <label for="followedUpDate">Tanggal Ditindaklanjuti</label>
+    <input id="followedUpDate" type="date" name="followedUpDate" value="<%= pv('followedUpDate') %>">
+  </div>
+</div>

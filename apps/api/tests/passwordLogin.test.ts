@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as admin from "../src/services/adminService.js";
 import { authenticateById, resolvePasswordLogin } from "../src/services/auditService.js";
-import { WebSecurity } from "../src/web/security.js";
+import { WebSecurity } from "../../web/shared/security.js";
 import { MemoryStore } from "./helpers/memoryStore.js";
 import { T0, seed } from "./helpers/seed.js";
 

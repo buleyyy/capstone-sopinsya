@@ -11,8 +11,9 @@
 //  - Semua relasi rantai audit memakai onDelete: Restrict (tidak ada penghapusan beruntun).
 //  - Invarian lintas tabel dijaga foreign key komposit (lihat komentar @@unique "target FK").
 //  - Pre-test/Post-test peserta (Test, TestQuestion, TestOption, TestAttempt, TestAttemptAnswer) ada di schema ini.
-//    Program dan pertemuan masih statis di web, jadi Test diikat lewat programSlug + meetingNo.
-//    Modul RD lama lainnya (katalog pelatihan di basis data, kuis) sengaja TIDAK ada.
+//    Test tetap diikat lewat programSlug + meetingNo (bukan FK) walau Program/Pertemuan kini juga ada di basis
+//    data (TrainingProgram/ProgramMeeting/MeetingResource, dikelola lewat Admin Kelola Program) -- keputusan
+//    2026-11-08: jangan ubah mekanisme tes existing. Modul kuis (RD lama) sengaja TIDAK ada.
 //  - Belum dimodelkan (menunggu konfirmasi klien): tindak lanjut/verifikasi temuan lanjutan,
 //    banyak tautan bukti, skor/persentase audit.
 
@@ -71,6 +72,87 @@ enum TrainingResourceType {
   LINK_LAIN
 }
 
+// ---------- Kelola Program (Admin Course Builder) ----------
+// Program/Pertemuan/Konten sungguhan di basis data (migrasi 20261028120000_training_programs, diterapkan
+// sebelum model ini direkonsiliasi ke schema.prisma). Test/TrainingResource TETAP memakai programSlug/meetingNo
+// (tidak diubah jadi FK) agar mekanisme pre/post-test existing tidak tersentuh, sesuai keputusan 2026-11-08.
+
+enum MeetingResourceType {
+  SOP
+  SYLLABUS
+  MATERIAL
+  CASE_STUDY
+  BLOOKET
+  VIDEO
+}
+
+enum TrainingProgramStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Katalog program (Course Builder Admin). isPublished dipertahankan dan disinkronkan oleh service dari `status`
+// (status = PUBLISHED) agar baris lama/ekspektasi lama tidak patah; `status` adalah sumber kebenaran lifecycle.
+model TrainingProgram {
+  id          Int                   @id @default(autoincrement())
+  slug        String                @unique @db.VarChar(80)
+  code        String                @db.VarChar(10)
+  title       String                @db.VarChar(80)
+  fullTitle   String                @db.VarChar(120)
+  subtitle    String                @db.VarChar(160)
+  summary     String                @db.VarChar(300)
+  description String                @db.Text
+  duration    String                @db.VarChar(40)
+  mode        String                @db.VarChar(40)
+  trainer     String                @db.VarChar(120)
+  category    String                @db.VarChar(60)
+  tone        String                @default("blue") @db.VarChar(10)
+  sortOrder   Int                   @default(0)
+  isPublished Boolean               @default(false)
+  status      TrainingProgramStatus @default(DRAFT)
+  coverUrl    String?               @db.VarChar(255) // /berkas/<id>/<nama> (unggahan Admin) atau https://
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  meetings    ProgramMeeting[]
+  reviews     ProgramReview[]
+  caseStudies CaseStudySubmission[]
+
+  @@index([isPublished, sortOrder])
+  @@index([status, sortOrder])
+}
+
+model ProgramMeeting {
+  id          Int               @id @default(autoincrement())
+  programId   Int
+  number      Int
+  title       String            @db.VarChar(160)
+  sortOrder   Int               @default(0)
+  isPublished Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  program     TrainingProgram   @relation(fields: [programId], references: [id], onDelete: Restrict)
+  resources   MeetingResource[]
+
+  @@unique([programId, number])
+  @@index([programId, isPublished, sortOrder])
+}
+
+model MeetingResource {
+  id          Int                 @id @default(autoincrement())
+  meetingId   Int
+  type        MeetingResourceType
+  title       String              @db.VarChar(200)
+  url         String              @db.VarChar(1024)
+  sortOrder   Int                 @default(0)
+  isPublished Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  meeting     ProgramMeeting      @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+
+  @@index([meetingId, type, isPublished, sortOrder])
+}
+
 // Satu tes per jenis per pertemuan. Program/pertemuan belum ada di basis data, jadi diikat lewat slug + nomor.
 model Test {
   id          Int            @id @default(autoincrement())
@@ -78,6 +160,8 @@ model Test {
   meetingNo   Int
   type        TestType
   title       String         @db.VarChar(160)
+  instructions String?       @db.Text // petunjuk pengerjaan untuk peserta
+  shuffleQuestions Boolean   @default(false) // acak urutan soal setiap kali peserta membuka tes
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -120,6 +204,10 @@ model TestAttempt {
   testId                 Int
   participantName        String              @db.VarChar(120)
   participantInstitution String              @db.VarChar(160)
+  participantEmail       String?             @db.VarChar(160)
+  participantPosition    String?             @db.VarChar(120) // jabatan
+  participantPhone       String?             @db.VarChar(30)
+  deletedAt              DateTime? // dihapus Admin dari rekap (jawaban tetap tersimpan)
   clientRequestId        String              @db.VarChar(64) // kunci idempotensi: klik Selesai ganda = satu percobaan
   correctCount           Int
   totalQuestions         Int
@@ -163,6 +251,62 @@ model TrainingResource {
   updatedAt   DateTime             @updatedAt
 
   @@index([programSlug, meetingNo, isPublished, sortOrder])
+}
+
+// ---------- Konten situs (diedit Admin lewat /admin/pengaturan) ----------
+// key "about" = halaman Tentang Kami peserta. Migrasi 20261111120000_site_content (aditif).
+/// Berkas unggahan situs pelatihan: sampul program & materi (publik), serta tugas studi kasus peserta (hanya Admin).
+model StoredFile {
+  id          Int      @id @default(autoincrement())
+  purpose     String   @db.VarChar(20) // COVER | MATERIAL | CASE_STUDY
+  fileName    String   @db.VarChar(200)
+  contentType String   @db.VarChar(100)
+  sizeBytes   Int
+  data        Bytes    @db.LongBlob
+  createdAt   DateTime @default(now())
+  caseStudies CaseStudySubmission[]
+
+  @@index([purpose])
+}
+
+/// Rating & ulasan peserta untuk satu program. Admin dapat menyembunyikan ulasan (isVisible=false).
+model ProgramReview {
+  id              Int             @id @default(autoincrement())
+  programId       Int
+  reviewerName    String          @db.VarChar(120)
+  rating          Int // 1..5
+  comment         String          @db.Text
+  isVisible       Boolean         @default(true)
+  clientRequestId String          @db.VarChar(64)
+  createdAt       DateTime        @default(now())
+  program         TrainingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, clientRequestId])
+  @@index([programId, isVisible, createdAt])
+}
+
+/// Tugas studi kasus yang diunggah peserta untuk satu pertemuan program.
+model CaseStudySubmission {
+  id                     Int             @id @default(autoincrement())
+  programId              Int
+  meetingNo              Int
+  participantName        String          @db.VarChar(120)
+  participantInstitution String          @db.VarChar(160)
+  participantEmail       String?         @db.VarChar(160)
+  fileId                 Int
+  submittedAt            DateTime        @default(now())
+  deletedAt              DateTime?
+  program                TrainingProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+  file                   StoredFile      @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([programId, submittedAt])
+  @@index([fileId])
+}
+
+model SiteContent {
+  key       String   @id @db.VarChar(60)
+  value     Json
+  updatedAt DateTime @updatedAt
 }
 
 // ---------- Master data ----------
@@ -250,19 +394,43 @@ model ChecklistItem {
 
 // ---------- Sesi, auditor, penugasan ----------
 
+enum UserRole {
+  ADMIN
+  AUDITOR
+}
+
+// Akun internal Admin/Auditor. Sumber autentikasi utama; kata sandi disimpan sebagai hash bcrypt (tidak pernah plaintext).
+model UserAccount {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(160) // disimpan huruf kecil
+  name         String    @db.VarChar(120)
+  passwordHash String    @db.VarChar(100)
+  role         UserRole
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  auditors     Auditor[] // penugasan ke sesi audit (hanya akun role AUDITOR)
+
+  @@index([role, isActive])
+}
+
 model AuditSession {
   id                 Int               @id @default(autoincrement())
   title              String            @db.VarChar(160)
-  checklistVersionId Int // versi checklist tetap untuk sesi ini
+  checklistVersionId Int? // OPSIONAL: sesi tidak lagi wajib memakai Master Checklist (null = tanpa checklist)
   status             SessionStatus     @default(DRAFT)
   expiresAt          DateTime // batas waktu PENULISAN
   closedAt           DateTime?
   auditorAccessUntil DateTime? // jendela akses auditor setelah CLOSED; null = tidak ada akses
   findingSeq         Int               @default(0) // penghitung nomor temuan per sesi
   createdAt          DateTime          @default(now())
-  checklistVersion   ChecklistVersion  @relation(fields: [checklistVersionId], references: [id], onDelete: Restrict)
+  checklistVersion   ChecklistVersion? @relation(fields: [checklistVersionId], references: [id], onDelete: Restrict)
   auditors           Auditor[]
   assignments        AuditAssignment[]
+
+  documentHeader     AuditDocumentHeader?
+  evidenceFiles      AuditEvidenceFile[]
 
   @@index([status, expiresAt])
   @@index([checklistVersionId])
@@ -286,9 +454,14 @@ model Auditor {
   session         AuditSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   assignments     AuditAssignment[]
   exclusions      AuditorExclusion[]
+  // Penugasan akun (pengganti undangan). Null = auditor lama hasil undangan (data historis, tidak dihapus).
+  userId          Int?
+  account         UserAccount?            @relation(fields: [userId], references: [id], onDelete: Restrict)
   statusChanges   FindingStatusHistory[]
 
   @@unique([id, sessionId]) // target FK: penugasan hanya boleh menunjuk auditor dari sesi yang sama
+  @@unique([sessionId, userId]) // satu akun hanya sekali per sesi (NULL pada data lama tidak bentrok)
+  @@index([userId])
   @@index([sessionId])
 }
 
@@ -323,7 +496,36 @@ model AuditAssignment {
   @@index([departmentId])
 }
 
+// Header formulir Laporan Ketidaksesuaian dan Tindakan Korektif, dapat diubah Auditor (satu baris per sesi).
+model AuditDocumentHeader {
+  id           Int          @id @default(autoincrement())
+  sessionId    Int          @unique
+  organization String       @db.VarChar(160)
+  subtitle     String       @db.VarChar(200)
+  formTitle    String       @db.VarChar(200)
+  formCode     String       @db.VarChar(40)
+  revision     String       @db.VarChar(40)
+  issuedAt     String       @db.VarChar(40)
+  updatedAt    DateTime     @updatedAt
+  session      AuditSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+}
+
 // ---------- Hasil audit ----------
+
+// Berkas bukti yang diunggah Auditor (foto, PDF, Excel/Word). Disimpan di database agar ikut cadangan dan tidak
+// bergantung pada disk server. Hanya dapat dibaca auditor pada sesi yang sama (dicek di rute /auditor/bukti).
+model AuditEvidenceFile {
+  id          Int          @id @default(autoincrement())
+  sessionId   Int
+  fileName    String       @db.VarChar(200)
+  contentType String       @db.VarChar(100)
+  sizeBytes   Int
+  data        Bytes        @db.LongBlob
+  createdAt   DateTime     @default(now())
+  session     AuditSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId])
+}
 
 model ChecklistAnswer {
   id           Int             @id @default(autoincrement())
@@ -375,6 +577,19 @@ model Finding {
   improvementAction      String?           @db.Text
   improvementPic         String?           @db.VarChar(160)
   improvementTarget      String?           @db.VarChar(80)
+  improvementEvidenceUrl String?           @db.VarChar(1024) // bukti tindakan peningkatan (Observasi): berkas unggahan atau https
+  // Register temuan (desain Audit): auditee, tanggal formulir (YYYY-MM-DD), verifikasi, dan tautan bukti tindakan (https).
+  auditeeName            String?           @db.VarChar(160)
+  reportedDate           String?           @db.VarChar(10)
+  followedUpDate         String?           @db.VarChar(10)
+  verifiedDate           String?           @db.VarChar(10)
+  verifierName           String?           @db.VarChar(160)
+  verificationResult     String?           @db.Text
+  correctionEvidenceUrl  String?           @db.VarChar(1024)
+  correctiveActionEvidenceUrl String?      @db.VarChar(1024)
+  // Hapus lunak: baris tetap ada (nomor temuan tidak dipakai ulang), tetapi tidak tampil di daftar, hitungan, dan cetak.
+  deletedAt              DateTime?
+  deletedByAuditorId     Int? // bukan FK: jejak penghapus bertahan walau penugasan auditor dicabut
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   // FK komposit: penugasan harus berada di sesi yang sama dengan temuan.

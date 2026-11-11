@@ -1,0 +1,104 @@
+<%
+  /* Parameter: f = nilai kolom (objek, boleh berisi null), mode = 'all' | 'capa' | 'obs', showStatus = tampilkan pilihan status.
+     Nama auditi dan tanggal formulir ada di partial followup-parties. */
+  var v = function (k) { return (f && f[k]) ? f[k] : ''; };
+  var showCapa = mode !== 'obs';
+  var showObs = mode !== 'capa';
+  var withStatus = typeof showStatus !== 'undefined' && showStatus;
+%>
+<% if (showCapa) { %>
+<div class="fu-capa">
+  <label for="rootCause">Akar Penyebab Ketidaksesuaian (Root Cause)</label>
+  <textarea id="rootCause" name="rootCause" maxlength="4000" placeholder="Contoh: Belum memahami SOP Pengelolaan Fasilitas dan Kondisi Lingkungan No SOP.03..."><%= v('rootCause') %></textarea>
+
+  <div class="au-box">
+    <h4><i class="dot"></i>Perbaikan / Koreksi (Tindakan Langsung)</h4>
+    <textarea id="correction" name="correction" maxlength="4000" aria-label="Uraian perbaikan / koreksi" placeholder="Uraian tindakan koreksi yang dilakukan langsung..."><%= v('correction') %></textarea>
+    <div class="au-cols">
+      <div>
+        <label for="correctionPic">Pelaksana (PIC)</label>
+        <input id="correctionPic" type="text" name="correctionPic" maxlength="160" value="<%= v('correctionPic') %>" placeholder="Contoh: Tim Laboratorium Beton">
+      </div>
+      <div>
+        <label for="correctionTarget">Target Selesai</label>
+        <input id="correctionTarget" type="text" name="correctionTarget" maxlength="80" value="<%= v('correctionTarget') %>" placeholder="Contoh: Januari 2024">
+      </div>
+      <div class="wide">
+        <label for="correctionEvidenceUrl">Lampiran Bukti Perbaikan / Koreksi (unggah berkas atau tempel tautan https://)</label>
+        <input id="correctionEvidenceUrl" type="text" inputmode="url" name="correctionEvidenceUrl" maxlength="1024" value="<%= v('correctionEvidenceUrl') %>" placeholder="https://drive.google.com/...">
+        <%- include('attach', { target: 'correctionEvidenceUrl', label: 'Pilih Bukti Koreksi' }) %>
+      </div>
+    </div>
+  </div>
+
+  <div class="au-box">
+    <h4><i class="dot"></i>Tindakan Perbaikan / Korektif (Pencegahan Berulang)</h4>
+    <textarea id="correctiveAction" name="correctiveAction" maxlength="4000" aria-label="Uraian tindakan korektif" placeholder="Tindakan sistemik untuk mengeliminasi akar penyebab masalah..."><%= v('correctiveAction') %></textarea>
+    <div class="au-cols">
+      <div>
+        <label for="correctiveActionPic">Pelaksana (PIC)</label>
+        <input id="correctiveActionPic" type="text" name="correctiveActionPic" maxlength="160" value="<%= v('correctiveActionPic') %>">
+      </div>
+      <div>
+        <label for="correctiveActionTarget">Target Selesai</label>
+        <input id="correctiveActionTarget" type="text" name="correctiveActionTarget" maxlength="80" value="<%= v('correctiveActionTarget') %>" placeholder="Contoh: April 2024">
+      </div>
+      <div class="wide">
+        <label for="correctiveActionEvidenceUrl">Lampiran Bukti Tindakan Korektif (SOP / Sertifikat / Rekaman; unggah berkas atau tempel tautan https://)</label>
+        <input id="correctiveActionEvidenceUrl" type="text" inputmode="url" name="correctiveActionEvidenceUrl" maxlength="1024" value="<%= v('correctiveActionEvidenceUrl') %>" placeholder="https://drive.google.com/...">
+        <%- include('attach', { target: 'correctiveActionEvidenceUrl', label: 'Pilih Bukti Tindakan' }) %>
+        <p class="hint">Berkas diunggah ke sistem (maks 5 MB), atau tempel tautan https bila bukti ada di Drive.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<% if (showObs) { %>
+<div class="au-box obs fu-obs">
+  <h4><i class="dot"></i>Tindakan Peningkatan (Opportunity for Improvement) <span class="au-tag">Observasi: Tanpa Akar Masalah &amp; Koreksi</span></h4>
+  <p class="hint">Temuan observasi tidak memerlukan identifikasi akar penyebab dan tindakan korektif, melainkan cukup dirumuskan Tindakan Peningkatan untuk optimalisasi sistem.</p>
+  <label for="improvementAction">Rencana Tindakan Peningkatan</label>
+  <textarea id="improvementAction" name="improvementAction" maxlength="4000"><%= v('improvementAction') %></textarea>
+  <div class="au-cols">
+    <div>
+      <label for="improvementPic">Pelaksana (PIC)</label>
+      <input id="improvementPic" type="text" name="improvementPic" maxlength="160" value="<%= v('improvementPic') %>">
+    </div>
+    <div>
+      <label for="improvementTarget">Target Selesai</label>
+      <input id="improvementTarget" type="text" name="improvementTarget" maxlength="80" value="<%= v('improvementTarget') %>" placeholder="Contoh: April 2024">
+    </div>
+    <div class="wide">
+      <label for="improvementEvidenceUrl">Lampiran Bukti Tindakan Peningkatan (unggah berkas atau tempel tautan https://)</label>
+      <input id="improvementEvidenceUrl" type="text" inputmode="url" name="improvementEvidenceUrl" maxlength="1024" value="<%= v('improvementEvidenceUrl') %>" placeholder="https://drive.google.com/...">
+      <%- include('attach', { target: 'improvementEvidenceUrl', label: 'Pilih Bukti Peningkatan' }) %>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<div class="au-cols au-verify">
+  <% if (withStatus) { %>
+  <div>
+    <label for="status">Status Verifikasi Tindakan</label>
+    <select id="status" name="status">
+      <option value="OPEN" <%= (f && f.status === 'CLOSED') ? '' : 'selected' %>>Open (Belum Efektif / Belum Selesai)</option>
+      <option value="CLOSED" <%= (f && f.status === 'CLOSED') ? 'selected' : '' %>>Closed (Efektif / Selesai)</option>
+    </select>
+  </div>
+  <% } %>
+  <div<%- withStatus ? '' : ' class="wide"' %>>
+    <label for="verificationResult">Catatan Auditor Verifikator</label>
+    <input id="verificationResult" type="text" name="verificationResult" maxlength="4000" value="<%= v('verificationResult') %>" placeholder="Contoh: Telah diverifikasi dan bukti pemenuhan memadai">
+  </div>
+  <div>
+    <label for="verifierName">Nama Verifikator</label>
+    <input id="verifierName" type="text" name="verifierName" maxlength="160" value="<%= v('verifierName') %>">
+  </div>
+  <div>
+    <label for="verifiedDate">Tanggal Diverifikasi</label>
+    <input id="verifiedDate" type="date" name="verifiedDate" value="<%= v('verifiedDate') %>">
+  </div>
+</div>
+<% if (!withStatus) { %><p class="hint">Status Closed/Open diubah lewat tombol Tutup temuan di bawah, bukan lewat isian ini.</p><% } %>

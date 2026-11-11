@@ -1,0 +1,47 @@
+<%# Modal "Pengaturan Header Dokumen": ditampilkan di atas Cetak Hasil (di-include oleh cetak.ejs bila headerModal). %>
+<div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="h-title">
+  <div class="au-modal-card narrow">
+    <div class="au-modal-head">
+      <div>
+        <h2 id="h-title">Pengaturan Header Dokumen</h2>
+        <small>Ubah identitas formulir yang tampil pada hasil cetak</small>
+      </div>
+      <a class="au-modal-close" href="/auditor/cetak" aria-label="Tutup"><svg class="icon"><use href="#i-x"/></svg></a>
+    </div>
+    <form class="au-form" method="post" action="/auditor/cetak/header">
+      <div class="au-modal-body">
+        <% if (errors.length > 0) { %>
+          <div class="alert error">
+            <strong>Header belum tersimpan:</strong>
+            <ul><% errors.forEach(function (er) { %><li><% if (er.path) { %><code><%= er.path %></code>: <% } %><%= er.message %></li><% }) %></ul>
+          </div>
+        <% } %>
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label for="organization">Nama Laboratorium / Instansi <span class="req">*</span></label>
+        <input id="organization" type="text" name="organization" required maxlength="160" value="<%= form.organization %>" placeholder="Contoh: Laboratorium BBWS">
+        <label for="subtitle">Nama Jenis &amp; Acuan <span class="req">*</span></label>
+        <input id="subtitle" type="text" name="subtitle" required maxlength="200" value="<%= form.subtitle %>" placeholder="Contoh: Sistem Manajemen Mutu ISO 17025">
+        <label for="formTitle">Nama Formulir <span class="req">*</span></label>
+        <input id="formTitle" type="text" name="formTitle" required maxlength="200" value="<%= form.formTitle %>" placeholder="Contoh: Laporan Ketidaksesuaian dan Tindakan Korektif">
+        <div class="au-cols three">
+          <div>
+            <label for="formCode">Nomor Dokumen</label>
+            <input id="formCode" type="text" name="formCode" required maxlength="40" value="<%= form.formCode %>">
+          </div>
+          <div>
+            <label for="revision">Revisi</label>
+            <input id="revision" type="text" name="revision" required maxlength="40" value="<%= form.revision %>">
+          </div>
+          <div>
+            <label for="issuedAt">Tanggal Terbit</label>
+            <input id="issuedAt" type="text" name="issuedAt" maxlength="40" value="<%= form.issuedAt %>" placeholder="mis. 2 September 2023">
+          </div>
+        </div>
+      </div>
+      <div class="au-modal-foot">
+        <a class="btn secondary" href="/auditor/cetak">Batal</a>
+        <button class="btn" type="submit">Simpan Header</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type {
   AttemptResult,
@@ -8,6 +9,16 @@ import type {
   SubmitAttemptInput,
   TestKind,
 } from "../domain/participantTest.js";
+
+/** Fisher-Yates dengan crypto.randomInt; mengembalikan salinan. */
+function shuffle<T>(items: readonly T[]): T[] {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
 
 /**
  * Implementasi Pre/Post-test dengan Prisma. Kunci jawaban (isCorrect) hanya dibaca di getGradingKey
@@ -25,6 +36,8 @@ export class PrismaParticipantTestStore implements ParticipantTestStore {
         id: true,
         title: true,
         type: true,
+        instructions: true,
+        shuffleQuestions: true,
         questions: {
           where: { isActive: true },
           orderBy: [{ orderNo: "asc" }, { id: "asc" }],
@@ -38,7 +51,9 @@ export class PrismaParticipantTestStore implements ParticipantTestStore {
       },
     });
     if (!row || row.questions.length === 0) return null;
-    return { id: row.id, title: row.title, type: row.type, questions: row.questions };
+    // "Acak urutan soal": urutan diacak setiap kali soal diminta (penilaian memakai id soal, jadi tetap benar).
+    const questions = row.shuffleQuestions ? shuffle(row.questions) : row.questions;
+    return { id: row.id, title: row.title, type: row.type, instructions: row.instructions?.trim() || null, questions };
   }
 
   async getGradingKey(testId: number): Promise<GradingKey | null> {
@@ -95,6 +110,9 @@ export class PrismaParticipantTestStore implements ParticipantTestStore {
           testId,
           participantName: input.participantName,
           participantInstitution: input.participantInstitution,
+          participantEmail: input.participantEmail || null,
+          participantPosition: input.participantPosition || null,
+          participantPhone: input.participantPhone || null,
           clientRequestId: input.clientRequestId,
           correctCount: graded.correctCount,
           totalQuestions: graded.totalQuestions,

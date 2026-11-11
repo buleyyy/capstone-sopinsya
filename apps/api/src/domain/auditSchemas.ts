@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../utils/errors.js";
+import { LOCAL_EVIDENCE_PATH } from "./evidenceFile.js";
 
 // Harus identik dengan enum di prisma/schema.prisma (dijaga oleh tests/auditSchemas.test.ts).
 export const ANSWER_RESULTS = ["YA", "TIDAK"] as const;
@@ -26,7 +27,10 @@ const optionalText = (max: number) =>
 
 export const idSchema = id;
 
-/** Tautan bukti: hanya https dan tanpa kredensial di dalam URL. Kosong dianggap tidak ada. */
+/**
+ * Tautan bukti: URL https tanpa kredensial, atau tautan lokal ke berkas yang diunggah (/auditor/bukti/<id>/<nama>).
+ * Kosong dianggap tidak ada.
+ */
 const evidenceUrl = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
   z
@@ -34,13 +38,30 @@ const evidenceUrl = z.preprocess(
     .trim()
     .max(1024)
     .refine((v) => {
+      if (LOCAL_EVIDENCE_PATH.test(v)) return true;
       try {
         const u = new URL(v);
         return u.protocol === "https:" && u.username === "" && u.password === "";
       } catch {
         return false;
       }
-    }, "Tautan bukti harus berupa URL https:// tanpa kredensial")
+    }, "Tautan bukti harus berupa URL https:// tanpa kredensial, atau berkas yang diunggah")
+    .nullish()
+    .transform((v) => v ?? null),
+);
+
+/** Tanggal formulir YYYY-MM-DD (input type=date). Kosong dianggap tidak ada. */
+const optionalDate = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal harus berformat TTTT-BB-HH")
+    .refine((v) => {
+      // Round-trip: V8 menggeser tanggal seperti 2026-02-31 menjadi 2026-03-03, jadi hasilnya harus sama dengan input.
+      const d = new Date(`${v}T00:00:00Z`);
+      return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+    }, "Tanggal tidak valid")
     .nullish()
     .transform((v) => v ?? null),
 );
@@ -90,6 +111,25 @@ export const followUpSchema = z.object({
   improvementAction: optionalText(4000),
   improvementPic: optionalText(160),
   improvementTarget: optionalText(80),
+  improvementEvidenceUrl: evidenceUrl,
+  auditeeName: optionalText(160),
+  reportedDate: optionalDate,
+  followedUpDate: optionalDate,
+  verifiedDate: optionalDate,
+  verifierName: optionalText(160),
+  verificationResult: optionalText(4000),
+  correctionEvidenceUrl: evidenceUrl,
+  correctiveActionEvidenceUrl: evidenceUrl,
+});
+
+/** Header formulir Laporan Ketidaksesuaian dan Tindakan Korektif (Auditor boleh mengubah). */
+export const documentHeaderSchema = z.object({
+  organization: text(160),
+  subtitle: text(200),
+  formTitle: text(200),
+  formCode: text(40),
+  revision: text(40),
+  issuedAt: z.string().trim().max(40).default(""),
 });
 
 // ---------- Admin ----------
@@ -116,7 +156,8 @@ export const versionRefSchema = z.object({ versionId: id });
 
 export const createSessionSchema = z.object({
   title: text(160),
-  checklistVersionId: id,
+  // OPSIONAL: sesi tidak lagi wajib memakai Master Checklist.
+  checklistVersionId: id.nullish().transform((v) => v ?? null),
   expiresAt: z.coerce.date(),
 });
 
@@ -170,6 +211,58 @@ export const auditorRefSchema = z.object({
 });
 
 export const createAssignmentSchema = z.object({ sessionId: id, auditorId: id, departmentId: id });
+
+// ---------- Akun (autentikasi internal) ----------
+
+export const USER_ROLES = ["ADMIN", "AUDITOR"] as const;
+export type UserRoleName = (typeof USER_ROLES)[number];
+
+const accountEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, "Email terlalu pendek")
+  .max(160)
+  .regex(/^[^\s@]+@[^\s@]+$/, "Format email tidak valid");
+
+/** bcrypt hanya memakai 72 byte pertama, sehingga batas atas dinyatakan dalam byte. */
+export const passwordSchema = z
+  .string()
+  .min(10, "Kata sandi minimal 10 karakter")
+  .refine((v) => Buffer.byteLength(v, "utf8") <= 72, "Kata sandi maksimal 72 byte");
+
+/** Kosong = dibuatkan otomatis oleh sistem. */
+const optionalPassword = z.preprocess((v) => (typeof v === "string" && v === "" ? undefined : v), passwordSchema.optional());
+
+export const createAccountSchema = z.object({ email: accountEmail, name: text(120), password: optionalPassword });
+export const updateAccountSchema = z.object({ accountId: id, email: accountEmail, name: text(120) });
+export const accountRefSchema = z.object({ accountId: id });
+export const setAccountActiveSchema = z.object({ accountId: id, isActive: z.boolean() });
+export const resetPasswordSchema = z.object({ accountId: id, password: optionalPassword });
+export const bootstrapAdminSchema = z.object({
+  email: accountEmail,
+  name: text(120).default("Administrator"),
+  password: z.string().min(12, "Kata sandi Admin awal minimal 12 karakter").refine((v) => Buffer.byteLength(v, "utf8") <= 72, "Kata sandi maksimal 72 byte"),
+});
+
+/** Penugasan akun Auditor ke sesi; pengecualian self-audit tetap wajib dinyatakan eksplisit. */
+export const assignAccountSchema = z
+  .object({
+    sessionId: id,
+    accountId: id,
+    excludeDepartmentIds: z.array(id).max(50).default([]),
+    noExclusions: z.boolean().default(false),
+  })
+  .superRefine((v, ctx) => {
+    const hasList = v.excludeDepartmentIds.length > 0;
+    if (hasList === v.noExclusions) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["excludeDepartmentIds"],
+        message: "Tentukan tepat satu: daftar unit terlarang (excludeDepartmentIds) atau noExclusions",
+      });
+    }
+  });
 
 export type ClaimInput = z.output<typeof claimSchema>;
 export type SaveAnswerInput = z.output<typeof saveAnswerSchema>;
