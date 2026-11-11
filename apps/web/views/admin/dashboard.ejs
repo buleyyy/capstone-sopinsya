@@ -1,0 +1,93 @@
+<%- include('../partials/header', { nav: 'dashboard' }) %>
+
+<div class="au-switch">
+  <a class="au-switch-btn" href="/admin/audit">Masuk ke Dashboard Audit<svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down"/></svg></a>
+</div>
+
+<section class="au-hero">
+  <span class="au-chip"><span class="au-dot" aria-hidden="true"></span>Selamat datang</span>
+  <h1>Dashboard Admin</h1>
+  <p>Pantau program pelatihan, data peserta, program aktif, dan performa peserta secara real-time.</p>
+</section>
+
+<div class="au-stats">
+  <div class="au-stat">
+    <div class="body">
+      <div class="label">Total Program</div>
+      <span class="au-stat-ico violet" aria-hidden="true"><svg class="icon sm"><use href="#i-list"/></svg></span>
+      <div class="num"><%= cards.programTotal %></div>
+    </div>
+    <div class="foot neutral blank"></div>
+  </div>
+  <div class="au-stat">
+    <div class="body">
+      <div class="label">Program Terbit</div>
+      <span class="au-stat-ico green" aria-hidden="true"><svg class="icon sm"><use href="#i-check"/></svg></span>
+      <div class="num"><%= cards.published %></div>
+    </div>
+    <div class="foot ok blank"></div>
+  </div>
+  <div class="au-stat">
+    <div class="body">
+      <div class="label">Program Nonaktif</div>
+      <span class="au-stat-ico red" aria-hidden="true"><svg class="icon sm"><use href="#i-alert"/></svg></span>
+      <div class="num"><%= cards.inactive %></div>
+    </div>
+    <div class="foot major blank"></div>
+  </div>
+  <div class="au-stat">
+    <div class="body">
+      <div class="label">Jumlah Peserta</div>
+      <span class="au-stat-ico violet" aria-hidden="true"><svg class="icon sm"><use href="#i-user"/></svg></span>
+      <div class="num"><%= cards.participants %></div>
+    </div>
+    <div class="foot neutral blank"></div>
+  </div>
+  <div class="au-stat">
+    <div class="body">
+      <div class="label">Bank Soal</div>
+      <span class="au-stat-ico amber" aria-hidden="true"><svg class="icon sm"><use href="#i-file"/></svg></span>
+      <div class="num"><%= cards.tests %><small><%= cards.pre %> pre-test / <%= cards.post %> post-test</small></div>
+    </div>
+    <div class="foot minor blank"></div>
+  </div>
+</div>
+
+<div class="ad-split">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="card-title">
+        <h3>Konten yang dikelola</h3>
+        <p class="muted small">Setiap modul admin mengubah halaman peserta berikut.</p>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table class="au-table ad-content">
+        <thead><tr><th>Nama Program</th><th>Data</th><th>Tampil di Halaman Peserta</th></tr></thead>
+        <tbody>
+          <% content.forEach(function (c) { %>
+            <tr>
+              <td><a class="ad-link" href="<%= c.href %>"><%= c.label %></a></td>
+              <td><%= c.count === null ? '—' : c.count %></td>
+              <td class="muted"><%= c.page %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card ad-rating">
+    <h3>Rating tampil</h3>
+    <p class="muted small">Dari 0 ulasan yang sudah tampil</p>
+    <div class="ad-rating-score"><b>–</b><span class="ad-stars" aria-hidden="true">★★★★★</span></div>
+    <ul class="ad-rating-bars">
+      <% [5, 4, 3, 2, 1].forEach(function (n) { %>
+        <li><span><%= n %></span><span class="star" aria-hidden="true">★</span><progress max="100" value="0" aria-label="<%= n %> bintang: 0 ulasan"></progress><span>0</span></li>
+      <% }) %>
+    </ul>
+    <p class="muted small">Rating dan ulasan peserta akan dihitung di sini setelah fitur penyimpanan ulasan tersedia.</p>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WebSecurity } from "../src/web/security.js";
+import { WebSecurity } from "../../web/shared/security.js";
 
 const make = (over: { adminPassword?: string | undefined } = {}) =>
   new WebSecurity({ secret: "s".repeat(32), production: false, adminPassword: "kata-sandi-admin-123", ...over });

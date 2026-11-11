@@ -4,6 +4,7 @@ import {
   closeFindingSchema,
   createFindingSchema,
   followUpSchema,
+  documentHeaderSchema,
   idSchema,
   parseInput,
   saveAnswerSchema,
@@ -17,6 +18,7 @@ import type {
   AuditorRecord,
   ChecklistItemDetail,
   ChecklistItemRecord,
+  DocumentHeader,
   FindingFollowUp,
   FindingFollowUpRecord,
   FindingHistoryRecord,
@@ -35,7 +37,8 @@ import { AppError } from "../utils/errors.js";
 export interface AuditContext {
   sessionId: number;
   auditorId: number;
-  checklistVersionId: number;
+  /** null = sesi tanpa Master Checklist. */
+  checklistVersionId: number | null;
   session: SessionRecord;
 }
 
@@ -108,6 +111,24 @@ export async function resolvePasswordLogin(store: AuditStore, now: Date = new Da
   return toContext(found);
 }
 
+/**
+ * Mengenali pemanggil dari akun database (cookie akun). Hanya penugasan MILIK akun ini yang dipertimbangkan, sehingga
+ * Auditor tidak pernah melihat sesi yang tidak ditugaskan kepadanya. Aktif/role akun diperiksa pemanggil (middleware).
+ * Tidak ada penugasan pada sesi ACTIVE (atau CLOSED yang masih berjendela akses) -> 409.
+ */
+export async function resolveAccountContext(store: AuditStore, userId: number, now: Date = new Date()): Promise<AuditContext> {
+  const found = await store.findAuthByUserId(userId);
+  if (!found) {
+    throw new AppError(
+      409,
+      "NO_ASSIGNED_AUDIT_SESSION",
+      "Belum ada sesi audit aktif yang ditugaskan kepada akun ini. Minta Admin menugaskan akun Anda ke sesi.",
+    );
+  }
+  assertCanAccess(found.session, now);
+  return toContext(found);
+}
+
 /** Mengenali pemanggil dari id auditor pada cookie bertanda tangan. Status sesi dibaca ulang pada setiap request. */
 export async function authenticateById(store: AuditStore, auditorId: number, now: Date = new Date()): Promise<AuditContext> {
   const found = await store.findAuthByAuditorId(auditorId);
@@ -171,8 +192,10 @@ export interface ChecklistEntry extends ChecklistItemRecord {
 /** Checklist = item dari versi yang terikat pada sesi, untuk unit penugasan, digabung jawaban. */
 export async function getChecklist(store: AuditStore, ctx: AuditContext, assignmentId: number): Promise<ChecklistEntry[]> {
   const assignment = await loadOwnAssignment(store, ctx, assignmentId);
+  const versionId = ctx.checklistVersionId;
+  if (versionId === null) return []; // sesi tanpa Master Checklist
   const [items, answers] = await Promise.all([
-    store.listItems(ctx.checklistVersionId, assignment.departmentId),
+    store.listItems(versionId, assignment.departmentId),
     store.listAnswers(assignment.id),
   ]);
   const byItem = new Map(answers.map((a) => [a.itemId, a]));
@@ -219,6 +242,9 @@ export async function saveAnswer(
   assertCanWrite(ctx.session, now); // early fail; pemeriksaan sebenarnya di dalam transaksi
 
   // Item harus berasal dari versi yang terikat pada sesi DAN dari unit yang sedang diaudit.
+  if (ctx.checklistVersionId === null) {
+    throw new AppError(422, "NO_CHECKLIST", "Sesi ini tidak memakai checklist; catat temuan lewat Register Temuan.");
+  }
   const item = await store.findItemDetail(ctx.checklistVersionId, validItemId);
   if (!item || item.departmentId !== assignment.departmentId) {
     throw new AppError(422, "ITEM_NOT_IN_CHECKLIST", "Poin checklist bukan bagian dari checklist penugasan ini");
@@ -357,6 +383,37 @@ export async function closeFinding(
   return { finding, changed };
 }
 
+export interface DeleteFindingResult {
+  finding: FindingRecord;
+  /** false bila temuan sudah dihapus sebelumnya (penghapusan ganda tidak menimbulkan galat). */
+  changed: boolean;
+}
+
+/**
+ * Hapus lunak temuan milik sendiri: baris tetap ada di database tetapi hilang dari daftar, hitungan, dashboard, dan cetak.
+ * Nomor temuan tidak dipakai ulang. Menghapus mengubah data, sehingga (berbeda dengan menutup temuan) hanya boleh selama
+ * sesi masih dapat ditulis; pemeriksaan diulang di dalam transaksi agar tidak balapan dengan penutupan sesi. Idempoten.
+ */
+export async function deleteFinding(
+  store: AuditStore,
+  ctx: AuditContext,
+  findingId: number,
+  now: Date = new Date(),
+): Promise<DeleteFindingResult> {
+  const id = parseInput(idSchema, findingId);
+  const existing = await store.findFindingOwned(ctx.sessionId, ctx.auditorId, id, true);
+  if (!existing) throw notFound();
+  assertCanWrite(ctx.session, now); // early fail
+
+  const changed = await store.transaction(async (tx) => {
+    if (!(await tx.lockSessionForWrite(ctx.sessionId, now))) {
+      throw new AppError(403, "SESSION_NOT_WRITABLE", "Sesi tidak menerima perubahan (ditutup atau melewati batas waktu)");
+    }
+    return tx.softDeleteFinding(existing.id, ctx.auditorId, now);
+  });
+  return { finding: existing, changed };
+}
+
 const FOLLOW_UP_CAPA_FIELDS = [
   "rootCause",
   "correction",
@@ -365,8 +422,30 @@ const FOLLOW_UP_CAPA_FIELDS = [
   "correctiveAction",
   "correctiveActionPic",
   "correctiveActionTarget",
+  "correctionEvidenceUrl",
+  "correctiveActionEvidenceUrl",
 ] as const;
-const FOLLOW_UP_IMPROVEMENT_FIELDS = ["improvementAction", "improvementPic", "improvementTarget"] as const;
+const FOLLOW_UP_IMPROVEMENT_FIELDS = ["improvementAction", "improvementPic", "improvementTarget", "improvementEvidenceUrl"] as const;
+
+/** Aturan formulir per kategori; dipakai saat menyimpan tindak lanjut dan saat tambah temuan lengkap. */
+function assertFollowUpAllowed(classification: FindingClass, input: FindingFollowUp): void {
+  const hasCapa = FOLLOW_UP_CAPA_FIELDS.some((k) => input[k] !== null);
+  const hasImprovement = FOLLOW_UP_IMPROVEMENT_FIELDS.some((k) => input[k] !== null);
+  if (classification === "OBSERVASI" && hasCapa) {
+    throw new AppError(
+      422,
+      "FOLLOWUP_NOT_ALLOWED",
+      "Temuan Observasi tidak memakai akar penyebab, koreksi, dan tindakan korektif. Isi tindakan peningkatan saja.",
+    );
+  }
+  if (classification !== "OBSERVASI" && hasImprovement) {
+    throw new AppError(
+      422,
+      "FOLLOWUP_NOT_ALLOWED",
+      "Tindakan peningkatan hanya untuk temuan Observasi. Temuan Major/Minor memakai akar penyebab, koreksi, dan tindakan korektif.",
+    );
+  }
+}
 
 /**
  * Menyimpan tindak lanjut temuan milik sendiri (menimpa seluruh kolom tindak lanjut).
@@ -387,22 +466,7 @@ export async function saveFindingFollowUp(
   const existing = await store.findFindingOwned(ctx.sessionId, ctx.auditorId, id);
   if (!existing) throw notFound();
 
-  const hasCapa = FOLLOW_UP_CAPA_FIELDS.some((k) => input[k] !== null);
-  const hasImprovement = FOLLOW_UP_IMPROVEMENT_FIELDS.some((k) => input[k] !== null);
-  if (existing.classification === "OBSERVASI" && hasCapa) {
-    throw new AppError(
-      422,
-      "FOLLOWUP_NOT_ALLOWED",
-      "Temuan Observasi tidak memakai akar penyebab, koreksi, dan tindakan korektif. Isi tindakan peningkatan saja.",
-    );
-  }
-  if (existing.classification !== "OBSERVASI" && hasImprovement) {
-    throw new AppError(
-      422,
-      "FOLLOWUP_NOT_ALLOWED",
-      "Tindakan peningkatan hanya untuk temuan Observasi. Temuan Major/Minor memakai akar penyebab, koreksi, dan tindakan korektif.",
-    );
-  }
+  assertFollowUpAllowed(existing.classification, input);
 
   await store.saveFindingFollowUp(existing.id, input);
   return input;
@@ -452,7 +516,9 @@ export async function getDashboard(store: AuditStore, ctx: AuditContext): Promis
   return Promise.all(
     assignments.map(async (a): Promise<DashboardEntry> => {
       const [totalItems, counts, findingCounts] = await Promise.all([
-        store.countChecklistItems(ctx.checklistVersionId, a.departmentId),
+        ctx.checklistVersionId === null
+          ? Promise.resolve(0)
+          : store.countChecklistItems(ctx.checklistVersionId, a.departmentId),
         store.countAnswersByResult(a.id),
         store.countFindings(a.id),
       ]);
@@ -478,4 +544,105 @@ export async function getDashboard(store: AuditStore, ctx: AuditContext): Promis
       };
     }),
   );
+}
+
+// ---------- Register temuan lintas unit, tambah temuan lengkap, dan header formulir ----------
+
+export const EMPTY_FOLLOW_UP: FindingFollowUp = {
+  rootCause: null,
+  correction: null,
+  correctionPic: null,
+  correctionTarget: null,
+  correctiveAction: null,
+  correctiveActionPic: null,
+  correctiveActionTarget: null,
+  improvementAction: null,
+  improvementPic: null,
+  improvementTarget: null,
+  improvementEvidenceUrl: null,
+  auditeeName: null,
+  reportedDate: null,
+  followedUpDate: null,
+  verifiedDate: null,
+  verifierName: null,
+  verificationResult: null,
+  correctionEvidenceUrl: null,
+  correctiveActionEvidenceUrl: null,
+};
+
+export interface RegisterRow {
+  finding: FindingRecord;
+  /** Kode tampil T-{sesi}-{urut}. */
+  code: string;
+  assignmentId: number;
+  departmentName: string;
+  followUp: FindingFollowUp;
+}
+
+/** Seluruh temuan milik pemanggil di semua unit penugasannya, diurutkan menurut nomor temuan. */
+export async function listAllFindings(store: AuditStore, ctx: AuditContext): Promise<RegisterRow[]> {
+  const assignments = await store.listAssignments(ctx.sessionId, ctx.auditorId);
+  const groups = await Promise.all(
+    assignments.map(async (a): Promise<RegisterRow[]> => {
+      const [findings, followUps] = await Promise.all([store.listFindings(a.id), store.listFindingFollowUps(a.id)]);
+      const byId = new Map(followUps.map((f) => [f.findingId, f]));
+      return findings.map((finding) => ({
+        finding,
+        code: `T-${finding.sessionId}-${finding.seq}`,
+        assignmentId: a.id,
+        departmentName: a.departmentName,
+        followUp: byId.get(finding.id) ?? EMPTY_FOLLOW_UP,
+      }));
+    }),
+  );
+  return groups.flat().sort((x, y) => x.finding.seq - y.finding.seq);
+}
+
+/**
+ * Tambah temuan sekaligus data tindak lanjut/verifikasi (formulir Tambah Temuan). Seluruh input divalidasi
+ * lebih dulu agar temuan tidak tersimpan setengah jadi; pengulangan permintaan (klik ganda) tidak menimpa apa pun.
+ */
+export async function createFindingWithFollowUp(
+  store: AuditStore,
+  ctx: AuditContext,
+  assignmentId: number,
+  rawFinding: unknown,
+  rawFollowUp: unknown,
+  now: Date = new Date(),
+): Promise<CreateFindingResult> {
+  const followUp = parseInput(followUpSchema, rawFollowUp ?? {});
+  const parsed = parseInput(createFindingSchema, rawFinding);
+  assertFollowUpAllowed(parsed.classification, followUp);
+  const result = await createFinding(store, ctx, assignmentId, rawFinding, now);
+  if (result.created) await store.saveFindingFollowUp(result.finding.id, followUp);
+  return result;
+}
+
+export const DEFAULT_DOCUMENT_HEADER: DocumentHeader = {
+  organization: "SOPINSYA EDUCENTER",
+  subtitle: "Sistem Manajemen Anti Penyuapan (SMAP) ISO 37001",
+  formTitle: "LAPORAN KETIDAKSESUAIAN DAN TINDAKAN KOREKTIF",
+  formCode: "F.12-01",
+  revision: "00",
+  issuedAt: "",
+};
+
+export async function getDocumentHeader(store: AuditStore, ctx: AuditContext): Promise<DocumentHeader> {
+  return (await store.getDocumentHeader(ctx.sessionId)) ?? DEFAULT_DOCUMENT_HEADER;
+}
+
+export async function saveDocumentHeader(
+  store: AuditStore,
+  ctx: AuditContext,
+  rawInput: unknown,
+  now: Date = new Date(),
+): Promise<DocumentHeader> {
+  const input = parseInput(documentHeaderSchema, rawInput ?? {});
+  assertCanAccess(ctx.session, now);
+  await store.saveDocumentHeader(ctx.sessionId, input);
+  return input;
+}
+
+export async function getAuditorName(store: AuditStore, ctx: AuditContext): Promise<string> {
+  return (await store.findAuditor(ctx.sessionId, ctx.auditorId))?.name ?? "Auditor";
 }

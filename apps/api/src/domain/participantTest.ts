@@ -67,6 +67,25 @@ export interface GradedAttempt {
   results: QuestionResult[];
 }
 
+/**
+ * Tanda terima yang dikembalikan ke PESERTA. Sengaja tanpa skor, jumlah benar, dan status benar/salah per soal:
+ * nilai evaluasi hanya dapat dilihat Admin (SRS). Nilai tetap disimpan di database untuk rekap Admin.
+ */
+export interface SubmissionReceipt {
+  attemptId: number;
+  totalQuestions: number;
+  /** Jumlah soal yang dijawab (bukan jumlah yang benar). */
+  answeredCount: number;
+}
+
+export function toReceipt(result: AttemptResult): SubmissionReceipt {
+  return {
+    attemptId: result.attemptId,
+    totalQuestions: result.totalQuestions,
+    answeredCount: result.results.filter((r) => r.selectedOptionId !== null).length,
+  };
+}
+
 export interface ParticipantTestStore {
   /** null bila tes tidak ada, tidak aktif, atau belum punya soal aktif. Tanpa kunci jawaban. */
   getTest(programSlug: string, meetingNo: number, type: TestKind): Promise<PublicTest | null>;

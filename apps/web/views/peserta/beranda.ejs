@@ -1,0 +1,70 @@
+<%- include('_head') %>
+<section class="hero-band" aria-labelledby="hero-title">
+  <div class="container hero-grid">
+    <div>
+      <p class="hero-badge">Platform Pembelajaran &amp; Pelatihan</p>
+      <h1 id="hero-title">Tingkatkan Skill,<br>Raih Masa Depan</h1>
+      <p class="hero-lead">Pelajari standar, pahami penerapannya, dan ikuti evaluasi pembelajaran dalam satu platform yang praktis.</p>
+      <form class="search" role="search" action="/peserta#program" method="get">
+        <label class="sr-only" for="cari">Cari Pelatihan</label>
+        <input id="cari" type="search" name="q" value="<%= q %>" placeholder="Cari Pelatihan" maxlength="80" autocomplete="off">
+        <button type="submit" aria-label="Cari"><svg class="ico" width="20" height="20" aria-hidden="true"><use href="#i-search"/></svg></button>
+      </form>
+      <div class="hero-dots" aria-hidden="true"></div>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="hero-phone"><img src="/static/images/maskot.svg" alt="" width="300" height="360"></div>
+      <p class="hero-chip hero-chip-1"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-person"/></svg></span>Instruktur<br>Profesional</p>
+      <p class="hero-chip hero-chip-2"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-award"/></svg></span>Sertifikat<br>Kompetensi</p>
+      <p class="hero-chip hero-chip-3"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-check"/></svg></span>Praktik<br>Langsung</p>
+    </div>
+  </div>
+</section>
+
+<%# Diisi peserta.js dari riwayat "Ikuti Pelatihan" di browser; tanpa JS tetap tersembunyi. %>
+<section id="diikuti" class="container section" aria-labelledby="diikuti-title" hidden>
+  <h2 id="diikuti-title" class="sec-title">Pelatihan yang diikuti</h2>
+  <ul class="pgrid" data-joined-list></ul>
+</section>
+
+<section id="program" class="container section program-catalog" aria-labelledby="home-programs">
+  <h2 id="home-programs" class="sec-title">Daftar Program</h2>
+  <% if (totalPrograms === 0) { %>
+    <div class="card state" role="status">
+      <h3>Belum ada program</h3>
+      <p class="note">Program pelatihan akan tampil di sini setelah dipublikasikan oleh penyelenggara.</p>
+    </div>
+  <% } else if (programs.length === 0) { %>
+    <div class="card state" role="status">
+      <h3>Program tidak ditemukan</h3>
+      <p class="note">Tidak ada program yang cocok dengan “<%= q %>”. <a href="/peserta#program">Tampilkan semua program</a></p>
+    </div>
+  <% } else { %>
+    <% if (q) { %><p class="catalog-intro"><%= programs.length %> program untuk “<%= q %>”. <a href="/peserta#program">Hapus pencarian</a></p><% } %>
+    <ul class="pgrid" id="daftar-program" aria-label="Daftar program pelatihan">
+      <% programs.forEach(function (p) { %>
+        <li class="pcard" data-slug="<%= p.slug %>">
+          <a class="pcard-a" href="/peserta/program/<%= p.slug %>">
+            <span class="pcard-media" aria-hidden="true"></span>
+            <span class="pcard-body">
+              <h3><%= p.fullTitle %></h3>
+              <span class="pcard-sub"><%= p.subtitle %></span>
+              <span class="pcard-rate">Belum ada ulasan</span>
+            </span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>
+
+<section class="container section pd-reviews" aria-labelledby="ulasan-title">
+  <div class="pd-reviews-head">
+    <h2 id="ulasan-title">Ulasan Peserta</h2>
+    <p>Apa kata peserta yang telah mengikuti pelatihan</p>
+  </div>
+  <div class="pd-reviews-empty" role="status">
+    Rating dan ulasan akan ditampilkan di sini setelah fitur penyimpanan ulasan tersedia. Belum ada ulasan.
+  </div>
+</section>
+<%- include('_foot') %>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 360" role="img" aria-label="Maskot Sopinsya">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3aa6ff"/>
+      <stop offset="1" stop-color="#3a5fe6"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4234d6"/>
+      <stop offset="1" stop-color="#2f25b0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- bayangan -->
+  <ellipse cx="150" cy="338" rx="78" ry="10" fill="#b9bfdc" opacity="0.7"/>
+
+  <!-- kaki -->
+  <rect x="116" y="292" width="30" height="42" rx="13" fill="#3326b8"/>
+  <rect x="158" y="292" width="30" height="42" rx="13" fill="#3326b8"/>
+
+  <!-- lengan kiri (turun) dan kanan (melambai) -->
+  <path d="M104 238 L60 258" stroke="#3a2fc4" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M200 236 L244 192" stroke="#3a2fc4" stroke-width="28" stroke-linecap="round" fill="none"/>
+
+  <!-- badan -->
+  <path d="M108 206 H196 Q220 206 218 232 L212 284 Q210 306 188 306 H116 Q94 306 92 284 L86 232 Q84 206 108 206 Z" fill="url(#body)"/>
+  <!-- lambang dada -->
+  <path d="M170 228 H136 a9 9 0 0 0 0 18 H168 a9 9 0 0 1 0 18 H134" fill="none" stroke="#8fc9ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- kepala (miring sedikit) -->
+  <g transform="rotate(-7 150 135)">
+    <!-- antena -->
+    <path d="M142 70 C140 36 166 22 190 30" fill="none" stroke="#3b4fe0" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="194" cy="30" r="10" fill="#38a0ff"/>
+    <!-- telinga -->
+    <rect x="44" y="118" width="18" height="56" rx="9" fill="#2f6fe6"/>
+    <rect x="238" y="118" width="18" height="56" rx="9" fill="#2f6fe6"/>
+    <!-- cangkang -->
+    <rect x="56" y="62" width="188" height="152" rx="60" fill="url(#shell)"/>
+    <!-- wajah -->
+    <rect x="76" y="88" width="150" height="112" rx="46" fill="#ffffff"/>
+    <!-- mata -->
+    <ellipse cx="122" cy="138" rx="13" ry="18" fill="#3a2fc4"/>
+    <ellipse cx="180" cy="138" rx="13" ry="18" fill="#3a2fc4"/>
+    <circle cx="118" cy="130" r="5" fill="#ffffff"/>
+    <circle cx="176" cy="130" r="5" fill="#ffffff"/>
+    <!-- pipi -->
+    <ellipse cx="98" cy="164" rx="12" ry="7" fill="#bcdcff"/>
+    <ellipse cx="204" cy="164" rx="12" ry="7" fill="#bcdcff"/>
+    <!-- senyum -->
+    <path d="M136 162 Q151 178 168 162" fill="none" stroke="#3a2fc4" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

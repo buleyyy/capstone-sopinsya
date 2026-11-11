@@ -1,0 +1,181 @@
+<%- include('../partials/header') %>
+<%
+  /* Nama berkas dari tautan bukti (https:// atau berkas unggahan /auditor/bukti/...). */
+  var bname = function (u) {
+    try {
+      var s = new URL(u, 'https://tautan.invalid').pathname.split('/').filter(Boolean).pop();
+      return s ? decodeURIComponent(s) : u;
+    } catch (e) { return u; }
+  };
+%>
+<div class="no-print">
+  <div class="au-printhead">
+    <div>
+      <h3>Pratinjau Formulir Resmi Dokumen</h3>
+      <p>Tata letak formulir sesuai format dokumen. Tombol Unduh PDF membuat berkas PDF A4 lanskap dari server; Cetak / Simpan PDF memakai fitur cetak peramban (atau <code>Ctrl</code> + <code>P</code>).</p>
+    </div>
+    <div class="actions">
+      <a class="btn au-add" href="/auditor/cetak/header">Ubah Header Dokumen</a>
+      <a class="btn au-print" href="/auditor/cetak.pdf<%= unit ? '?unit=' + unit : '' %>"><svg class="icon sm"><use href="#i-download"/></svg>Unduh PDF</a>
+      <button type="button" class="btn au-print" data-print hidden><svg class="icon sm"><use href="#i-print"/></svg>Cetak / Simpan PDF</button>
+    </div>
+  </div>
+  <% if (saved) { %><div class="au-toast" role="status"><svg class="icon sm"><use href="#i-check"/></svg>Header dokumen berhasil disimpan</div><% } %>
+  <div class="au-printbar card">
+    <form method="get" action="/auditor/cetak">
+      <label for="c_unit">Unit</label>
+      <select id="c_unit" name="unit">
+        <option value="">Semua unit</option>
+        <% assignments.forEach(function (a) { %>
+          <option value="<%= a.id %>" <%= unit === String(a.id) ? 'selected' : '' %>><%= a.departmentName %></option>
+        <% }) %>
+      </select>
+      <button class="btn small" type="submit">Tampilkan</button>
+    </form>
+    <span class="muted small"><%= rows.length %> temuan pada formulir</span>
+  </div>
+</div>
+
+<div class="f-doc">
+  <div class="f-head">
+    <div class="f-head-brand">
+      <strong><%= header.organization %></strong>
+      <span><%= header.subtitle %></span>
+    </div>
+    <div class="f-head-title">
+      <span>FORMULIR</span>
+      <strong><%= header.formTitle %></strong>
+    </div>
+    <div class="f-head-meta">
+      <div><span>No. dokumen</span><b>: <%= header.formCode %></b></div>
+      <div><span>Revisi</span><b>: <%= header.revision %></b></div>
+      <div><span>Tgl terbit</span><b>: <%= header.issuedAt || '-' %></b></div>
+      <div><span>Halaman</span><b class="f-page">: otomatis saat dicetak</b></div>
+      <div><span>Unit diaudit</span><b>: <%= unitName %></b></div>
+      <div><span>Sesi audit</span><b>: <%= sessionTitle %></b></div>
+      <div><span>Dicetak</span><b>: <%= fmt(printedAt) %></b></div>
+    </div>
+  </div>
+
+  <div class="f-source">
+    <strong>SUMBER KETIDAKSESUAIAN:</strong>
+    <span>&#9745; Ketidaksesuaian Internal</span>
+    <span>&#9745; Audit Pemantauan</span>
+    <span>&#9744; Keluhan</span>
+    <span>&#9744; Lainnya: ____________</span>
+  </div>
+
+  <table class="f-table">
+    <thead>
+      <tr>
+        <th class="c-no">No.<small>(1)</small></th>
+        <th class="c-ref">Acuan Ketidaksesuaian<small>(2)</small></th>
+        <th class="c-plor">Uraian Ketidaksesuaian (PLOR)<small>(3)</small></th>
+        <th class="c-kat">Kat<small>(4)</small></th>
+        <th class="c-root">Akar Penyebab<small>(5)</small></th>
+        <th class="c-fix">Perbaikan / Koreksi<small>(6)</small></th>
+        <th class="c-act">Tindakan Korektif / Peningkatan<small>(7)</small></th>
+        <th class="c-ver">Hasil Verifikasi<small>(8)</small></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (rows.length === 0) { %>
+        <tr><td colspan="8" class="f-empty">Tidak ada temuan.</td></tr>
+      <% } %>
+      <% rows.forEach(function (r, i) { var f = r.finding, u = r.followUp; var isObs = f.classification === 'OBSERVASI'; %>
+        <tr>
+          <td class="center"><%= i + 1 %><div class="f-code"><%= r.code %></div></td>
+          <td><%= f.reference %></td>
+          <td>
+            <p><b>Problem:</b> <%= f.problem %></p>
+            <p><b>Location:</b> <%= f.location %></p>
+            <p><b>Objective evidence:</b> <%= f.objectiveEvidence %></p>
+            <p><b>Reference:</b> <%= f.reference %></p>
+          </td>
+          <td class="center"><b><%= f.classification === 'MAJOR' ? '1' : (f.classification === 'MINOR' ? '2' : 'O') %></b></td>
+          <td><%= isObs ? '-' : (u.rootCause || '') %></td>
+          <td>
+            <% if (isObs) { %>-<% } else { %>
+              <%= u.correction || '' %>
+              <% if (u.correctionPic) { %><p class="f-meta">PIC: <%= u.correctionPic %></p><% } %>
+              <% if (u.correctionTarget) { %><p class="f-meta">Target: <%= u.correctionTarget %></p><% } %>
+              <% if (u.correctionEvidenceUrl) { %><p class="f-meta">Bukti: Terlampir (<%= bname(u.correctionEvidenceUrl) %>)</p><% } %>
+            <% } %>
+          </td>
+          <td>
+            <% if (isObs) { %>
+              <%= u.improvementAction || '' %>
+              <% if (u.improvementPic) { %><p class="f-meta">PIC: <%= u.improvementPic %></p><% } %>
+              <% if (u.improvementTarget) { %><p class="f-meta">Target: <%= u.improvementTarget %></p><% } %>
+              <% if (u.improvementEvidenceUrl) { %><p class="f-meta">Bukti: Terlampir (<%= bname(u.improvementEvidenceUrl) %>)</p><% } %>
+            <% } else { %>
+              <%= u.correctiveAction || '' %>
+              <% if (u.correctiveActionPic) { %><p class="f-meta">PIC: <%= u.correctiveActionPic %></p><% } %>
+              <% if (u.correctiveActionTarget) { %><p class="f-meta">Target: <%= u.correctiveActionTarget %></p><% } %>
+              <% if (u.correctiveActionEvidenceUrl) { %><p class="f-meta">Bukti: Terlampir (<%= bname(u.correctiveActionEvidenceUrl) %>)</p><% } %>
+            <% } %>
+          </td>
+          <td class="center">
+            <b><%= f.status === 'CLOSED' ? 'Closed' : 'Open' %></b>
+            <% if (u.verificationResult) { %><p class="f-meta"><%= u.verificationResult %></p><% } %>
+            <% if (u.verifiedDate) { %><p class="f-meta"><%= fmtDate(u.verifiedDate) %></p><% } else if (f.status === 'CLOSED' && f.closedAt) { %><p class="f-meta"><%= fmt(f.closedAt) %></p><% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <div class="f-count">
+    <span>Jumlah temuan kategori 1 (Major): <b><%= counts.major %></b></span>
+    <span>Jumlah temuan kategori 2 (Minor): <b><%= counts.minor %></b></span>
+    <span>Jumlah temuan Observasi (O): <b><%= counts.observasi %></b></span>
+  </div>
+
+  <div class="f-sign">
+    <div>
+      <div class="f-sign-head">DILAPORKAN TANGGAL: <%= summary.reportedDate ? fmtDate(summary.reportedDate) : '____ / ____ / ________' %></div>
+      <div class="f-sign-body">
+        <small>NAMA PELAPOR / AUDITOR:</small>
+        <b><%= auditorName %></b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+    <div>
+      <div class="f-sign-head">DITINDAKLANJUTI TANGGAL: <%= summary.followedUpDate ? fmtDate(summary.followedUpDate) : '____ / ____ / ________' %></div>
+      <div class="f-sign-body">
+        <small>NAMA TERLAPOR / AUDITEE (<%= unitName %>):</small>
+        <b><%= summary.auditees.length ? summary.auditees.join(', ') : '\u00a0' %></b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+    <div>
+      <div class="f-sign-head">DIVERIFIKASI TANGGAL: <%= summary.verifiedDate ? fmtDate(summary.verifiedDate) : '____ / ____ / ________' %></div>
+      <div class="f-sign-body">
+        <small>NAMA VERIFIKATOR / AUDITOR:</small>
+        <b><%= summary.verifiers.length ? summary.verifiers.join(', ') : auditorName %></b>
+      </div>
+      <div class="f-sign-line">Tanda tangan</div>
+    </div>
+  </div>
+
+  <div class="f-notes">
+    <b>KETERANGAN PENGISIAN</b>
+    <div class="f-notes-grid">
+      <div>
+        <b>Diisi oleh pelapor/auditor:</b>
+        <p>(1) Nomor urut temuan. (2) Klausul atau SOP yang tidak dipenuhi. (3) Uraian dengan metode PLOR: Problem, Location, Objective evidence, Reference. (4) Kategori: 1 = Major, 2 = Minor, O = Observasi.</p>
+      </div>
+      <div>
+        <b>Diisi oleh terlapor/auditee:</b>
+        <p>(5) Akar penyebab (Kategori 1 dan 2). (6) Perbaikan/koreksi langsung, PIC, dan target (Kategori 1 dan 2). (7) Tindakan korektif (Kategori 1 dan 2) atau tindakan peningkatan (Observasi).</p>
+      </div>
+      <div>
+        <b>Diisi oleh verifikator/auditor:</b>
+        <p>(8) Closed bila tindakan terbukti menyelesaikan masalah atau peningkatan telah terlaksana; Open bila belum.</p>
+      </div>
+    </div>
+    <p class="f-meta">Major: SOP tidak ada atau sama sekali tidak dikerjakan. Minor: dikerjakan tetapi tidak konsisten atau tidak rutin. Observasi: sudah dikerjakan dan masih dapat dioptimalkan.</p>
+  </div>
+</div>
+<% if (locals.headerModal) { %><%- include('cetak-header') %><% } %>
+<%- include('../partials/footer') %>

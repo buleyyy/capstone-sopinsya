@@ -40,9 +40,23 @@ const envSchema = z
     AUDITOR_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8, "AUDITOR_PASSWORD minimal 8 karakter").optional()),
     ADMIN_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
     AUDITOR_LOGIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(120).optional()),
+    // FALLBACK SEMENTARA (transisi development). Autentikasi utama = akun di database (UserAccount, bcrypt).
+    // true = kata sandi environment di atas masih boleh dipakai login. DILARANG di production.
+    // Rencana penghapusan: lihat docs/AUTH-ACCOUNTS.md (hapus flag, ADMIN_PASSWORD, AUDITOR_PASSWORD, dan cabang kode legacy).
+    LEGACY_ENV_LOGIN: z.preprocess(emptyToUndefined, z.enum(["true", "false"]).default("false")).transform((v) => v === "true"),
+    // Kredensial Admin pertama untuk `npm run db:bootstrap-admin`. Hapus dari .env setelah akun dibuat.
+    BOOTSTRAP_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().trim().toLowerCase().min(3).max(160).optional()),
+    BOOTSTRAP_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(12, "BOOTSTRAP_ADMIN_PASSWORD minimal 12 karakter").optional()),
+    BOOTSTRAP_ADMIN_NAME: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(120).optional()),
+    // true = `db:bootstrap-admin` boleh MENYELARASKAN akun Admin yang sudah ada (email/kata sandi/status aktif) dengan
+    // BOOTSTRAP_ADMIN_*. Bawaan false: bootstrap hanya membuat Admin pertama. Matikan lagi setelah dipakai.
+    BOOTSTRAP_ADMIN_SYNC: z.preprocess(emptyToUndefined, z.enum(["true", "false"]).default("false")).transform((v) => v === "true"),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV === "production") {
+      if (v.LEGACY_ENV_LOGIN) {
+        ctx.addIssue({ code: "custom", path: ["LEGACY_ENV_LOGIN"], message: "LEGACY_ENV_LOGIN tidak boleh true di production" });
+      }
       if (!v.CSRF_SECRET) ctx.addIssue({ code: "custom", path: ["CSRF_SECRET"], message: "CSRF_SECRET wajib di production" });
       if (!v.APP_ORIGIN) ctx.addIssue({ code: "custom", path: ["APP_ORIGIN"], message: "APP_ORIGIN wajib di production" });
       if (v.ADMIN_PASSWORD && v.ADMIN_PASSWORD.length < 12) {

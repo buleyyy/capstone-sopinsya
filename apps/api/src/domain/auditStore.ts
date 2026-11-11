@@ -38,7 +38,7 @@ export interface ChecklistItemDetail extends ChecklistItemRecord {
 export interface SessionRecord {
   id: number;
   title: string;
-  checklistVersionId: number;
+  checklistVersionId: number | null; // null = sesi tanpa Master Checklist
   status: SessionStatus;
   expiresAt: Date;
   closedAt: Date | null;
@@ -51,6 +51,8 @@ export interface AuditorRecord {
   inviteExpiresAt: Date;
   claimedAt: Date | null;
   revokedAt: Date | null;
+  /** Akun yang ditugaskan (alur akun). null/undefined = auditor lama hasil undangan. */
+  userId?: number | null;
 }
 export interface AuthRecord { auditor: AuditorRecord; session: SessionRecord }
 
@@ -111,8 +113,28 @@ export interface FindingFollowUp {
   improvementAction: string | null;
   improvementPic: string | null;
   improvementTarget: string | null;
+  improvementEvidenceUrl: string | null;
+  /** Data register temuan: auditee, tanggal formulir (YYYY-MM-DD), verifikasi, dan tautan bukti tindakan. */
+  auditeeName: string | null;
+  reportedDate: string | null;
+  followedUpDate: string | null;
+  verifiedDate: string | null;
+  verifierName: string | null;
+  verificationResult: string | null;
+  correctionEvidenceUrl: string | null;
+  correctiveActionEvidenceUrl: string | null;
 }
 export interface FindingFollowUpRecord extends FindingFollowUp { findingId: number }
+
+/** Header formulir Laporan Ketidaksesuaian dan Tindakan Korektif (satu per sesi audit). */
+export interface DocumentHeader {
+  organization: string;
+  subtitle: string;
+  formTitle: string;
+  formCode: string;
+  revision: string;
+  issuedAt: string;
+}
 
 /**
  * Kontrak akses data. Setiap metode yang menerima sessionId WAJIB memfilter dengannya,
@@ -149,7 +171,7 @@ export interface AuditStore {
   countChecklistItems(versionId: number, departmentId: number): Promise<number>;
 
   // --- Sesi ---
-  createSession(data: { title: string; checklistVersionId: number; expiresAt: Date }): Promise<SessionRecord>;
+  createSession(data: { title: string; checklistVersionId: number | null; expiresAt: Date }): Promise<SessionRecord>;
   findSession(sessionId: number): Promise<SessionRecord | null>;
   /** Sesi ACTIVE dengan id terbesar (terbaru); null bila tidak ada. Sama dengan sesi yang dipilih findPasswordLoginAuditor. */
   findLatestActiveSession(): Promise<SessionRecord | null>;
@@ -165,7 +187,28 @@ export interface AuditStore {
    */
   lockSessionForWrite(sessionId: number, now: Date): Promise<boolean>;
 
-  // --- Auditor dan undangan ---
+  // --- Penugasan akun Auditor (alur aktif; menggantikan undangan) ---
+  /**
+   * Menugaskan akun ke sesi. Kolom undangan lama (NOT NULL) diisi nilai yang tidak dapat dipakai:
+   * hash acak, sudah kedaluwarsa, dan ditandai diklaim. Melempar UniqueViolationError bila sudah ditugaskan.
+   */
+  createAccountAuditor(data: {
+    sessionId: number;
+    userId: number;
+    name: string;
+    excludedDepartmentIds: number[];
+    now: Date;
+  }): Promise<AuditorRecord>;
+  findAuditorByUser(sessionId: number, userId: number): Promise<AuditorRecord | null>;
+  /** Mengaktifkan kembali penugasan yang pernah dicabut. */
+  reinstateAuditor(auditorId: number): Promise<void>;
+  /**
+   * Penugasan akun yang belum dicabut pada sesi ACTIVE terbaru; bila tidak ada, sesi CLOSED terbaru
+   * (untuk jendela akses setelah ditutup). DRAFT tidak pernah dipilih. null bila tidak ada.
+   */
+  findAuthByUserId(userId: number): Promise<AuthRecord | null>;
+
+  // --- Auditor dan undangan (LEGACY: tidak dipakai alur aktif; dipertahankan untuk data historis dan test) ---
   createAuditor(data: {
     sessionId: number;
     name: string;
@@ -218,14 +261,23 @@ export interface AuditStore {
   /** Menyisipkan temuan OPEN beserta riwayat awal. Melempar UniqueViolationError pada balapan. */
   createFinding(data: NewFinding): Promise<FindingRecord>;
   listFindings(assignmentId: number): Promise<FindingRecord[]>;
-  /** Temuan milik auditor di sesi tersebut; null bila bukan miliknya. */
-  findFindingOwned(sessionId: number, auditorId: number, findingId: number): Promise<FindingRecord | null>;
+  /**
+   * Temuan milik auditor di sesi tersebut; null bila bukan miliknya. Temuan yang sudah dihapus lunak dianggap tidak ada,
+   * kecuali includeDeleted = true (dipakai agar penghapusan ganda tetap idempoten).
+   */
+  findFindingOwned(sessionId: number, auditorId: number, findingId: number, includeDeleted?: boolean): Promise<FindingRecord | null>;
   /** OPEN -> CLOSED beserta riwayat. false bila sudah CLOSED. */
   closeFinding(findingId: number, auditorId: number, note: string | null, now: Date): Promise<boolean>;
   listFindingHistory(findingId: number): Promise<FindingHistoryRecord[]>;
   countFindings(assignmentId: number): Promise<FindingCount[]>;
   /** Menyimpan tindak lanjut (menimpa seluruh kolom tindak lanjut temuan ini). */
   saveFindingFollowUp(findingId: number, data: FindingFollowUp): Promise<void>;
+  /** Hapus lunak: mengisi deletedAt bila belum terisi. false bila temuan sudah dihapus atau tidak ada. */
+  softDeleteFinding(findingId: number, auditorId: number, now: Date): Promise<boolean>;
   /** Tindak lanjut semua temuan pada satu penugasan. */
   listFindingFollowUps(assignmentId: number): Promise<FindingFollowUpRecord[]>;
+  /** Header formulir sesi; null bila belum pernah disimpan (service memakai nilai bawaan). */
+  getDocumentHeader(sessionId: number): Promise<DocumentHeader | null>;
+  /** Menyimpan (membuat atau menimpa) header formulir sesi. */
+  saveDocumentHeader(sessionId: number, data: DocumentHeader): Promise<void>;
 }

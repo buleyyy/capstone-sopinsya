@@ -141,26 +141,30 @@ describe("GET /api/public/programs/:slug/pertemuan/:n/tests/:type", () => {
 });
 
 describe("POST /api/public/tests/:testId/attempts", () => {
-  it("menilai di server dan mengembalikan skor serta hasil per soal", async () => {
-    const { store, key } = memoryStore();
+  it("menilai di server tetapi tidak mengembalikan nilai ke peserta", async () => {
+    const { store, key, attempts } = memoryStore();
     const res = await request(makeApp(store))
       .post("/api/public/tests/1/attempts")
       .send({ ...identity, clientRequestId: "req-00000001", answers: answersFor(key, 2, "wrong") });
     expect(res.status).toBe(201);
-    expect(res.body.data.correctCount).toBe(2);
-    expect(res.body.data.totalQuestions).toBe(TOTAL);
-    expect(res.body.data.score).toBe(20);
-    expect(res.body.data.results).toHaveLength(TOTAL);
-    expect(res.body.data.results.filter((r: { correct: boolean }) => r.correct)).toHaveLength(2);
+    expect(res.body.data).toEqual({ attemptId: 1, totalQuestions: TOTAL, answeredCount: TOTAL });
+    expect(JSON.stringify(res.body)).not.toMatch(/score|correct|results|benar|salah/i);
+    // Nilai tetap dihitung dan disimpan untuk rekap Admin.
+    const stored = attempts.get("1:req-00000001");
+    expect(stored?.correctCount).toBe(2);
+    expect(stored?.score).toBe(20);
+    expect(stored?.results.filter((r) => r.correct)).toHaveLength(2);
   });
 
-  it("soal kosong dihitung salah", async () => {
-    const { store, key } = memoryStore();
+  it("soal kosong dihitung salah (tersimpan) dan tidak dihitung sebagai terjawab", async () => {
+    const { store, key, attempts } = memoryStore();
     const res = await request(makeApp(store))
       .post("/api/public/tests/1/attempts")
       .send({ ...identity, clientRequestId: "req-00000002", answers: answersFor(key, 4, "blank") });
     expect(res.status).toBe(201);
-    expect(res.body.data.score).toBe(40);
+    expect(res.body.data.answeredCount).toBe(4);
+    expect(res.body.data).not.toHaveProperty("score");
+    expect(attempts.get("1:req-00000002")?.score).toBe(40);
   });
 
   it("kirim ganda dengan clientRequestId sama hanya menyimpan satu percobaan", async () => {
@@ -172,6 +176,7 @@ describe("POST /api/public/tests/:testId/attempts", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(200);
     expect(second.body.data.attemptId).toBe(first.body.data.attemptId);
+    expect(JSON.stringify(second.body)).not.toMatch(/score|correct|results/i);
     expect(attempts.size).toBe(1);
   });
 

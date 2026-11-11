@@ -1,0 +1,91 @@
+<%# Modal "Tambah Temuan": ditampilkan di atas Daftar Temuan (di-include oleh temuan-daftar.ejs, modal = 'baru'). %>
+<div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="au-modal-card">
+    <div class="au-modal-head">
+      <div>
+        <h2 id="m-title">Tambah Temuan Ketidaksesuaian Baru</h2>
+        <small>Formulir Standar</small>
+      </div>
+      <a class="au-modal-close" href="/auditor/temuan" aria-label="Tutup"><svg class="icon"><use href="#i-x"/></svg></a>
+    </div>
+
+    <% if (!me.canWrite) { %>
+      <div class="au-modal-body"><div class="alert info">Sesi tidak menerima perubahan lagi, sehingga temuan baru tidak dapat dicatat.</div></div>
+      <div class="au-modal-foot"><a class="btn secondary" href="/auditor/temuan">Tutup</a></div>
+    <% } else if (assignments.length === 0) { %>
+      <div class="au-modal-body"><div class="alert info">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div></div>
+      <div class="au-modal-foot"><a class="btn secondary" href="/auditor/temuan">Tutup</a></div>
+    <% } else { %>
+      <form class="au-form au-form-dynamic" method="post" action="/auditor/temuan/baru">
+        <div class="au-modal-body">
+          <% if (errors.length > 0) { %>
+            <div class="alert error">
+              <strong>Temuan belum tersimpan:</strong>
+              <ul><% errors.forEach(function (er) { %><li><% if (er.path) { %><code><%= er.path %></code>: <% } %><%= er.message %></li><% }) %></ul>
+            </div>
+          <% } %>
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <input type="hidden" name="clientRequestId" value="<%= form.clientRequestId %>">
+
+          <div class="au-cols">
+            <div>
+              <label for="reference">Acuan Klausul <span class="req">*</span></label>
+              <input id="reference" type="text" name="reference" required maxlength="1000" value="<%= form.reference %>" placeholder="mis. ISO 37001:2016 klausul 8.2 atau SOP-HR-03">
+            </div>
+            <div>
+              <label for="classification">Kategori Temuan <span class="req">*</span></label>
+              <select id="classification" name="classification" required>
+                <option value="">Pilih kategori...</option>
+                <option value="MINOR" <%= form.classification === 'MINOR' ? 'selected' : '' %>>2 - Kategori Minor</option>
+                <option value="MAJOR" <%= form.classification === 'MAJOR' ? 'selected' : '' %>>1 - Kategori Mayor</option>
+                <option value="OBSERVASI" <%= form.classification === 'OBSERVASI' ? 'selected' : '' %>>0 - Observasi (Peluang Peningkatan)</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label for="assignmentId">Unit yang diaudit <span class="req">*</span></label>
+              <select id="assignmentId" name="assignmentId" required>
+                <option value="">Pilih unit...</option>
+                <% assignments.forEach(function (a) { %>
+                  <option value="<%= a.id %>" <%= String(form.assignmentId) === String(a.id) ? 'selected' : '' %>><%= a.departmentName %></option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+
+          <%- include('../partials/followup-parties', { f: form }) %>
+
+          <div class="au-group">
+            <div class="au-group-head">
+              <span class="au-group-title">Uraian Ketidaksesuaian (Metode PLOR)</span>
+              <span class="au-tag">Problem &bull; Location &bull; Objective evidence &bull; Reference</span>
+            </div>
+            <label for="problem">Masalah (Problem) <span class="req">*</span></label>
+            <textarea id="problem" name="problem" required maxlength="4000" placeholder="Contoh: Pada saat observasi laboratorium beton ditemukan suhu ruangan cukup panas (33&deg;C)..."><%= form.problem %></textarea>
+            <label for="location">Lokasi (Location) <span class="req">*</span></label>
+            <input id="location" type="text" name="location" required maxlength="1000" value="<%= form.location %>">
+            <label for="objectiveEvidence">Bukti objektif (Objective Evidence) <span class="req">*</span></label>
+            <textarea id="objectiveEvidence" name="objectiveEvidence" required maxlength="4000"><%= form.objectiveEvidence %></textarea>
+            <div class="au-cols">
+              <div>
+                <label for="evidenceUrl">Bukti temuan (unggah berkas atau tautan https://, opsional)</label>
+                <input id="evidenceUrl" type="text" inputmode="url" name="evidenceUrl" maxlength="1024" value="<%= form.evidenceUrl %>">
+                <%- include('../partials/attach', { target: 'evidenceUrl', label: 'Pilih Bukti Temuan' }) %>
+              </div>
+              <div>
+                <label for="note">Catatan tambahan (opsional)</label>
+                <input id="note" type="text" name="note" maxlength="4000" value="<%= form.note %>">
+              </div>
+            </div>
+          </div>
+
+          <p class="hint">Isian tindak lanjut menyesuaikan kategori: Kategori 1/2 memakai akar penyebab, koreksi, dan tindakan korektif; Observasi hanya memakai tindakan peningkatan. Semuanya boleh dikosongkan dan dilengkapi nanti lewat tombol Ubah.</p>
+          <%- include('../partials/followup-fields', { f: form, mode: 'all', showStatus: true }) %>
+        </div>
+        <div class="au-modal-foot">
+          <a class="btn secondary" href="/auditor/temuan">Batal</a>
+          <button class="btn" type="submit">Simpan Data Temuan</button>
+        </div>
+      </form>
+    <% } %>
+  </div>
+</div>

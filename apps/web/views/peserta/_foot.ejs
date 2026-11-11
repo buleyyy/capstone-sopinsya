@@ -1,0 +1,63 @@
+<%
+  var waHref = locals.whatsappUrl || 'tel:+6281234567890';
+  var waExt = !!locals.whatsappUrl;
+%></main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-brand-col">
+      <div class="footer-brand-block">
+        <img src="/static/logo.svg" alt="" width="44" height="44" class="footer-logo">
+        <div>
+          <p class="footer-brand">SopinsyaEducenter</p>
+          <p class="footer-tagline">Pusat Pelatihan dan Sertifikasi Profesional</p>
+        </div>
+      </div>
+      <p class="footer-about">Lembaga pelatihan dan sertifikasi kompetensi terpercaya untuk mengembangkan keahlian profesional Anda.</p>
+      <p class="footer-address">
+        <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-pin"/></svg>
+        <span>Jl. Jenderal Sudirman No. 12, Jakarta, Indonesia</span>
+      </p>
+    </div>
+
+    <nav aria-label="Menu utama">
+      <h2>Menu Utama</h2>
+      <ul>
+        <li><a href="/peserta/#program">Program Pelatihan</a></li>
+        <li><a href="/peserta/#program">Jadwal Kelas</a></li>
+      </ul>
+    </nav>
+
+    <div>
+      <h2>Kontak &amp; Layanan</h2>
+      <ul class="footer-contact">
+        <li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-phone"/></svg>
+          <a href="<%= waHref %>"<%- waExt ? ' target="_blank" rel="noopener noreferrer"' : '' %>>+62 812-3456-7890</a>
+        </li>
+        <li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-mail"/></svg>
+          <a href="mailto:info@sopinsyaeducenter.com">info@sopinsyaeducenter.com</a>
+        </li>
+        <li>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-clock"/></svg>
+          <span>Senin - Jumat (08.00 - 17.00 WIB)</span>
+        </li>
+      </ul>
+      <ul class="footer-social" aria-label="Media sosial">
+        <li><svg class="ico" width="26" height="26" role="img" aria-label="Instagram"><use href="#i-instagram"/></svg></li>
+        <li><svg class="ico" width="26" height="26" role="img" aria-label="LinkedIn"><use href="#i-linkedin"/></svg></li>
+        <li><svg class="ico" width="26" height="26" role="img" aria-label="YouTube"><use href="#i-youtube"/></svg></li>
+        <li><svg class="ico" width="26" height="26" role="img" aria-label="Facebook"><use href="#i-facebook"/></svg></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container footer-bottom">
+    <p>&copy; <%= new Date().getFullYear() %> SopinsyaEducenter. All Rights Reserved.</p>
+    <p class="footer-legal">
+      <span>Kebijakan Privasi</span><span class="footer-sep" aria-hidden="true">|</span><span>Syarat &amp; Ketentuan</span><span class="footer-sep" aria-hidden="true">|</span><a href="/masuk">Masuk Admin / Auditor</a>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

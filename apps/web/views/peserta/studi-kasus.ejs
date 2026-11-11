@@ -1,0 +1,28 @@
+<%- include('_head') %>
+<div class="container">
+  <div class="page-head">
+    <nav class="crumb" aria-label="Jejak halaman">
+      <a href="/peserta/program/<%= program.slug %>">Program</a>
+      <span aria-hidden="true"> › </span>
+      <span aria-current="page">Studi Kasus</span>
+      <span class="crumb-meeting"> · <%= meeting.title %></span>
+    </nav>
+    <h1>Studi Kasus <%= program.fullTitle %></h1>
+    <ul class="meta"><li><svg class="ico meta-icon" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg> Trainer: <%= program.trainer %></li></ul>
+    <hr>
+  </div>
+  <% if (docs.length === 0) { %>
+    <p class="note" role="status">Studi kasus untuk pertemuan ini belum tersedia.</p>
+  <% } %>
+  <% docs.forEach(function (d) { %>
+    <div class="file-card">
+      <div class="file-card-text">
+        <a href="<%= d.url %>" target="_blank" rel="noopener noreferrer"><%= d.title %></a>
+        <span class="file-type"><%= d.type %></span>
+      </div>
+      <div class="file-card-icon"><svg class="ico pd-icon-doc" width="56" height="56" aria-hidden="true"><use href="#i-doc"/></svg></div>
+    </div>
+  <% }) %>
+  <p class="note case-note">Pengumpulan tugas studi kasus belum tersedia di website ini. Ikuti arahan trainer untuk cara menyerahkan tugas.</p>
+</div>
+<%- include('_foot') %>

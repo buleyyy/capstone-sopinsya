@@ -1,0 +1,53 @@
+<%- include('../partials/header') %>
+
+<% if (!me.canWrite) { %>
+  <div class="alert info">
+    <% if (me.sessionStatus === 'CLOSED') { %>
+      Sesi ini sudah ditutup. Anda hanya dapat melihat data
+      <% if (me.auditorAccessUntil) { %>sampai <strong><%= fmt(me.auditorAccessUntil) %></strong><% } %>.
+    <% } else { %>
+      Batas waktu pengisian (<%= fmt(me.expiresAt) %>) sudah lewat, sehingga data hanya dapat dilihat.
+    <% } %>
+  </div>
+<% } %>
+
+<section class="au-hero">
+  <span class="au-chip"><span class="au-dot" aria-hidden="true"></span>Audit Mutu Internal &amp; Pemantauan</span>
+  <h1>Status Tindakan Korektif (CAPA)</h1>
+  <p>Pemantauan kepatuhan persyaratan <%= header.subtitle %>. Seluruh perbaikan dan tindakan korektif diverifikasi efektivitasnya oleh Lead Auditor.</p>
+  <a class="btn small light au-hero-action" href="/auditor/cetak"><svg class="icon sm"><use href="#i-print"/></svg>Format Formulir</a>
+</section>
+
+<% if (dash.length === 0) { %>
+  <div class="card">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div>
+<% } else { %>
+
+<%- include('../partials/audit-ringkasan', { reporterLabel: auditorName, fullLink: '/auditor/temuan' }) %>
+
+<h2>Kemajuan per unit yang diaudit</h2>
+<div class="card tablewrap">
+  <table>
+    <thead>
+      <tr><th>Unit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Belum</th><th>Temuan (terbuka/total)</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% dash.forEach(function (d) { %>
+        <tr>
+          <td><strong><%= d.departmentName %></strong></td>
+          <td><%= percent(d.answered, d.totalItems) %>% <span class="muted small">(<%= d.answered %>/<%= d.totalItems %>)</span></td>
+          <td><%= d.ya %></td>
+          <td><%= d.tidak %></td>
+          <td><%= d.unanswered %></td>
+          <td><%= d.findings.open %>/<%= d.findings.total %></td>
+          <td class="nowrap">
+            <% if (d.totalItems > 0) { %><a class="btn small" href="/auditor/penugasan/<%= d.assignmentId %>">Checklist</a><% } %>
+            <a class="btn small secondary" href="/auditor/penugasan/<%= d.assignmentId %>/temuan">Temuan</a>
+            <a class="btn small secondary" href="/auditor/cetak?unit=<%= d.assignmentId %>">Cetak</a>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,26 @@
+<%- include('../partials/header') %>
+<h1>Pengaturan Situs Peserta</h1>
+<p class="muted">Isi halaman <a href="/peserta/tentang-kami" target="_blank" rel="noopener">Tentang Kami</a> di situs peserta. Pada kolom poin, satu baris menjadi satu poin dengan tanda centang (maksimal 8).</p>
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+
+<form method="post" action="/admin/pengaturan/tentang-kami" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+
+  <label for="intro">Apa itu Sopinsya Educenter? (paragraf pengantar)</label>
+  <textarea id="intro" name="intro" rows="6" required maxlength="1500"><%= about.intro %></textarea>
+
+  <h2>Visi Kami</h2>
+  <label for="visionTitle">Judul</label>
+  <input id="visionTitle" type="text" name="visionTitle" required maxlength="160" value="<%= about.vision.title %>">
+  <label for="visionPoints">Poin (satu per baris)</label>
+  <textarea id="visionPoints" name="visionPoints" rows="5" required><%= about.vision.points.join('\n') %></textarea>
+
+  <h2>Misi Kami</h2>
+  <label for="missionTitle">Judul</label>
+  <input id="missionTitle" type="text" name="missionTitle" required maxlength="160" value="<%= about.mission.title %>">
+  <label for="missionPoints">Poin (satu per baris)</label>
+  <textarea id="missionPoints" name="missionPoints" rows="5" required><%= about.mission.points.join('\n') %></textarea>
+
+  <p><button class="btn" type="submit">Simpan</button></p>
+</form>
+<%- include('../partials/footer') %>

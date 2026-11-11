@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ec1e0"/><stop offset="1" stop-color="#bfe3ee"/></linearGradient>
+    <pattern id="win" width="14" height="16" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="8" height="10" fill="#f3dccf" opacity="0.55"/></pattern>
+  </defs>
+  <rect width="300" height="400" fill="url(#sky)"/>
+  <rect x="190" y="150" width="46" height="250" fill="#d9d9dc"/>
+  <rect x="100" y="80" width="90" height="320" fill="#c4572f"/>
+  <rect x="100" y="80" width="90" height="320" fill="url(#win)"/>
+  <rect x="40" y="262" width="70" height="138" fill="#2b2b33"/>
+  <rect x="40" y="262" width="70" height="138" fill="url(#win)" opacity="0.5"/>
+</svg>

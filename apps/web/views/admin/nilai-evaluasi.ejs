@@ -1,0 +1,93 @@
+<%- include('../partials/header') %>
+<% var progLabel = function (slug) { var p = programs.find(function (x) { return x.slug === slug; }); return p ? p.label : slug; }; %>
+<div class="page-head">
+  <div>
+    <h1>Nilai Evaluasi Peserta</h1>
+    <p>Rekap hasil Pre-test dan Post-test. Peserta tidak melihat nilai ini; hanya Admin.</p>
+  </div>
+</div>
+
+<div class="panel">
+  <form class="au-filter" method="get" action="/admin/nilai-evaluasi">
+    <div class="grow">
+      <label for="n_q">Cari nama atau instansi</label>
+      <input id="n_q" type="search" name="q" maxlength="100" value="<%= filter.q %>">
+    </div>
+    <div>
+      <label for="n_program">Program</label>
+      <select id="n_program" name="program">
+        <option value="">Semua program</option>
+        <% programs.forEach(function (p) { %>
+          <option value="<%= p.slug %>" <%= filter.program === p.slug ? 'selected' : '' %>><%= p.label %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div>
+      <label for="n_type">Jenis tes</label>
+      <select id="n_type" name="type">
+        <option value="">Pre-test dan Post-test</option>
+        <option value="PRE" <%= filter.type === 'PRE' ? 'selected' : '' %>>Pre-test</option>
+        <option value="POST" <%= filter.type === 'POST' ? 'selected' : '' %>>Post-test</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn small" type="submit">Terapkan</button>
+      <a class="btn small secondary" href="/admin/nilai-evaluasi">Reset</a>
+    </div>
+  </form>
+  <div class="panel-foot"><span>Menampilkan <b><%= rows.length %></b> dari <b><%= total %></b> percobaan</span></div>
+</div>
+
+<h2>Ringkasan per tes</h2>
+<div class="panel">
+  <div class="tablewrap">
+    <table class="au-table">
+      <thead><tr><th>Program</th><th>Pertemuan</th><th>Jenis</th><th>Judul tes</th><th>Percobaan</th><th>Rata-rata</th><th>Tertinggi</th><th>Terendah</th></tr></thead>
+      <tbody>
+        <% if (summary.length === 0) { %>
+          <tr><td colspan="8" class="au-empty">Belum ada percobaan tes yang sesuai.</td></tr>
+        <% } %>
+        <% summary.forEach(function (s) { %>
+          <tr>
+            <td><%= progLabel(s.programSlug) %></td>
+            <td><%= s.meetingNo %></td>
+            <td><%= s.type === 'PRE' ? 'Pre-test' : 'Post-test' %></td>
+            <td class="clip"><%= s.title %></td>
+            <td><%= s.count %></td>
+            <td><b><%= s.average %></b></td>
+            <td><%= s.max %></td>
+            <td><%= s.min %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2>Daftar percobaan</h2>
+<div class="panel">
+  <div class="tablewrap">
+    <table class="au-table">
+      <thead><tr><th>Waktu</th><th>Peserta</th><th>Instansi</th><th>Program</th><th>Pertemuan</th><th>Jenis</th><th>Benar / Total</th><th>Skor</th></tr></thead>
+      <tbody>
+        <% if (rows.length === 0) { %>
+          <tr><td colspan="8" class="au-empty">Belum ada percobaan tes yang sesuai.</td></tr>
+        <% } %>
+        <% rows.forEach(function (a) { %>
+          <tr>
+            <td class="nowrap"><%= fmt(a.submittedAt) %></td>
+            <td class="clip"><b><%= a.participantName %></b></td>
+            <td class="clip"><%= a.participantInstitution %></td>
+            <td><%= progLabel(a.programSlug) %></td>
+            <td><%= a.meetingNo %></td>
+            <td><%= a.type === 'PRE' ? 'Pre-test' : 'Post-test' %></td>
+            <td><%= a.correctCount %> / <%= a.totalQuestions %></td>
+            <td><b><%= a.score %></b></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="muted small">Daftar dibatasi pada percobaan terbaru. Ekspor (CSV/Excel/PDF) menunggu keputusan format laporan (E-7).</p>
+<%- include('../partials/footer') %>

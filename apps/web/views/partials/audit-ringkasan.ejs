@@ -1,0 +1,92 @@
+<%
+  /* Ringkasan Dashboard Audit, dipakai Auditor (/audit) dan Admin (/admin) agar tampilannya selalu sama.
+     Data dari halaman pemanggil: stats, header, register. Opsi include: reporterLabel (isi "Pelapor / Auditor"),
+     fullLink (tautan "Buka Tabel Lengkap"; kosong = tidak ditampilkan). */
+  var clip = function (s, n) { s = s || ''; return s.length > n ? s.slice(0, n) + '...' : s; };
+  var reporter = locals.reporterLabel || '-';
+  var fullLink = locals.fullLink || '';
+%>
+<div class="au-stats">
+  <div class="au-stat">
+    <div class="body"><div class="label">Total Temuan</div><span class="au-stat-ico violet" aria-hidden="true"><svg class="icon sm"><use href="#i-list"/></svg></span><div class="num"><%= stats.total %><small>/ klausul</small></div></div>
+    <div class="foot neutral">Klausul audit</div>
+  </div>
+  <div class="au-stat">
+    <div class="body"><div class="label">Kategori 1 (Mayor)</div><span class="au-stat-ico red" aria-hidden="true"><svg class="icon sm"><use href="#i-alert"/></svg></span><div class="num"><%= stats.major %></div></div>
+    <div class="foot major">Ketidakmampuan sistem</div>
+  </div>
+  <div class="au-stat">
+    <div class="body"><div class="label">Kategori 2 (Minor)</div><span class="au-stat-ico amber" aria-hidden="true"><svg class="icon sm"><use href="#i-alert"/></svg></span><div class="num"><%= stats.minor %></div></div>
+    <div class="foot minor">Inkonsistensi / standar</div>
+  </div>
+  <div class="au-stat">
+    <div class="body"><div class="label">Observasi (O)</div><span class="au-stat-ico violet" aria-hidden="true"><svg class="icon sm"><use href="#i-eye"/></svg></span><div class="num"><%= stats.observasi %></div></div>
+    <div class="foot obs">Peluang peningkatan</div>
+  </div>
+  <div class="au-stat">
+    <div class="body"><div class="label">Selesai (Closed)</div><span class="au-stat-ico green" aria-hidden="true"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="num"><%= stats.closedPct %>%<small><%= stats.closed %>/<%= stats.total %></small></div></div>
+    <div class="foot ok">Terverifikasi efektif</div>
+  </div>
+</div>
+
+<div class="split even">
+  <div class="card">
+    <h3>Distribusi Kategori Temuan</h3>
+    <% [['major', 'Kategori 1 (Mayor)', stats.major], ['minor', 'Kategori 2 (Minor)', stats.minor], ['obs', 'Observasi (O)', stats.observasi]].forEach(function (b) { %>
+      <div class="au-bar">
+        <div class="au-bar-head"><span><%= b[1] %></span><span class="au-bar-val <%= b[0] %>"><%= percent(b[2], stats.total) %>% (<%= b[2] %>)</span></div>
+        <progress class="<%= b[0] %>" max="100" value="<%= percent(b[2], stats.total) %>"></progress>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3>Informasi Dokumen &amp; Tim Verifikasi</h3>
+      <span class="pill-count">Terbit: <%= header.issuedAt || '-' %> &middot; Rev <%= header.revision %></span>
+    </div>
+    <div class="au-info">
+      <div><small class="k">Pelapor / Auditor</small><b><%= reporter %></b><span class="sub">Auditor</span></div>
+      <div><small class="k">Terlapor / Auditi</small><b><%= stats.auditees.length ? stats.auditees.join(', ') : '-' %></b><span class="sub">Penanggung jawab tindak lanjut</span></div>
+      <% if (stats.total > 0 && stats.open === 0) { %>
+        <div class="done"><small class="k">Hasil Verifikasi Akhir</small><b>Semua Temuan Efektif</b><span class="sub">Status dokumen: Disetujui (Closed)</span></div>
+      <% } else if (stats.total === 0) { %>
+        <div><small class="k">Hasil Verifikasi Akhir</small><b>Belum ada temuan</b><span class="sub">Belum ada temuan yang dicatat</span></div>
+      <% } else { %>
+        <div class="pending"><small class="k">Hasil Verifikasi Akhir</small><b><%= stats.open %> temuan belum ditutup</b><span class="sub">Menunggu verifikasi (Open)</span></div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <div class="card-title"><h3>Ringkasan Ketidaksesuaian Terbaru</h3><p class="muted small">Pantau status tindakan perbaikan dan tanggal batas penyelesaian</p></div>
+    <% if (fullLink) { %><a class="au-more-link" href="<%= fullLink %>">Buka Tabel Lengkap<svg class="icon sm" aria-hidden="true"><use href="#i-chevron"/></svg></a><% } %>
+  </div>
+  <div class="tablewrap">
+    <table class="au-table">
+      <thead><tr><th>No</th><th>Klausul / Rujukan</th><th>Uraian Masalah</th><th>Kat</th><th>Koreksi &amp; Pelaksana</th><th>Target</th><th>Status</th></tr></thead>
+      <tbody>
+        <% if (register.length === 0) { %>
+          <tr><td colspan="7" class="au-empty">Belum ada temuan.</td></tr>
+        <% } %>
+        <% var latest = register.slice(-5); latest.forEach(function (r, i) { var f = r.finding, u = r.followUp; var isObs = f.classification === 'OBSERVASI'; %>
+          <tr>
+            <td class="nowrap"><b><%= register.length - latest.length + i + 1 %></b></td>
+            <td class="clause clip"><%= clip(f.reference, 80) %></td>
+            <td class="clip"><%= clip(f.problem, 140) %></td>
+            <td><span class="au-kat <%= f.classification.toLowerCase() %>"><%= f.classification === 'MAJOR' ? 'Kat 1' : (f.classification === 'MINOR' ? 'Kat 2' : 'Obs O') %></span></td>
+            <td class="clip">
+              <b><%= clip(isObs ? u.improvementAction : u.correction, 90) || '-' %></b>
+              <% var pic = isObs ? u.improvementPic : u.correctionPic; if (pic) { %><div class="pic">PIC: <%= pic %></div><% } %>
+              <% if (!isObs && u.correctionEvidenceUrl) { %><div class="ev"><a href="<%= u.correctionEvidenceUrl %>" rel="noopener noreferrer" target="_blank">Bukti terlampir</a></div><% } %>
+            </td>
+            <td class="nowrap"><%= (isObs ? u.improvementTarget : u.correctionTarget) || '-' %></td>
+            <td><span class="au-status <%= f.status === 'CLOSED' ? 'closed' : 'open' %>"><%= f.status === 'CLOSED' ? 'Closed' : 'Open' %></span></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -12,20 +12,25 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:seed:tests": "tsx prisma/seedTests.ts"
+    "db:seed:tests": "tsx prisma/seedTests.ts",
+    "db:bootstrap-admin": "tsx prisma/bootstrapAdmin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "pdfkit": "^0.17.2",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
+    "@types/pdfkit": "^0.17.7",
     "@types/supertest": "^6.0.2",
     "prisma": "^6.19.0",
     "supertest": "^7.0.0",

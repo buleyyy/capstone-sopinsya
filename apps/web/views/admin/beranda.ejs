@@ -1,0 +1,60 @@
+<%- include('../partials/header', { nav: 'dashboard' }) %>
+<%
+  var now = new Date();
+  var late = sessions.filter(function (s) { return s.status === 'ACTIVE' && new Date(s.expiresAt) < now; });
+%>
+
+<div class="au-switch">
+  <a class="au-switch-btn" href="/admin">Masuk ke Dashboard Admin</a>
+</div>
+
+<% if (!selected) { %>
+  <section class="au-hero">
+    <span class="au-chip"><span class="au-dot" aria-hidden="true"></span>Audit Mutu Internal &amp; Pemantauan</span>
+    <h1>Dashboard Audit</h1>
+    <p>Pemantauan kepatuhan persyaratan dan tindakan korektif dari seluruh sesi audit.</p>
+  </section>
+  <div class="card">
+    <div class="empty">
+      <h3>Belum ada sesi audit</h3>
+      <p>Dashboard Audit tampil setelah ada sesi audit. Buat sesi lebih dulu, lalu tugaskan akun Auditor.</p>
+      <a class="btn" href="/admin/sesi">Buat sesi audit</a>
+    </div>
+  </div>
+<% } else { %>
+
+<section class="au-hero">
+  <span class="au-chip"><span class="au-dot" aria-hidden="true"></span>Audit Mutu Internal &amp; Pemantauan</span>
+  <h1>Dashboard Audit</h1>
+  <p>Pemantauan kepatuhan persyaratan <%= header.subtitle %>. Seluruh perbaikan dan tindakan korektif diverifikasi efektivitasnya oleh Lead Auditor.</p>
+  <a class="btn small light au-hero-action" href="/admin/sesi/<%= selected.id %>"><svg class="icon sm"><use href="#i-calendar"/></svg>Kelola Sesi</a>
+</section>
+
+<form class="au-toolbar" method="get" action="/admin/audit">
+  <label for="sesi">Sesi audit</label>
+  <select id="sesi" name="sesi" class="au-sesi-select">
+    <% sessions.forEach(function (s) { %>
+      <option value="<%= s.id %>"<%- s.id === selected.id ? ' selected' : '' %>><%= s.title %> (<%= sessionLabel[s.status] %>)</option>
+    <% }) %>
+  </select>
+  <button class="btn small" type="submit">Tampilkan</button>
+  <div class="au-toolbar-end">
+    <span class="badge <%= selected.status.toLowerCase() %>"><%= sessionLabel[selected.status] %></span>
+    <span class="muted small">Batas tulis: <%= fmt(selected.expiresAt) %></span>
+    <a class="btn outline small" href="/admin/sesi/<%= selected.id %>">Kelola sesi</a>
+  </div>
+</form>
+
+<% if (late.length > 0) { %>
+  <div class="alert warn" role="status">
+    <svg class="icon"><use href="#i-clock"/></svg>
+    <div><strong><%= late.length %> sesi aktif sudah melewati batas tulis.</strong> Auditor hanya dapat melihat data. Buka sesi untuk memperpanjang atau menutupnya:
+      <% late.forEach(function (s, i) { %><a href="/admin/sesi/<%= s.id %>"><%= s.title %></a><%= i < late.length - 1 ? ', ' : '' %><% }) %>.
+    </div>
+  </div>
+<% } %>
+
+<%- include('../partials/audit-ringkasan', { reporterLabel: auditors.length ? auditors.join(', ') : '-', fullLink: '/admin/sesi/' + selected.id }) %>
+
+<% } %>
+<%- include('../partials/footer') %>

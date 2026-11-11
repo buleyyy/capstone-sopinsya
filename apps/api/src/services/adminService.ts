@@ -1,6 +1,7 @@
 import { assertCanAccess, assertCanWrite, assertNotExcluded, canWrite } from "../domain/auditRules.js";
 import {
   addItemSchema,
+  assignAccountSchema,
   auditorRefSchema,
   closeSessionSchema,
   createAssignmentSchema,
@@ -14,6 +15,7 @@ import {
   sessionRefSchema,
   versionRefSchema,
 } from "../domain/auditSchemas.js";
+import type { AccountStore } from "../domain/accountStore.js";
 import type {
   AssignmentRecord,
   AuditStore,
@@ -121,10 +123,13 @@ export async function createSession(store: AuditStore, raw: unknown, now: Date =
   if (input.expiresAt.getTime() <= now.getTime()) {
     throw new AppError(422, "EXPIRES_IN_PAST", "Batas waktu tulis harus di masa depan");
   }
-  const version = await store.findChecklistVersion(input.checklistVersionId);
-  if (!version) throw notFound("Versi checklist");
-  if (version.status !== "PUBLISHED") {
-    throw new AppError(422, "VERSION_NOT_PUBLISHED", "Sesi hanya dapat memakai versi checklist berstatus PUBLISHED");
+  // Master Checklist tidak lagi wajib. Bila sesi memilih versi, versi itu tetap harus PUBLISHED (kompatibilitas data lama).
+  if (input.checklistVersionId !== null) {
+    const version = await store.findChecklistVersion(input.checklistVersionId);
+    if (!version) throw notFound("Versi checklist");
+    if (version.status !== "PUBLISHED") {
+      throw new AppError(422, "VERSION_NOT_PUBLISHED", "Sesi hanya dapat memakai versi checklist berstatus PUBLISHED");
+    }
   }
   return store.createSession(input);
 }
@@ -138,9 +143,11 @@ export async function activateSession(store: AuditStore, raw: unknown, now: Date
     if (session.expiresAt.getTime() <= now.getTime()) {
       throw new AppError(422, "EXPIRES_IN_PAST", "Batas waktu tulis sudah lewat; perpanjang sebelum mengaktifkan");
     }
-    const version = await tx.findChecklistVersion(session.checklistVersionId);
-    if (!version || version.status === "DRAFT") {
-      throw new AppError(422, "VERSION_NOT_PUBLISHED", "Versi checklist sesi belum diterbitkan");
+    if (session.checklistVersionId !== null) {
+      const version = await tx.findChecklistVersion(session.checklistVersionId);
+      if (!version || version.status === "DRAFT") {
+        throw new AppError(422, "VERSION_NOT_PUBLISHED", "Versi checklist sesi belum diterbitkan");
+      }
     }
     if (!(await tx.activateSession(sessionId))) throw stateError("Sesi sudah tidak berstatus DRAFT");
   });
@@ -170,7 +177,51 @@ export async function closeSession(store: AuditStore, raw: unknown, now: Date = 
   if (!(await store.closeSession(sessionId, now, accessUntil ?? null))) throw stateError("Sesi sudah tidak berstatus ACTIVE");
 }
 
-// ---------- Auditor dan undangan ----------
+// ---------- Penugasan akun Auditor (alur aktif) ----------
+
+/**
+ * Menugaskan akun Auditor ke sesi. Hanya akun aktif ber-role AUDITOR yang dapat ditugaskan, pada sesi DRAFT atau
+ * selama canWrite. Penugasan yang pernah dicabut diaktifkan kembali. Pengecualian self-audit wajib eksplisit.
+ */
+export async function assignAuditorAccount(
+  store: AuditStore,
+  accounts: AccountStore,
+  raw: unknown,
+  now: Date = new Date(),
+): Promise<AuditorRecord> {
+  const input = parseInput(assignAccountSchema, raw);
+  const session = await requireSession(store, input.sessionId);
+  if (session.status !== "DRAFT") assertCanWrite(session, now);
+  const account = await accounts.findById(input.accountId);
+  if (!account || account.role !== "AUDITOR") throw notFound("Akun Auditor");
+  if (!account.isActive) throw new AppError(422, "ACCOUNT_INACTIVE", "Akun Auditor nonaktif");
+  for (const departmentId of input.excludeDepartmentIds) {
+    if (!(await store.departmentExists(departmentId))) throw notFound(`Departemen ${departmentId}`);
+  }
+  const already = new AppError(409, "ALREADY_ASSIGNED", "Akun ini sudah ditugaskan pada sesi ini");
+  const existing = await store.findAuditorByUser(session.id, account.id);
+  if (existing) {
+    if (existing.revokedAt === null) throw already;
+    await store.reinstateAuditor(existing.id);
+    return (await store.findAuditorByUser(session.id, account.id)) ?? existing;
+  }
+  try {
+    return await store.createAccountAuditor({
+      sessionId: session.id,
+      userId: account.id,
+      name: account.name,
+      excludedDepartmentIds: [...new Set(input.excludeDepartmentIds)],
+      now,
+    });
+  } catch (e) {
+    if (e instanceof UniqueViolationError) throw already;
+    throw e;
+  }
+}
+
+// ---------- Auditor dan undangan (LEGACY) ----------
+// Mekanisme undangan/token TIDAK lagi dipakai alur aktif (UI, rute, dan otorisasi). Fungsi di bawah dipertahankan
+// hanya untuk data historis dan test lama; hapus pada pembersihan akhir (lihat docs/AUTH-ACCOUNTS.md).
 
 export interface InvitationResult {
   auditor: AuditorRecord;

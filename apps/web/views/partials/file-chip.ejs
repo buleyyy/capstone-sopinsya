@@ -1,0 +1,9 @@
+<%
+  /* Parameter: label (mis. "Bukti Koreksi:"), url (tautan https:// atau berkas unggahan /auditor/bukti/...).
+     Nama berkas diambil dari bagian akhir path tautan. */
+  var chipName = url;
+  try {
+    var seg = new URL(url, 'https://tautan.invalid').pathname.split('/').filter(Boolean).pop();
+    if (seg) chipName = decodeURIComponent(seg);
+  } catch (e) { /* tautan tidak dapat diurai: tampilkan apa adanya */ }
+%><a class="au-file" href="<%= url %>" rel="noopener noreferrer" target="_blank"><svg class="icon sm"><use href="#i-file"/></svg><span><b><%= label %></b> <%= chipName %></span></a>

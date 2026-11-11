@@ -1,0 +1,35 @@
+<%- include('_head') %>
+<div class="container">
+  <div class="page-head">
+    <nav class="crumb" aria-label="Jejak halaman">
+      <a href="/peserta/program/<%= program.slug %>">Program</a>
+      <span aria-hidden="true"> › </span>
+      <span aria-current="page">Video Referensi</span>
+      <span class="crumb-meeting"> · <%= meeting.title %></span>
+    </nav>
+    <h1>Video Referensi <%= program.fullTitle %></h1>
+    <ul class="meta"><li><svg class="ico meta-icon" width="16" height="16" aria-hidden="true"><use href="#i-user"/></svg> Trainer: <%= program.trainer %></li></ul>
+    <hr>
+  </div>
+  <% if (videos.length === 0) { %>
+    <p class="note" role="status">Video referensi untuk pertemuan ini belum tersedia.</p>
+  <% } %>
+  <ul class="videos">
+    <% videos.forEach(function (v) { %>
+      <% if (v.embedId) { %>
+        <li class="video-embed">
+          <iframe src="https://www.youtube-nocookie.com/embed/<%= v.embedId %>" title="<%= v.title %> - <%= program.fullTitle %>" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <a href="<%= v.url %>" target="_blank" rel="noopener noreferrer"><%= v.title %> (buka di YouTube)</a>
+        </li>
+      <% } else { %>
+        <li>
+          <a class="video" href="<%= v.url %>" target="_blank" rel="noopener noreferrer">
+            <span class="video-thumb"><svg class="ico" width="44" height="44" aria-hidden="true"><use href="#i-play"/></svg></span>
+            <span><%= v.title %></span>
+          </a>
+        </li>
+      <% } %>
+    <% }) %>
+  </ul>
+</div>
+<%- include('_foot') %>

@@ -1,0 +1,57 @@
+<%# Modal "Ubah Temuan": ditampilkan di atas Daftar Temuan (di-include oleh temuan-daftar.ejs, modal = 'ubah'). %>
+<div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="au-modal-card">
+    <div class="au-modal-head">
+      <div>
+        <h2 id="m-title">Ubah Temuan <%= code %></h2>
+        <small><%= departmentName %> &middot; <%= finding.classification === 'MAJOR' ? 'Kategori 1 (Mayor)' : (finding.classification === 'MINOR' ? 'Kategori 2 (Minor)' : 'Observasi (O)') %> &middot; <%= finding.status === 'CLOSED' ? 'Closed' : 'Open' %></small>
+      </div>
+      <a class="au-modal-close" href="/auditor/temuan" aria-label="Tutup"><svg class="icon"><use href="#i-x"/></svg></a>
+    </div>
+
+    <form class="au-form" method="post" action="/auditor/temuan/<%= finding.id %>/tindak-lanjut">
+      <div class="au-modal-body">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <input type="hidden" name="kembali" value="daftar">
+
+        <div class="au-readonly">
+          <div class="au-group-head">
+            <span class="au-group-title">Uraian Ketidaksesuaian (PLOR)</span>
+            <span class="au-tag">Tidak dapat diubah</span>
+          </div>
+          <p><b>Reference:</b> <%= finding.reference %></p>
+          <p><b>Problem:</b> <%= finding.problem %></p>
+          <p><b>Location:</b> <%= finding.location %></p>
+          <p><b>Objective evidence:</b> <%= finding.objectiveEvidence %></p>
+          <% if (finding.evidenceUrl) { %><p><a href="<%= finding.evidenceUrl %>" rel="noopener noreferrer" target="_blank">Tautan bukti temuan</a></p><% } %>
+          <p class="hint">Uraian PLOR tidak dapat diubah setelah disimpan agar jejak audit tetap utuh.</p>
+        </div>
+
+        <%- include('../partials/followup-parties', { f: followUp }) %>
+        <%- include('../partials/followup-fields', { f: followUp, mode: finding.classification === 'OBSERVASI' ? 'obs' : 'capa' }) %>
+      </div>
+      <div class="au-modal-foot">
+        <a class="btn secondary" href="/auditor/temuan">Batal</a>
+        <button class="btn" type="submit">Simpan Perubahan</button>
+      </div>
+    </form>
+
+    <% if (finding.status === 'OPEN') { %>
+      <form class="au-modal-extra" method="post" action="/auditor/temuan/<%= finding.id %>/tutup">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <input type="hidden" name="kembali" value="daftar">
+        <h4>Tutup temuan (verifikasi selesai)</h4>
+        <p class="hint">Tutup temuan bila tindakan terbukti menyelesaikan masalah (Closed). Simpan perubahan di atas lebih dulu bila ada isian yang belum tersimpan.</p>
+        <div class="au-cols">
+          <div>
+            <label for="close_note">Catatan penutupan (opsional)</label>
+            <input id="close_note" type="text" name="note" maxlength="2000">
+          </div>
+          <div class="au-extra-btn"><button class="btn secondary" type="submit">Tutup Temuan</button></div>
+        </div>
+      </form>
+    <% } else if (finding.closedAt) { %>
+      <div class="au-modal-extra"><p class="hint">Ditutup pada <%= fmt(finding.closedAt) %>.</p></div>
+    <% } %>
+  </div>
+</div>

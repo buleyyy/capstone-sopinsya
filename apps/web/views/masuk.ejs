@@ -1,0 +1,29 @@
+<%- include('partials/header') %>
+<div class="login-card">
+  <div class="login-brand">
+    <img src="/static/logo.svg" alt="" width="66" height="53">
+    <strong>Sopinsya Educenter</strong>
+  </div>
+  <p class="login-lead">Masuk untuk melanjutkan ke aplikasi internal</p>
+
+  <% if (error) { %>
+    <div class="alert error" role="alert"><svg class="icon"><use href="#i-alert"/></svg><div><%= error %></div></div>
+  <% } %>
+
+  <form method="post" action="/masuk" autocomplete="off" class="login-form">
+    <label for="email">Email</label>
+    <input id="email" type="text" name="email" required maxlength="160" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label for="secret">Password</label>
+    <div class="login-pw">
+      <input id="secret" type="password" name="secret" required maxlength="256" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button type="button" class="login-eye" data-toggle-password="secret" aria-label="Tampilkan kata sandi" aria-pressed="false" hidden><svg class="icon sm" aria-hidden="true"><use href="#i-eye"/></svg></button>
+    </div>
+    <p class="login-help">Lupa password? Hubungi Admin untuk reset.</p>
+    <button class="login-submit" type="submit">Masuk</button>
+  </form>
+
+  <% if (legacyEnvLogin) { %>
+    <p class="login-legacy">Fallback development aktif untuk <code><%= adminEmail %></code> (Admin) dan <code><%= auditorEmail %></code> (Auditor).<% if (!adminEnabled && !auditorEnabled) { %> ADMIN_PASSWORD/AUDITOR_PASSWORD belum diatur.<% } %></p>
+  <% } %>
+</div>
+<%- include('partials/footer') %>
