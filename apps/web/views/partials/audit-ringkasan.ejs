@@ -83,7 +83,7 @@
               <% if (!isObs && u.correctionEvidenceUrl) { %><div class="ev"><a href="<%= u.correctionEvidenceUrl %>" rel="noopener noreferrer" target="_blank">Bukti terlampir</a></div><% } %>
             </td>
             <td class="nowrap"><%= (isObs ? u.improvementTarget : u.correctionTarget) || '-' %></td>
-            <td><span class="au-status <%= f.status === 'CLOSED' ? 'closed' : 'open' %>"><%= f.status === 'CLOSED' ? 'Closed' : 'Open' %></span></td>
+            <td><span class="au-status <%= f.status === 'CLOSED' ? 'closed' : 'open' %>"><i class="dot"></i><%= f.status === 'CLOSED' ? 'Closed' : 'Open' %></span></td>
           </tr>
         <% }) %>
       </tbody>

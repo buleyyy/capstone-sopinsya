@@ -314,7 +314,8 @@ a.card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
 /* ============ Formulir ============ */
 label { display: block; font-weight: 500; font-size: 13px; line-height: 18px; color: var(--on-surface); margin: 1rem 0 .3rem; }
 label:first-child { margin-top: 0; }
-input[type="text"], input[type="password"], input[type="url"], input[type="number"], input[type="datetime-local"], select, textarea {
+input[type="text"], input[type="password"], input[type="url"], input[type="number"], input[type="datetime-local"],
+input[type="search"], input[type="email"], input[type="tel"], input[type="date"], select, textarea {
   width: 100%;
   padding: 9px 12px;
   min-height: 40px;

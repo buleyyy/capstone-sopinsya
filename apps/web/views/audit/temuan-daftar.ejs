@@ -58,9 +58,9 @@
             <td class="nowrap"><b><%= i + 1 %></b><div class="pic"><%= r.code %></div></td>
             <td><span class="au-clause"><%= f.reference %></span></td>
             <td class="clip">
-              <p><b>Problem:</b> <%= f.problem %></p>
-              <p><b>Location:</b> <%= f.location %></p>
-              <p><b>Objective evidence:</b> <%= f.objectiveEvidence %></p>
+              <p><%= f.problem %></p>
+              <div class="pic">Lokasi: <%= f.location %></div>
+              <div class="pic">Bukti objektif: <%= f.objectiveEvidence %></div>
               <% if (f.evidenceUrl) { %><%- include('../partials/file-chip', { label: 'Bukti Temuan:', url: f.evidenceUrl }) %><% } %>
             </td>
             <td class="clip">

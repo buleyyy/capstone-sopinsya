@@ -1,93 +1,136 @@
 <%- include('../partials/header') %>
-<% var progLabel = function (slug) { var p = programs.find(function (x) { return x.slug === slug; }); return p ? p.label : slug; }; %>
-<div class="page-head">
+<%
+  var qs = function (pairs) { return pairs.filter(function (p) { return p[1] !== ''; }).map(function (p) { return encodeURIComponent(p[0]) + '=' + encodeURIComponent(p[1]); }).join('&'); };
+  var testQuery = qs([['q', filter.q]].concat(filter.types.map(function (t) { return ['type', t]; }), filter.programs.map(function (p) { return ['program', p]; })));
+  var caseQuery = qs([['cq', filter.cq]].concat(filter.cprograms.map(function (p) { return ['cprogram', p]; })));
+  var activeTest = filter.types.length + filter.programs.length;
+  var activeCase = filter.cprograms.length;
+  var back = query.replace(/[?&]ok=1/g, '');
+  /* Filter yang tidak sedang diubah ikut dikirim agar tabel lain tidak ter-reset. */
+  var keepTest = function () { return '<input type="hidden" name="cq" value="' + filter.cq.replace(/"/g, '&quot;') + '">' + filter.cprograms.map(function (p) { return '<input type="hidden" name="cprogram" value="' + p + '">'; }).join(''); };
+  var keepCase = function () { return '<input type="hidden" name="q" value="' + filter.q.replace(/"/g, '&quot;') + '">' + filter.types.map(function (t) { return '<input type="hidden" name="type" value="' + t + '">'; }).join('') + filter.programs.map(function (p) { return '<input type="hidden" name="program" value="' + p + '">'; }).join(''); };
+%>
+<div class="ad-pagehead">
   <div>
-    <h1>Nilai Evaluasi Peserta</h1>
-    <p>Rekap hasil Pre-test dan Post-test. Peserta tidak melihat nilai ini; hanya Admin.</p>
+    <h1>Hasil Evaluasi</h1>
+    <p>Rekap identitas peserta, nilai, dan waktu pengiriman. Auditor tidak memiliki akses ke data ini.</p>
   </div>
 </div>
+<% if (saved) { %><div class="alert ok">Data berhasil dihapus dari rekap.</div><% } %>
 
-<div class="panel">
-  <form class="au-filter" method="get" action="/admin/nilai-evaluasi">
-    <div class="grow">
-      <label for="n_q">Cari nama atau instansi</label>
-      <input id="n_q" type="search" name="q" maxlength="100" value="<%= filter.q %>">
+<!-- Pre-test & Post-test -->
+<form class="ad-filterbar" method="get" action="/admin/nilai-evaluasi">
+  <%- keepTest() %>
+  <div class="au-search">
+    <svg class="icon sm" aria-hidden="true"><use href="#i-search"/></svg>
+    <label class="sr-only" for="n_q">Cari hasil pre-test &amp; post-test peserta</label>
+    <input id="n_q" type="search" name="q" maxlength="100" value="<%= filter.q %>" placeholder="Cari hasil pre-test &amp; post-test peserta...">
+  </div>
+  <details class="ad-filter"<%- activeTest ? ' data-active' : '' %>>
+    <summary><%= activeTest ? activeTest + ' filter aktif' : 'Semua Kategori' %><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+    <div class="ad-filter-menu">
+      <fieldset><legend>Jenis test</legend>
+        <label><input type="checkbox" name="type" value="PRE"<%- filter.types.indexOf('PRE') !== -1 ? ' checked' : '' %>> Pre-test</label>
+        <label><input type="checkbox" name="type" value="POST"<%- filter.types.indexOf('POST') !== -1 ? ' checked' : '' %>> Post-test</label>
+      </fieldset>
+      <fieldset><legend>Nama program</legend>
+        <% programs.forEach(function (p) { %><label><input type="checkbox" name="program" value="<%= p.slug %>"<%- filter.programs.indexOf(p.slug) !== -1 ? ' checked' : '' %>> <%= p.label %></label><% }) %>
+      </fieldset>
+      <button class="btn small ad-primary" type="submit">Terapkan</button>
     </div>
-    <div>
-      <label for="n_program">Program</label>
-      <select id="n_program" name="program">
-        <option value="">Semua program</option>
-        <% programs.forEach(function (p) { %>
-          <option value="<%= p.slug %>" <%= filter.program === p.slug ? 'selected' : '' %>><%= p.label %></option>
-        <% }) %>
-      </select>
-    </div>
-    <div>
-      <label for="n_type">Jenis tes</label>
-      <select id="n_type" name="type">
-        <option value="">Pre-test dan Post-test</option>
-        <option value="PRE" <%= filter.type === 'PRE' ? 'selected' : '' %>>Pre-test</option>
-        <option value="POST" <%= filter.type === 'POST' ? 'selected' : '' %>>Post-test</option>
-      </select>
-    </div>
-    <div class="actions">
-      <button class="btn small" type="submit">Terapkan</button>
-      <a class="btn small secondary" href="/admin/nilai-evaluasi">Reset</a>
-    </div>
-  </form>
-  <div class="panel-foot"><span>Menampilkan <b><%= rows.length %></b> dari <b><%= total %></b> percobaan</span></div>
-</div>
+  </details>
+  <div class="ad-filterbar-end">
+    <a class="btn small ad-primary" href="/admin/nilai-evaluasi/hasil-test.csv<%= testQuery ? '?' + testQuery : '' %>"><svg class="icon sm"><use href="#i-download"/></svg>Ekspor ke CSV</a>
+    <a class="btn outline small" href="/admin/nilai-evaluasi<%= caseQuery ? '?' + caseQuery : '' %>"><svg class="icon sm"><use href="#i-refresh"/></svg>Reset Data Default</a>
+  </div>
+</form>
 
-<h2>Ringkasan per tes</h2>
-<div class="panel">
+<div class="ad-card">
+  <div class="ad-card-head light"><div><h2>Pre-test &amp; Post-test</h2><p>Hasil test dari peserta</p></div></div>
   <div class="tablewrap">
-    <table class="au-table">
-      <thead><tr><th>Program</th><th>Pertemuan</th><th>Jenis</th><th>Judul tes</th><th>Percobaan</th><th>Rata-rata</th><th>Tertinggi</th><th>Terendah</th></tr></thead>
+    <table class="au-table ad-table">
+      <thead><tr><th>No</th><th>Nama Program</th><th>Email</th><th>Nama Peserta</th><th>Jabatan</th><th>Nama Instansi</th><th>Nomor HP</th><th>Nilai</th><th>Jenis Test</th><th>Waktu Kirim</th><th>Aksi</th></tr></thead>
       <tbody>
-        <% if (summary.length === 0) { %>
-          <tr><td colspan="8" class="au-empty">Belum ada percobaan tes yang sesuai.</td></tr>
-        <% } %>
-        <% summary.forEach(function (s) { %>
+        <% if (rows.length === 0) { %><tr><td colspan="11" class="au-empty"><%= total === 0 ? 'Belum ada peserta yang mengirim pre-test atau post-test.' : 'Tidak ada hasil yang cocok dengan pencarian/filter.' %></td></tr><% } %>
+        <% rows.forEach(function (a, i) { %>
           <tr>
-            <td><%= progLabel(s.programSlug) %></td>
-            <td><%= s.meetingNo %></td>
-            <td><%= s.type === 'PRE' ? 'Pre-test' : 'Post-test' %></td>
-            <td class="clip"><%= s.title %></td>
-            <td><%= s.count %></td>
-            <td><b><%= s.average %></b></td>
-            <td><%= s.max %></td>
-            <td><%= s.min %></td>
+            <td><%= i + 1 %></td>
+            <td><b class="ad-name"><%= programLabel(a.programSlug) %></b><div class="muted small">Pertemuan <%= a.meetingNo %></div></td>
+            <td class="clip"><%= a.participantEmail || '-' %></td>
+            <td><b><%= a.participantName %></b></td>
+            <td><%= a.participantPosition || '-' %></td>
+            <td><%= a.participantInstitution %></td>
+            <td class="nowrap"><%= a.participantPhone || '-' %></td>
+            <td class="nowrap"><%= a.score %>/100</td>
+            <td><span class="ad-type"><%= a.type === 'PRE' ? 'Pre-test' : 'Post-test' %></span></td>
+            <td class="nowrap"><%= timeWib(a.submittedAt) %><div class="muted small"><%= dateWib(a.submittedAt) %></div></td>
+            <td>
+              <form method="post" action="/admin/nilai-evaluasi/test/<%= a.id %>/hapus">
+                <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= back %>">
+                <button class="au-icon-btn danger" type="submit" aria-label="Hapus hasil <%= a.participantName %>" title="Hapus dari rekap"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+              </form>
+            </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   </div>
+  <div class="au-card-foot"><span>Menampilkan <b><%= rows.length %></b> dari <b><%= total %></b> hasil test</span><span>Waktu dalam WIB.</span></div>
 </div>
 
-<h2>Daftar percobaan</h2>
-<div class="panel">
+<!-- Studi Kasus -->
+<form class="ad-filterbar" method="get" action="/admin/nilai-evaluasi#studi-kasus" id="studi-kasus">
+  <%- keepCase() %>
+  <div class="au-search">
+    <svg class="icon sm" aria-hidden="true"><use href="#i-search"/></svg>
+    <label class="sr-only" for="c_q">Cari hasil studi kasus peserta</label>
+    <input id="c_q" type="search" name="cq" maxlength="100" value="<%= filter.cq %>" placeholder="Cari hasil studi kasus peserta...">
+  </div>
+  <details class="ad-filter"<%- activeCase ? ' data-active' : '' %>>
+    <summary><%= activeCase ? activeCase + ' filter aktif' : 'Semua Kategori' %><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+    <div class="ad-filter-menu">
+      <fieldset><legend>Nama program</legend>
+        <% programs.forEach(function (p) { %><label><input type="checkbox" name="cprogram" value="<%= p.slug %>"<%- filter.cprograms.indexOf(p.slug) !== -1 ? ' checked' : '' %>> <%= p.label %></label><% }) %>
+      </fieldset>
+      <button class="btn small ad-primary" type="submit">Terapkan</button>
+    </div>
+  </details>
+  <div class="ad-filterbar-end">
+    <a class="btn small ad-primary" href="/admin/nilai-evaluasi/studi-kasus.csv<%= caseQuery ? '?' + caseQuery : '' %>"><svg class="icon sm"><use href="#i-download"/></svg>Ekspor ke CSV</a>
+    <a class="btn outline small" href="/admin/nilai-evaluasi<%= testQuery ? '?' + testQuery : '' %>#studi-kasus"><svg class="icon sm"><use href="#i-refresh"/></svg>Reset Data Default</a>
+  </div>
+</form>
+
+<div class="ad-card">
+  <div class="ad-card-head light"><div><h2>Studi Kasus</h2><p>Hasil studi kasus dari peserta</p></div></div>
   <div class="tablewrap">
-    <table class="au-table">
-      <thead><tr><th>Waktu</th><th>Peserta</th><th>Instansi</th><th>Program</th><th>Pertemuan</th><th>Jenis</th><th>Benar / Total</th><th>Skor</th></tr></thead>
+    <table class="au-table ad-table">
+      <thead><tr><th>No</th><th>Nama Program</th><th>Jenis</th><th>Nama Peserta</th><th>Tanggal</th><th>Waktu Kirim</th><th>File Studi Kasus</th><th>Aksi</th></tr></thead>
       <tbody>
-        <% if (rows.length === 0) { %>
-          <tr><td colspan="8" class="au-empty">Belum ada percobaan tes yang sesuai.</td></tr>
-        <% } %>
-        <% rows.forEach(function (a) { %>
+        <% if (cases.length === 0) { %><tr><td colspan="8" class="au-empty"><%= caseTotal === 0 ? 'Belum ada peserta yang mengunggah studi kasus.' : 'Tidak ada studi kasus yang cocok dengan pencarian/filter.' %></td></tr><% } %>
+        <% cases.forEach(function (c, i) { %>
           <tr>
-            <td class="nowrap"><%= fmt(a.submittedAt) %></td>
-            <td class="clip"><b><%= a.participantName %></b></td>
-            <td class="clip"><%= a.participantInstitution %></td>
-            <td><%= progLabel(a.programSlug) %></td>
-            <td><%= a.meetingNo %></td>
-            <td><%= a.type === 'PRE' ? 'Pre-test' : 'Post-test' %></td>
-            <td><%= a.correctCount %> / <%= a.totalQuestions %></td>
-            <td><b><%= a.score %></b></td>
+            <td><%= i + 1 %></td>
+            <td><b class="ad-name"><%= c.programTitle %></b><div class="muted small">Pertemuan <%= c.meetingNo %></div></td>
+            <td class="muted">Studi Kasus</td>
+            <td><b><%= c.participantName %></b><div class="muted small"><%= c.participantInstitution %></div></td>
+            <td class="nowrap"><%= dateWib(c.submittedAt) %></td>
+            <td class="nowrap"><%= timeWib(c.submittedAt) %></td>
+            <td class="clip"><a class="ad-filelink" href="/admin/studi-kasus/<%= c.id %>/unduh?lihat=1" target="_blank" rel="noopener"><%= c.fileName %></a></td>
+            <td class="nowrap">
+              <div class="ad-actions ad-icons">
+                <form method="post" action="/admin/nilai-evaluasi/studi-kasus/<%= c.id %>/hapus">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= back %>">
+                  <button class="au-icon-btn danger" type="submit" aria-label="Hapus studi kasus <%= c.participantName %>" title="Hapus dari rekap"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+                </form>
+                <a class="au-icon-btn" href="/admin/studi-kasus/<%= c.id %>/unduh" aria-label="Unduh <%= c.fileName %>" title="Unduh berkas"><svg class="icon sm"><use href="#i-download"/></svg></a>
+              </div>
+            </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
   </div>
+  <div class="au-card-foot"><span>Menampilkan <b><%= cases.length %></b> dari <b><%= caseTotal %></b> studi kasus</span></div>
 </div>
-<p class="muted small">Daftar dibatasi pada percobaan terbaru. Ekspor (CSV/Excel/PDF) menunggu keputusan format laporan (E-7).</p>
 <%- include('../partials/footer') %>

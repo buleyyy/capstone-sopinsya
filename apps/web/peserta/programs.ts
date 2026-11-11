@@ -1,6 +1,7 @@
 import { toHttpsUrl } from "../../api/src/routes/publicContent.js";
 import type { MeetingResourceKind, ProgramDetailRow } from "../admin/readStore.js";
 import type { WebDeps } from "../shared/deps.js";
+import { PUBLIC_FILE_PATH } from "../shared/files.js";
 
 /**
  * Data program untuk halaman peserta (publik, tanpa login).
@@ -39,6 +40,8 @@ export interface PubProgram {
   trainer: string;
   category: string;
   tone: Tone;
+  /** Sampul dari Admin (/berkas/... atau https://); null = ilustrasi bawaan. */
+  coverUrl?: string | null;
   meetings: PubMeeting[];
 }
 
@@ -54,7 +57,7 @@ function toPublic(d: ProgramDetailRow): PubProgram {
       const groups = emptyGroups();
       const resources = m.resources.filter((r) => r.isPublished).sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
       for (const r of resources) {
-        const url = toHttpsUrl(r.url);
+        const url = PUBLIC_FILE_PATH.test(r.url) ? r.url : toHttpsUrl(r.url); // berkas unggahan Admin atau https
         if (url) groups[r.type].push({ id: r.id, title: r.title, url });
       }
       return { number: m.number, title: m.title, resources: groups };
@@ -72,6 +75,7 @@ function toPublic(d: ProgramDetailRow): PubProgram {
     trainer: d.trainer,
     category: d.category,
     tone: toTone(d.tone),
+    coverUrl: d.coverUrl && PUBLIC_FILE_PATH.test(d.coverUrl) ? d.coverUrl : null, // CSP img-src self: hanya unggahan
     meetings,
   };
 }

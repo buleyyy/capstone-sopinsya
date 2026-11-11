@@ -22,32 +22,7 @@
   <div class="card">Belum ada penugasan untuk Anda. Hubungi Admin untuk mendapatkan unit yang akan diaudit.</div>
 <% } else { %>
 
+<%# Checklist audit tidak lagi dipakai (SRS W-03 no. 5): dashboard hanya berisi ringkasan Register Temuan. %>
 <%- include('../partials/audit-ringkasan', { reporterLabel: auditorName, fullLink: '/auditor/temuan' }) %>
-
-<h2>Kemajuan per unit yang diaudit</h2>
-<div class="card tablewrap">
-  <table>
-    <thead>
-      <tr><th>Unit</th><th>Pengisian</th><th>YA</th><th>TIDAK</th><th>Belum</th><th>Temuan (terbuka/total)</th><th></th></tr>
-    </thead>
-    <tbody>
-      <% dash.forEach(function (d) { %>
-        <tr>
-          <td><strong><%= d.departmentName %></strong></td>
-          <td><%= percent(d.answered, d.totalItems) %>% <span class="muted small">(<%= d.answered %>/<%= d.totalItems %>)</span></td>
-          <td><%= d.ya %></td>
-          <td><%= d.tidak %></td>
-          <td><%= d.unanswered %></td>
-          <td><%= d.findings.open %>/<%= d.findings.total %></td>
-          <td class="nowrap">
-            <% if (d.totalItems > 0) { %><a class="btn small" href="/auditor/penugasan/<%= d.assignmentId %>">Checklist</a><% } %>
-            <a class="btn small secondary" href="/auditor/penugasan/<%= d.assignmentId %>/temuan">Temuan</a>
-            <a class="btn small secondary" href="/auditor/cetak?unit=<%= d.assignmentId %>">Cetak</a>
-          </td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-</div>
 <% } %>
 <%- include('../partials/footer') %>

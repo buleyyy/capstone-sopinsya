@@ -6,19 +6,21 @@
   </div>
   <p class="login-lead">Masuk untuk melanjutkan ke aplikasi internal</p>
 
-  <% if (error) { %>
-    <div class="alert error" role="alert"><svg class="icon"><use href="#i-alert"/></svg><div><%= error %></div></div>
-  <% } %>
-
   <form method="post" action="/masuk" autocomplete="off" class="login-form">
     <label for="email">Email</label>
-    <input id="email" type="text" name="email" required maxlength="160" value="<%= email %>" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input id="email" type="text" name="email" required maxlength="160" value="<%= email %>" placeholder="nama@sopinsya" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label for="secret">Password</label>
     <div class="login-pw">
-      <input id="secret" type="password" name="secret" required maxlength="256" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input id="secret" type="password" name="secret" required maxlength="256" placeholder="••••••••" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
       <button type="button" class="login-eye" data-toggle-password="secret" aria-label="Tampilkan kata sandi" aria-pressed="false" hidden><svg class="icon sm" aria-hidden="true"><use href="#i-eye"/></svg></button>
     </div>
-    <p class="login-help">Lupa password? Hubungi Admin untuk reset.</p>
+    <% if (error) { %>
+      <p class="login-msg err" role="alert"><%= error %></p>
+    <% } else if (forgot) { %>
+      <p class="login-msg err" role="status">Minta admin untuk mengubah password Anda</p>
+    <% } else { %>
+      <p class="login-help"><a href="/masuk?lupa=1">Lupa password?</a></p>
+    <% } %>
     <button class="login-submit" type="submit">Masuk</button>
   </form>
 

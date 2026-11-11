@@ -122,6 +122,63 @@ export async function resetAuditorPassword(store: AccountStore, rawInput: unknow
   return { account, temporaryPassword: input.password ? null : password };
 }
 
+// ---------- Kelola Akun (Admin & Auditor) ----------
+// Halaman Kelola Akun mengelola kedua peran. Pengaman: Admin tidak bisa menonaktifkan akunnya sendiri,
+// dan akun Admin aktif terakhir tidak bisa dinonaktifkan (agar sistem tidak terkunci).
+
+async function requireAccount(store: AccountStore, accountId: number): Promise<AccountRecord> {
+  const account = await store.findById(accountId);
+  if (!account) throw new AppError(404, "NOT_FOUND", "Akun tidak ditemukan");
+  return account;
+}
+
+export async function createAccount(store: AccountStore, rawInput: unknown, role: "ADMIN" | "AUDITOR"): Promise<AccountSecretResult> {
+  const input = parseInput(createAccountSchema, rawInput);
+  const password = input.password ?? generateTemporaryPassword();
+  try {
+    const account = await store.create({ email: input.email, name: input.name, passwordHash: await hashPassword(password), role });
+    return { account, temporaryPassword: input.password ? null : password };
+  } catch (err) {
+    if (err instanceof UniqueViolationError) throw duplicateEmail();
+    throw err;
+  }
+}
+
+export async function updateAccount(store: AccountStore, rawInput: unknown): Promise<AccountRecord> {
+  const input = parseInput(updateAccountSchema, rawInput);
+  await requireAccount(store, input.accountId);
+  try {
+    const updated = await store.update(input.accountId, { email: input.email, name: input.name });
+    if (!updated) throw new AppError(404, "NOT_FOUND", "Akun tidak ditemukan");
+    return updated;
+  } catch (err) {
+    if (err instanceof UniqueViolationError) throw duplicateEmail();
+    throw err;
+  }
+}
+
+export async function setAccountActive(store: AccountStore, rawInput: unknown, actorId: number | null): Promise<AccountRecord> {
+  const input = parseInput(setAccountActiveSchema, rawInput);
+  const account = await requireAccount(store, input.accountId);
+  if (!input.isActive && account.id === actorId) {
+    throw new AppError(409, "SELF_DEACTIVATE", "Anda tidak dapat menonaktifkan akun yang sedang dipakai");
+  }
+  if (!input.isActive && account.role === "ADMIN" && account.isActive) {
+    const activeAdmins = (await store.list("ADMIN")).filter((a) => a.isActive).length;
+    if (activeAdmins <= 1) throw new AppError(409, "LAST_ADMIN", "Minimal harus ada satu akun Admin yang aktif");
+  }
+  await store.setActive(account.id, input.isActive);
+  return requireAccount(store, account.id);
+}
+
+export async function resetAccountPassword(store: AccountStore, rawInput: unknown): Promise<AccountSecretResult> {
+  const input = parseInput(resetPasswordSchema, rawInput);
+  const account = await requireAccount(store, input.accountId);
+  const password = input.password ?? generateTemporaryPassword();
+  await store.setPasswordHash(account.id, await hashPassword(password));
+  return { account, temporaryPassword: input.password ? null : password };
+}
+
 export async function getAuditorAccount(store: AccountStore, rawInput: unknown): Promise<AccountRecord> {
   const input = parseInput(accountRefSchema, rawInput);
   return requireAuditorAccount(store, input.accountId);

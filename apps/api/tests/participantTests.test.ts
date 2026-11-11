@@ -21,6 +21,7 @@ function buildFixture() {
     id: 1,
     title: "Pre-test ISO 37001: 2025",
     type: "PRE",
+    instructions: null,
     questions: Array.from({ length: TOTAL }, (_, i) => ({
       id: i + 1,
       orderNo: i + 1,
@@ -65,7 +66,11 @@ const env = loadEnv({ NODE_ENV: "test" });
 const makeApp = (store?: ParticipantTestStore) =>
   createApp({ env, db: createDatabase(undefined), ...(store ? { participantTests: store } : {}) });
 
-const identity = { participantName: "Budi Santoso", participantInstitution: "BBWS Ciliwung Cisadane" };
+const identity = {
+  participantName: "Budi Santoso",
+  participantInstitution: "BBWS Ciliwung Cisadane",
+  participantEmail: "budi@contoh.test",
+};
 
 /** Jawaban benar untuk soal 1..nCorrect, sisanya sengaja salah atau kosong. */
 function answersFor(key: GradingKey, nCorrect: number, rest: "wrong" | "blank") {
@@ -187,6 +192,8 @@ describe("POST /api/public/tests/:testId/attempts", () => {
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantName: "   " })).status).toBe(400);
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantInstitution: "" })).status).toBe(400);
     expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, clientRequestId: "x" })).status).toBe(400);
+    expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantEmail: "bukan-email" })).status).toBe(400);
+    expect((await request(app).post("/api/public/tests/1/attempts").send({ ...base, participantPhone: "08x12" })).status).toBe(400);
   });
 
   it("menolak jawaban dengan soal/opsi asing dan memberi 404 untuk tes tidak ada", async () => {

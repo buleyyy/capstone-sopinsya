@@ -18,10 +18,11 @@ export function createLoginRouter(deps: WebDeps): Router {
   const router = Router();
   const { sec, loginEmails } = deps;
 
-  const renderGate = (res: Response, status: number, o: { error?: string | null; email?: string } = {}) => {
+  const renderGate = (res: Response, status: number, o: { error?: string | null; email?: string; forgot?: boolean } = {}) => {
     res.status(status).render("masuk", {
       title: "Masuk",
       error: o.error ?? null,
+      forgot: o.forgot ?? false, // "Lupa password?": tidak ada reset mandiri; arahkan ke Admin
       email: o.email ?? "",
       legacyEnvLogin: deps.legacyEnvLogin,
       adminEnabled: deps.legacyEnvLogin && sec.adminEnabled,
@@ -41,7 +42,7 @@ export function createLoginRouter(deps: WebDeps): Router {
 
   router.get("/masuk", (req, res) => {
     if (sec.adminBinding(req)) return res.redirect(303, "/admin");
-    renderGate(res, 200);
+    renderGate(res, 200, { forgot: req.query["lupa"] === "1" });
   });
 
   // Bookmark lama /admin/masuk tetap mendarat di halaman masuk.
@@ -51,7 +52,7 @@ export function createLoginRouter(deps: WebDeps): Router {
     const ip = req.ip ?? "unknown";
     const email = trimmed(req, "email").toLowerCase();
     const secret = trimmed(req, "secret");
-    const generic = "Email atau kata sandi tidak sesuai.";
+    const generic = "Email atau password salah";
     const blocked = "Terlalu banyak percobaan. Coba lagi dalam 15 menit.";
 
     if (sec.isLoginBlocked(ip)) {

@@ -16,10 +16,10 @@ import {
   revokeAuditor,
 } from "../../api/src/services/adminService.js";
 import {
-  createAuditorAccount,
-  resetAuditorPassword,
-  setAuditorAccountActive,
-  updateAuditorAccount,
+  createAccount,
+  resetAccountPassword,
+  setAccountActive,
+  updateAccount,
 } from "../../api/src/services/accountService.js";
 import type { AccountRecord } from "../../api/src/domain/accountStore.js";
 import { DEFAULT_DOCUMENT_HEADER } from "../../api/src/services/auditService.js";
@@ -28,6 +28,9 @@ import { registerStats } from "../shared/auditSummary.js";
 import { requireAdminStore, requireStore, type WebDeps } from "../shared/deps.js";
 import { ABOUT_KEY, aboutSchema, loadAbout, pointsFromText } from "../shared/aboutContent.js";
 import { field, intField, intParam, trimmed, wibInput } from "../shared/helpers.js";
+import { loadSite, SITE_KEY, siteSchema } from "../shared/siteIdentity.js";
+import { registerEvaluationRoutes } from "./evaluationRoutes.js";
+import { registerProgramRoutes } from "./programRoutes.js";
 
 function intList(req: Request, key: string): number[] {
   const body = req.body as Record<string, unknown> | undefined;
@@ -142,17 +145,23 @@ export function createAdminRouter(deps: WebDeps): Router {
   // dikelola beserta halaman peserta yang dipengaruhinya. Semua angka dibaca dari store; tanpa data contoh.
   router.get("/admin", async (_req, res) => {
     const admin = requireAdminStore(deps);
-    const [programs, resources, tests, attempts, documents] = await Promise.all([
+    const [programs, details, tests, attempts, documents, sessions, reviews] = await Promise.all([
       admin.listPrograms().catch(() => null), // tabel program belum dimigrasi: pakai daftar program bawaan
-      admin.listTrainingResources(),
+      admin.listPrograms().then((ps) => Promise.all(ps.map((p) => admin.getProgram(p.id)))).catch(() => []),
       admin.listTrainingTests(),
       admin.listTrainingAttempts(),
       admin.listDocuments(),
+      admin.listSessions(),
+      admin.listReviews().catch(() => []),
     ]);
+    // Konten Course Builder (yang dibaca halaman peserta) per jenis.
+    const resources = details.flatMap((d) => (d ? d.meetings.flatMap((m) => m.resources) : []));
+    const visible = reviews.filter((r) => r.isVisible);
     const programTotal = programs ? programs.length : trainingPrograms.length;
     const published = programs ? programs.filter((p) => p.status === "PUBLISHED").length : trainingPrograms.length;
     const participants = new Set(attempts.map((a) => `${a.participantName.trim().toLowerCase()}|${a.participantInstitution.trim().toLowerCase()}`)).size;
     const kind = (k: string) => resources.filter((r) => r.type === k).length;
+    const avg = visible.length ? Math.round((visible.reduce((n, r) => n + r.rating, 0) / visible.length) * 10) / 10 : 0;
     const pre = tests.filter((t) => t.type === "PRE").length;
     const post = tests.filter((t) => t.type === "POST").length;
     res.render("admin/dashboard", {
@@ -169,15 +178,22 @@ export function createAdminRouter(deps: WebDeps): Router {
       },
       content: [
         { label: "Program Pelatihan", count: programTotal, page: "Halaman Program › Daftar Program", href: "/admin/program-training" },
-        { label: "Silabus", count: kind("SILABUS"), page: "Halaman Detail Program › Silabus", href: "/admin/program-training?tab=materi" },
-        { label: "Materi Pelatihan", count: kind("MATERI"), page: "Halaman Detail Program › Materi", href: "/admin/program-training?tab=materi" },
-        { label: "Studi Kasus", count: kind("STUDI_KASUS"), page: "Halaman Studi Kasus 1–4", href: "/admin/program-training?tab=materi" },
-        { label: "Quiz Game", count: kind("BLOOKET"), page: "Halaman Detail Program › Quiz Game", href: "/admin/program-training?tab=materi" },
-        { label: "Video Referensi", count: kind("VIDEO"), page: "Halaman Video Referensi", href: "/admin/program-training?tab=materi" },
-        { label: "Pustaka SOP", count: documents.length, page: "Halaman Detail Program › Pustaka SOP", href: "/admin/sop" },
+        { label: "Silabus", count: kind("SYLLABUS"), page: "Halaman Detail Program › Silabus", href: "/admin/program-training" },
+        { label: "Materi Pelatihan", count: kind("MATERIAL"), page: "Halaman Detail Program › Materi", href: "/admin/program-training" },
+        { label: "Studi Kasus", count: kind("CASE_STUDY"), page: "Halaman Studi Kasus 1–4", href: "/admin/program-training" },
+        { label: "Quiz Game", count: kind("BLOOKET"), page: "Halaman Detail Program › Quiz Game", href: "/admin/program-training" },
+        { label: "Video Referensi", count: kind("VIDEO"), page: "Halaman Video Referensi", href: "/admin/program-training" },
+        { label: "Pustaka SOP", count: kind("SOP") + documents.length, page: "Halaman Detail Program › Pustaka SOP", href: "/admin/sop" },
         { label: "Kelola Soal", count: tests.reduce((n, t) => n + t.questionCount, 0), page: "Halaman Detail Program › Pre-test · Post-test", href: "/admin/program-training?tab=tes" },
+        { label: "Ulasan Peserta", count: reviews.length, page: "Halaman Detail Program › Rating & Ulasan", href: "/admin/program-training" },
         { label: "Visi & Misi", count: null, page: "Halaman Visi & Misi", href: "/admin/pengaturan" },
       ],
+      sessions: sessions.map((x) => ({ id: x.id, title: x.title, status: x.status })),
+      rating: {
+        average: avg,
+        count: visible.length,
+        buckets: [5, 4, 3, 2, 1].map((stars) => ({ stars, count: visible.filter((r) => r.rating === stars).length })),
+      },
     });
   });
 
@@ -383,20 +399,31 @@ export function createAdminRouter(deps: WebDeps): Router {
 
   // ---------- Kelola Akun (hanya akun Auditor; Admin pertama dibuat lewat bootstrap) ----------
   // Kata sandi sementara hanya ditampilkan SEKALI pada respons pembuatan/reset (Cache-Control: no-store).
+  // Halaman ini juga memuat Pengaturan Situs > Identitas & Kontak (mockup "Kelola Hak Akses & Akun").
 
   const renderAccounts = async (
+    req: Request,
     res: Response,
-    o: { saved?: boolean; generated?: { name: string; email: string; password: string } | undefined; status?: number } = {},
+    o: { saved?: boolean; generated?: { name: string; email: string; password: string } | undefined; status?: number; editId?: number | null } = {},
   ) => {
     if (!deps.accounts) throw new AppError(503, "ACCOUNTS_UNAVAILABLE", "Penyimpanan akun belum tersedia");
-    const accounts = await deps.accounts.list("AUDITOR");
+    const accounts = await deps.accounts.list(); // Admin & Auditor
+    accounts.sort((a, b) => (a.role === b.role ? a.id - b.id : a.role === "ADMIN" ? -1 : 1));
+    const site = await loadSite(deps.admin);
+    const all = req.query["semua"] === "1";
     res.set("Cache-Control", "no-store");
     res.status(o.status ?? 200).render("admin/akun", {
       title: "Kelola Akun",
       nav: "akun",
-      accounts,
+      accounts: all ? accounts : accounts.slice(0, 5),
+      accountTotal: accounts.length,
+      showAll: all,
+      selfId: sec.adminIdentity(req)?.userId ?? null,
+      editing: accounts.find((a) => a.id === o.editId) ?? null, // panel kanan "Ubah Akun" (?ubah=<id>)
       saved: o.saved ?? false,
+      siteSaved: req.query["situs"] === "1",
       generated: o.generated,
+      site,
     });
   };
 
@@ -406,25 +433,20 @@ export function createAdminRouter(deps: WebDeps): Router {
   };
 
   router.get("/admin/akun", async (req, res) => {
-    await renderAccounts(res, { saved: req.query["ok"] === "1" });
+    const editRaw = typeof req.query["ubah"] === "string" ? req.query["ubah"] : "";
+    const editId = /^\d{1,9}$/.test(editRaw) ? Number(editRaw) : null;
+    await renderAccounts(req, res, { saved: req.query["ok"] === "1", editId });
   });
 
   router.post("/admin/akun", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
-    const result = await createAuditorAccount(requireAccounts(), {
-      email: trimmed(req, "email"),
-      name: trimmed(req, "name"),
-      password: field(req, "password"),
-    });
-    await renderAccounts(res, {
-      generated: result.temporaryPassword
-        ? { name: result.account.name, email: result.account.email, password: result.temporaryPassword }
-        : undefined,
-      saved: result.temporaryPassword === null,
-    });
+    const role = trimmed(req, "role") === "ADMIN" ? "ADMIN" : "AUDITOR";
+    if (field(req, "password") === "") throw new AppError(422, "VALIDATION_ERROR", "Kata sandi awal wajib diisi");
+    await createAccount(requireAccounts(), { email: trimmed(req, "email"), name: trimmed(req, "name"), password: field(req, "password") }, role);
+    res.redirect(303, `/admin/akun${ok}`);
   });
 
   router.post("/admin/akun/:id", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
-    await updateAuditorAccount(requireAccounts(), {
+    await updateAccount(requireAccounts(), {
       accountId: intParam(req.params["id"]),
       email: trimmed(req, "email"),
       name: trimmed(req, "name"),
@@ -433,19 +455,20 @@ export function createAdminRouter(deps: WebDeps): Router {
   });
 
   router.post("/admin/akun/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
-    await setAuditorAccountActive(requireAccounts(), {
-      accountId: intParam(req.params["id"]),
-      isActive: trimmed(req, "value") === "1",
-    });
+    await setAccountActive(
+      requireAccounts(),
+      { accountId: intParam(req.params["id"]), isActive: trimmed(req, "value") === "1" },
+      sec.adminIdentity(req)?.userId ?? null,
+    );
     res.redirect(303, `/admin/akun${ok}`);
   });
 
   router.post("/admin/akun/:id/reset-password", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
-    const result = await resetAuditorPassword(requireAccounts(), {
+    const result = await resetAccountPassword(requireAccounts(), {
       accountId: intParam(req.params["id"]),
       password: field(req, "password"),
     });
-    await renderAccounts(res, {
+    await renderAccounts(req, res, {
       generated: result.temporaryPassword
         ? { name: result.account.name, email: result.account.email, password: result.temporaryPassword }
         : undefined,
@@ -453,16 +476,29 @@ export function createAdminRouter(deps: WebDeps): Router {
     });
   });
 
+  router.post("/admin/pengaturan/situs", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const keys = ["siteName", "tagline", "whatsapp", "email", "hours", "address", "instagram", "linkedin", "youtube", "facebook"] as const;
+    const data = parseInput(siteSchema, Object.fromEntries(keys.map((k) => [k, trimmed(req, k)])));
+    await requireAdminStore(deps).saveSiteContent(SITE_KEY, data);
+    res.redirect(303, "/admin/akun?situs=1#pengaturan-situs");
+  });
+
   // ---------- Manajemen Program Training ----------
   // Program dan pertemuan didefinisikan di apps/web/peserta/programs.ts.
   // Halaman ini mengelola konten pendukung dan tes yang terikat pada slug/pertemuan tersebut.
   router.get("/admin/program-training", async (req, res) => {
     const admin = requireAdminStore(deps);
-    const [resources, tests, questions] = await Promise.all([
+    const [resources, tests, questions, catalog] = await Promise.all([
       admin.listTrainingResources(),
       admin.listTrainingTests(),
       admin.listTrainingQuestions(),
+      admin.listPrograms().catch(() => null), // Course Builder (katalog peserta); null bila tabel belum dimigrasi
     ]);
+    const reviews = (await admin.listReviews().catch(() => [])).filter((r) => r.isVisible);
+    const ratingOf = (programId: number) => {
+      const mine = reviews.filter((r) => r.programId === programId);
+      return mine.length ? { average: Math.round((mine.reduce((n, r) => n + r.rating, 0) / mine.length) * 10) / 10, count: mine.length } : null;
+    };
     const tab = ["program", "materi", "tes"].includes(String(req.query["tab"])) ? String(req.query["tab"]) : "program";
     res.render("admin/program-training", {
       title: "Manajemen Program Training",
@@ -470,6 +506,8 @@ export function createAdminRouter(deps: WebDeps): Router {
       tab,
       selectedTestId: Number(req.query["testId"]) || null,
       programs: trainingPrograms,
+      catalog,
+      ratingOf,
       resources,
       tests,
       questions,
@@ -570,55 +608,8 @@ export function createAdminRouter(deps: WebDeps): Router {
     res.redirect(303, `/admin/program-training?tab=tes${ok}`);
   });
 
-  // ---------- Nilai Evaluasi peserta (hanya Admin) ----------
-  // Peserta tidak pernah menerima nilai (lihat toReceipt di domain/participantTest.ts); rekap ada di sini.
-  router.get("/admin/nilai-evaluasi", async (req, res) => {
-    const all = await requireAdminStore(deps).listTrainingAttempts();
-    const q = (typeof req.query["q"] === "string" ? req.query["q"] : "").trim().slice(0, 100);
-    const programRaw = typeof req.query["program"] === "string" ? req.query["program"] : "";
-    const typeRaw = typeof req.query["type"] === "string" ? req.query["type"] : "";
-    const program = trainingPrograms.some((p) => p.slug === programRaw) ? programRaw : "";
-    const type = typeRaw === "PRE" || typeRaw === "POST" ? typeRaw : "";
-    const needle = q.toLowerCase();
-
-    const rows = all.filter(
-      (a) =>
-        (program === "" || a.programSlug === program) &&
-        (type === "" || a.type === type) &&
-        (needle === "" || `${a.participantName} ${a.participantInstitution}`.toLowerCase().includes(needle)),
-    );
-
-    const perTest = new Map<number, { title: string; programSlug: string; meetingNo: number; type: string; count: number; sum: number; max: number; min: number }>();
-    for (const a of rows) {
-      const cur = perTest.get(a.testId) ?? { title: a.testTitle, programSlug: a.programSlug, meetingNo: a.meetingNo, type: a.type, count: 0, sum: 0, max: 0, min: 100 };
-      cur.count += 1;
-      cur.sum += a.score;
-      cur.max = Math.max(cur.max, a.score);
-      cur.min = Math.min(cur.min, a.score);
-      perTest.set(a.testId, cur);
-    }
-    const summary = [...perTest.entries()].map(([testId, s]) => ({
-      testId,
-      title: s.title,
-      programSlug: s.programSlug,
-      meetingNo: s.meetingNo,
-      type: s.type,
-      count: s.count,
-      average: Math.round(s.sum / s.count),
-      max: s.max,
-      min: s.min,
-    }));
-
-    res.render("admin/nilai-evaluasi", {
-      title: "Nilai Evaluasi Peserta",
-      nav: "nilai-evaluasi",
-      programs: trainingPrograms,
-      rows,
-      summary,
-      total: all.length,
-      filter: { q, program, type },
-    });
-  });
+  // ---------- Peserta & Hasil Evaluasi (hanya Admin): lihat evaluationRoutes.ts ----------
+  registerEvaluationRoutes(router, deps, trainingPrograms);
 
   // ---------- Pengaturan situs peserta (halaman Tentang Kami) ----------
 
@@ -682,6 +673,8 @@ export function createAdminRouter(deps: WebDeps): Router {
     if (!found) throw new AppError(404, "NOT_FOUND", "Dokumen tidak ditemukan");
     res.redirect(303, `/admin/sop${ok}`);
   });
+
+  registerProgramRoutes(router, deps); // Kelola Konten Program (/admin/program/...)
 
   return router;
 }

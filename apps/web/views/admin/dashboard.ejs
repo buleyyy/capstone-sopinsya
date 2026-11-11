@@ -1,7 +1,17 @@
 <%- include('../partials/header', { nav: 'dashboard' }) %>
 
 <div class="au-switch">
-  <a class="au-switch-btn" href="/admin/audit">Masuk ke Dashboard Audit<svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down"/></svg></a>
+  <details class="au-switch-menu">
+    <summary class="au-switch-btn">Masuk ke Dashboard Audit<svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+    <div class="au-switch-list">
+      <% if (sessions.length === 0) { %>
+        <a href="/admin/sesi">Belum ada sesi audit, buat sesi</a>
+      <% } %>
+      <% sessions.forEach(function (x) { %>
+        <a href="/admin/audit?sesi=<%= x.id %>"><%= x.title %><small><%= sessionLabel[x.status] %></small></a>
+      <% }) %>
+    </div>
+  </details>
 </div>
 
 <section class="au-hero">
@@ -79,14 +89,14 @@
 
   <div class="card ad-rating">
     <h3>Rating tampil</h3>
-    <p class="muted small">Dari 0 ulasan yang sudah tampil</p>
-    <div class="ad-rating-score"><b>–</b><span class="ad-stars" aria-hidden="true">★★★★★</span></div>
+    <p class="muted small">Dari <%= rating.count %> ulasan yang sudah tampil</p>
+    <div class="ad-rating-score"><b><%= rating.count ? rating.average.toFixed(1) : '–' %></b><span class="ad-stars" aria-label="Rata-rata <%= rating.average %> dari 5"><%= '★'.repeat(Math.round(rating.average)) %><span class="off"><%= '★'.repeat(5 - Math.round(rating.average)) %></span></span></div>
     <ul class="ad-rating-bars">
-      <% [5, 4, 3, 2, 1].forEach(function (n) { %>
-        <li><span><%= n %></span><span class="star" aria-hidden="true">★</span><progress max="100" value="0" aria-label="<%= n %> bintang: 0 ulasan"></progress><span>0</span></li>
+      <% rating.buckets.forEach(function (b) { %>
+        <li><span><%= b.stars %></span><span class="star" aria-hidden="true">★</span><progress max="<%= Math.max(rating.count, 1) %>" value="<%= b.count %>" aria-label="<%= b.stars %> bintang: <%= b.count %> ulasan"></progress><span><%= b.count %></span></li>
       <% }) %>
     </ul>
-    <p class="muted small">Rating dan ulasan peserta akan dihitung di sini setelah fitur penyimpanan ulasan tersedia.</p>
+    <% if (rating.count === 0) { %><p class="muted small">Belum ada ulasan peserta yang tampil.</p><% } %>
   </div>
 </div>
 

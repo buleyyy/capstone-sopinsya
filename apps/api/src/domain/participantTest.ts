@@ -24,6 +24,8 @@ export interface PublicTest {
   id: number;
   title: string;
   type: TestKind;
+  /** Petunjuk pengerjaan dari Admin (boleh kosong). */
+  instructions: string | null;
   questions: PublicTestQuestion[];
 }
 
@@ -42,6 +44,9 @@ export interface AnswerInput {
 export interface SubmitAttemptInput {
   participantName: string;
   participantInstitution: string;
+  participantEmail?: string | undefined;
+  participantPosition?: string | undefined;
+  participantPhone?: string | undefined;
   clientRequestId: string;
   answers: AnswerInput[];
 }

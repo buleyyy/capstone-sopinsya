@@ -87,10 +87,9 @@
           <td class="center"><%= i + 1 %><div class="f-code"><%= r.code %></div></td>
           <td><%= f.reference %></td>
           <td>
-            <p><b>Problem:</b> <%= f.problem %></p>
-            <p><b>Location:</b> <%= f.location %></p>
-            <p><b>Objective evidence:</b> <%= f.objectiveEvidence %></p>
-            <p><b>Reference:</b> <%= f.reference %></p>
+            <%= f.problem %>
+            <p class="f-meta">Lokasi: <%= f.location %></p>
+            <p class="f-meta">Bukti objektif: <%= f.objectiveEvidence %></p>
           </td>
           <td class="center"><b><%= f.classification === 'MAJOR' ? '1' : (f.classification === 'MINOR' ? '2' : 'O') %></b></td>
           <td><%= isObs ? '-' : (u.rootCause || '') %></td>
@@ -104,7 +103,7 @@
           </td>
           <td>
             <% if (isObs) { %>
-              <%= u.improvementAction || '' %>
+              <% if (u.improvementAction) { %><b>Tindakan Peningkatan:</b><br><% } %><%= u.improvementAction || '' %>
               <% if (u.improvementPic) { %><p class="f-meta">PIC: <%= u.improvementPic %></p><% } %>
               <% if (u.improvementTarget) { %><p class="f-meta">Target: <%= u.improvementTarget %></p><% } %>
               <% if (u.improvementEvidenceUrl) { %><p class="f-meta">Bukti: Terlampir (<%= bname(u.improvementEvidenceUrl) %>)</p><% } %>

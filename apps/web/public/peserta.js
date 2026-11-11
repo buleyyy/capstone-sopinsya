@@ -77,16 +77,18 @@
 
   // ---------- data peserta (kemudahan: isi ulang nama/instansi) ----------
 
+  var PERSON_FIELDS = ["participantName", "participantEmail", "participantPosition", "participantInstitution", "participantPhone"];
+
   function readPerson() {
-    try {
-      var v = JSON.parse(window.localStorage.getItem(PERSON_KEY) || "null");
-      if (v && typeof v.participantName === "string" && typeof v.participantInstitution === "string") return v;
-    } catch (e) { /* abaikan */ }
-    return { participantName: "", participantInstitution: "" };
+    var out = {};
+    var v = null;
+    try { v = JSON.parse(window.localStorage.getItem(PERSON_KEY) || "null"); } catch (e) { /* abaikan */ }
+    PERSON_FIELDS.forEach(function (k) { out[k] = v && typeof v[k] === "string" ? v[k] : ""; });
+    return out;
   }
 
-  function savePerson(name, institution) {
-    try { window.localStorage.setItem(PERSON_KEY, JSON.stringify({ participantName: name, participantInstitution: institution })); } catch (e) { /* abaikan */ }
+  function savePerson(person) {
+    try { window.localStorage.setItem(PERSON_KEY, JSON.stringify(person)); } catch (e) { /* abaikan */ }
   }
 
   // ---------- pop up tes ----------
@@ -97,8 +99,7 @@
     var st = {
       load: null,
       phase: "identity", // identity | working | done
-      name: saved.participantName,
-      institution: saved.participantInstitution,
+      person: saved,
       formError: "",
       answers: {},
       confirmBlank: false,
@@ -150,8 +151,11 @@
       st.confirmBlank = false;
       render();
       var payload = {
-        participantName: st.name,
-        participantInstitution: st.institution,
+        participantName: st.person.participantName,
+        participantInstitution: st.person.participantInstitution,
+        participantEmail: st.person.participantEmail,
+        participantPosition: st.person.participantPosition,
+        participantPhone: st.person.participantPhone,
         clientRequestId: st.requestId,
         answers: t.questions.map(function (q) {
           return { questionId: q.id, optionId: st.answers[q.id] === undefined ? null : st.answers[q.id] };
@@ -214,32 +218,44 @@
     }
 
     function identityView(t) {
-      var nameInput = el("input", { id: "dlg-nama", type: "text", autocomplete: "name", maxlength: "120", value: st.name, "aria-invalid": st.formError && !st.name.trim() ? "true" : null });
-      var instInput = el("input", { id: "dlg-instansi", type: "text", autocomplete: "organization", maxlength: "160", value: st.institution, "aria-invalid": st.formError && !st.institution.trim() ? "true" : null });
-      nameInput.value = st.name;
-      instInput.value = st.institution;
+      var fields = [
+        { key: "participantName", id: "dlg-nama", label: "Nama", type: "text", ac: "name", max: "120", req: true },
+        { key: "participantEmail", id: "dlg-email", label: "Email", type: "email", ac: "email", max: "160", req: true },
+        { key: "participantPosition", id: "dlg-jabatan", label: "Jabatan", type: "text", ac: "organization-title", max: "120", req: false },
+        { key: "participantInstitution", id: "dlg-instansi", label: "Nama Instansi", type: "text", ac: "organization", max: "160", req: true },
+        { key: "participantPhone", id: "dlg-hp", label: "Nomor HP", type: "tel", ac: "tel", max: "30", req: false }
+      ];
+      var inputs = {};
+      var rows = fields.map(function (fd) {
+        var bad = st.formError && fd.req && !String(st.person[fd.key] || "").trim();
+        var input = el("input", { id: fd.id, type: fd.type, autocomplete: fd.ac, maxlength: fd.max, "aria-invalid": bad ? "true" : null });
+        input.value = st.person[fd.key] || "";
+        inputs[fd.key] = input;
+        return el("div", { "class": "form-row" }, [el("label", { "for": fd.id, text: fd.label + (fd.req ? " *" : "") }), input]);
+      });
       return el("form", {
         "class": "dlg-form",
         novalidate: true,
         onsubmit: function (e) {
           e.preventDefault();
-          var n = nameInput.value.trim();
-          var i = instInput.value.trim();
-          st.name = n;
-          st.institution = i;
-          if (!n || !i) { st.formError = "Nama dan instansi wajib diisi."; render(); return; }
+          var p = {};
+          fields.forEach(function (fd) { p[fd.key] = inputs[fd.key].value.trim(); });
+          st.person = p;
+          if (!p.participantName || !p.participantEmail || !p.participantInstitution) { st.formError = "Nama, email, dan nama instansi wajib diisi."; render(); return; }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.participantEmail)) { st.formError = "Format email tidak valid."; render(); return; }
+          if (p.participantPhone && !/^[0-9+()\-\s]+$/.test(p.participantPhone)) { st.formError = "Nomor HP hanya boleh berisi angka."; render(); return; }
           st.formError = "";
-          savePerson(n, i);
+          savePerson(p);
           st.phase = "working";
           render();
         }
       }, [
-        el("p", { "class": "note", text: kindLabel + " " + cfg.title + " terdiri dari " + t.questions.length + " soal. Nama dan instansi dipakai agar hasil Anda dapat dicatat oleh penyelenggara." }),
-        el("div", { "class": "form-row" }, [el("label", { "for": "dlg-nama", text: "Nama" }), nameInput]),
-        el("div", { "class": "form-row" }, [el("label", { "for": "dlg-instansi", text: "Instansi" }), instInput]),
+        el("p", { "class": "note", text: kindLabel + " " + cfg.title + " terdiri dari " + t.questions.length + " soal. Data diri dipakai agar hasil Anda dapat dicatat oleh penyelenggara." }),
+        t.instructions ? el("div", { "class": "dlg-instructions" }, [el("strong", { text: "Petunjuk pengerjaan" }), el("p", { text: t.instructions })]) : null
+      ].concat(rows, [
         st.formError ? el("p", { "class": "form-error", role: "alert", text: st.formError }) : null,
         el("div", { "class": "dlg-actions" }, [el("button", { type: "submit", "class": "btn btn-primary", text: "Mulai" })])
-      ]);
+      ]));
     }
 
     function progressView(t) {
@@ -385,6 +401,53 @@
     });
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initProgram);
-  else initProgram();
+  // ---------- unggah tugas studi kasus ----------
+
+  function initCaseUpload() {
+    var form = document.querySelector("[data-case-upload]");
+    if (!form) return;
+    var url = form.getAttribute("data-case-upload");
+    var status = form.querySelector(".cs-status");
+    var btn = form.querySelector("button[type=submit]");
+    var saved = readPerson();
+    var name = form.querySelector("#cs-name"), inst = form.querySelector("#cs-inst"), email = form.querySelector("#cs-email"), file = form.querySelector("#cs-file");
+    name.value = saved.participantName; inst.value = saved.participantInstitution; email.value = saved.participantEmail;
+    function say(msg, bad) { status.textContent = msg; status.className = "cs-status" + (bad ? " err" : " ok"); }
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = file.files && file.files[0];
+      if (!name.value.trim() || !inst.value.trim()) return say("Nama dan instansi wajib diisi.", true);
+      if (!f) return say("Pilih berkas jawaban terlebih dahulu.", true);
+      if (f.size > 5 * 1024 * 1024) return say("Ukuran berkas maksimal 5 MB.", true);
+      btn.disabled = true;
+      say("Mengirim " + f.name + "...", false);
+      fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Filename": encodeURIComponent(f.name),
+          "X-Participant-Name": encodeURIComponent(name.value.trim()),
+          "X-Participant-Institution": encodeURIComponent(inst.value.trim()),
+          "X-Participant-Email": encodeURIComponent(email.value.trim())
+        },
+        body: f
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || "Gagal mengirim (kode " + res.status + ").");
+          var p = readPerson();
+          p.participantName = name.value.trim(); p.participantInstitution = inst.value.trim(); p.participantEmail = email.value.trim();
+          savePerson(p);
+          file.value = "";
+          say("Terima kasih, studi kasus " + data.name + " sudah terkirim ke penyelenggara.", false);
+        });
+      }).catch(function (err) {
+        say(err.message || "Tidak dapat terhubung ke server. Coba lagi.", true);
+      }).then(function () { btn.disabled = false; });
+    });
+  }
+
+  function init() { initProgram(); initCaseUpload(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();

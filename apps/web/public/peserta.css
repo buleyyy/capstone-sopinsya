@@ -291,3 +291,55 @@ img { max-width: 100%; }
 
 /* Lebar konten mengikuti mockup Figma (1440px, tepi 60px); diperkecil di layar sempit. */
 @media (max-width: 640px) { .container { padding: 0 1rem; } }
+
+/* ============ Rating & ulasan, sampul program, unggah studi kasus (fitur mockup Admin) ============ */
+.ico.star { color: #f5b700; }
+.ico.star.off { color: #d7dce5; }
+.stars { display: inline-flex; gap: 2px; vertical-align: middle; }
+.pcard-rate.has { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+.pcard-rate.has b { color: #0f172a; }
+img.pcard-media.pcard-cover { width: 100%; object-fit: cover; background: #dbeafe; }
+img.pd-cover-img { width: 100%; object-fit: cover; }
+.pd-reviews-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.rv-summary { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 1.2rem; background: #fff; border: 1px solid var(--card-line); border-radius: 14px; }
+.rv-summary b { font-size: 1.75rem; color: #0f172a; }
+.rv-summary > span { display: grid; gap: 2px; }
+.rv-summary small { color: var(--muted); font-size: 0.75rem; }
+.rv-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); margin-top: 1.5rem; }
+.rv-card { background: #fff; border: 1px solid var(--card-line); border-radius: 14px; padding: 1.25rem; display: grid; gap: 0.75rem; align-content: start; }
+.rv-card p { color: #334155; font-size: 0.875rem; overflow-wrap: anywhere; }
+.rv-head { display: flex; align-items: center; gap: 0.75rem; }
+.rv-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; background: #dbebfe; color: #2563eb; flex: none; }
+.rv-avatar .ico { fill: currentColor; stroke: none; }
+.rv-who { display: grid; flex: 1; min-width: 0; }
+.rv-who b { font-size: 0.95rem; color: #0f172a; }
+.rv-who small { color: var(--muted); font-size: 0.75rem; }
+.rv-flash { margin-top: 1rem; padding: 0.7rem 1rem; border-radius: 10px; font-size: 0.9rem; }
+.rv-flash.ok { background: #ecfdf5; color: #15803d; }
+.rv-flash.err { background: #fef2f2; color: #b91c1c; }
+.rv-form { margin-top: 1.5rem; display: grid; gap: 0.6rem; max-width: 40rem; background: #fff; border: 1px solid var(--card-line); border-radius: 14px; padding: 1.25rem 1.5rem; }
+.rv-form h3 { font-size: 1.1rem; font-weight: 700; }
+.rv-form label { font-size: 0.85rem; font-weight: 600; }
+.rv-form input[type="text"], .rv-form textarea { border: 1px solid var(--line); border-radius: 10px; padding: 0.7rem 0.9rem; background: #fff; width: 100%; }
+.rv-form .btn { justify-self: start; }
+.req { color: #dc2626; }
+/* Bintang rating tanpa JavaScript: radio disusun terbalik (5..1) lalu dibalik lagi dengan row-reverse. */
+.rv-stars { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 0.15rem; border: 0; padding: 0; margin: 0; }
+.rv-stars legend { width: 100%; margin-bottom: 0.25rem; font-size: 0.85rem; font-weight: 600; }
+.rv-stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rv-stars label { cursor: pointer; color: #d7dce5; }
+.rv-stars label .ico { fill: currentColor; stroke: none; }
+.rv-stars input:checked ~ label, .rv-stars label:hover, .rv-stars label:hover ~ label { color: #f5b700; }
+.rv-stars input:focus-visible + label { outline: 3px solid #6aa0ff; outline-offset: 2px; border-radius: 4px; }
+.cs-upload { margin-top: 2rem; background: #fff; border: 1px solid var(--card-line); border-radius: 16px; padding: 1.5rem; display: grid; gap: 0.75rem; max-width: 46rem; }
+.cs-upload h2 { font-size: 1.2rem; font-weight: 700; }
+.cs-form { display: grid; gap: 0.9rem; }
+.cs-form .btn { justify-self: start; }
+.cs-status { font-size: 0.9rem; min-height: 1.2em; }
+.cs-status.ok { color: #15803d; }
+.cs-status.err { color: #b91c1c; }
+.cs-form { display: none; }
+.js .cs-form { display: grid; }
+.js .cs-nojs { display: none; }
+.dlg-instructions { padding: 0.75rem 1rem; border-radius: 10px; background: #eef5fb; display: grid; gap: 0.25rem; font-size: 0.9rem; }
+.dlg-instructions p { white-space: pre-line; }

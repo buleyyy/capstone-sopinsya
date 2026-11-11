@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
 import type { WebDeps } from "../shared/deps.js";
 import { loadAbout } from "../shared/aboutContent.js";
+import { loadSite, whatsappLink } from "../shared/siteIdentity.js";
+import { registerFeedbackRoutes, summarize, visibleReviews } from "./feedback.js";
 import { findMeeting, loadCatalog, loadProgram, type PubMeeting, type PubProgram } from "./programs.js";
 
 const SLUG = /^[a-z0-9-]{1,80}$/;
@@ -109,6 +112,21 @@ function notFound(res: Response): void {
 export function createPesertaRouter(deps: WebDeps): Router {
   const router = Router();
 
+  // Identitas & kontak situs (Admin > Kelola Akun > Pengaturan Situs) untuk header/footer peserta.
+  router.use("/peserta", async (_req, res, next) => {
+    try {
+      const site = await loadSite(deps.admin);
+      res.locals["site"] = site;
+      const wa = whatsappLink(site.whatsapp);
+      if (wa) res.locals["whatsappUrl"] = wa;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  registerFeedbackRoutes(router, deps);
+
   // Alamat situs peserta versi Next.js lama (/program/..., /tentang-kami) dialihkan ke /peserta/...
   router.get(/^\/(program|tentang-kami)(\/.*)?$/, (req, res) => {
     res.redirect(308, `/peserta${req.originalUrl}`);
@@ -116,7 +134,7 @@ export function createPesertaRouter(deps: WebDeps): Router {
 
   router.get("/peserta", async (req, res) => {
     const q = typeof req.query["q"] === "string" ? req.query["q"].trim().slice(0, 80) : "";
-    const all = await loadCatalog(deps);
+    const [all, reviews] = await Promise.all([loadCatalog(deps), visibleReviews(deps)]);
     const needle = q.toLowerCase();
     const programs = needle
       ? all.filter((p) => [p.title, p.fullTitle, p.subtitle, p.category].some((s) => s.toLowerCase().includes(needle)))
@@ -127,6 +145,10 @@ export function createPesertaRouter(deps: WebDeps): Router {
       programs,
       totalPrograms: all.length,
       q,
+      // Rating per kartu program + ulasan terbaru (bagian "Ulasan Peserta").
+      ratings: Object.fromEntries(all.map((p) => [p.slug, summarize(reviews.filter((r) => r.programSlug === p.slug))])),
+      reviewSummary: summarize(reviews),
+      latestReviews: reviews.slice(0, 3),
     });
   });
 
@@ -136,11 +158,18 @@ export function createPesertaRouter(deps: WebDeps): Router {
     const slug = String(req.params["slug"]);
     const program = SLUG.test(slug) ? await loadProgram(deps, slug) : null;
     if (!program) return notFound(res);
+    const reviews = (await visibleReviews(deps)).filter((r) => r.programSlug === program.slug);
+    const flag = typeof req.query["ulasan"] === "string" ? req.query["ulasan"] : "";
     res.render("peserta/program", {
       title: program.fullTitle,
       nav: "program",
       program,
       sections: buildSections(program),
+      reviews: reviews.slice(0, 30),
+      reviewSummary: summarize(reviews),
+      reviewFlag: ["ok", "invalid", "batas"].includes(flag) ? flag : "",
+      reviewToken: randomUUID(),
+      canReview: Boolean(deps.admin),
     });
   });
 

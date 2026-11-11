@@ -18,6 +18,64 @@
     });
   });
 
+  // ---- Unggah berkas Admin (sampul program & materi): mengisi kolom tujuan dengan /berkas/<id>/<nama> ----
+  document.querySelectorAll('[data-upload]').forEach(function (slot) {
+    var target = document.getElementById(slot.getAttribute('data-upload') || '');
+    if (!target) return;
+    var purpose = slot.getAttribute('data-purpose') || 'MATERIAL';
+    var csrf = slot.getAttribute('data-csrf') || '';
+    var preview = document.querySelector('[data-upload-preview="' + target.id + '"]');
+    var label = document.createElement('label');
+    label.className = 'btn outline small ad-pick';
+    label.innerHTML = '<svg class="icon sm" aria-hidden="true"><use href="#i-upload"/></svg><span>Unggah File</span>';
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.className = 'au-file-input';
+    input.accept = slot.getAttribute('data-accept') || '';
+    label.appendChild(input);
+    var status = document.createElement('span');
+    status.className = 'au-attach-status';
+    status.setAttribute('aria-live', 'polite');
+    slot.appendChild(label);
+    slot.appendChild(status);
+    slot.hidden = false;
+    var text = label.querySelector('span');
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      status.classList.remove('err');
+      if (file.size > 5 * 1024 * 1024) { status.textContent = 'Ukuran berkas maksimal 5 MB.'; status.classList.add('err'); input.value = ''; return; }
+      status.textContent = 'Mengunggah ' + file.name + '...';
+      text.textContent = 'Mengunggah...';
+      input.disabled = true;
+      fetch('/admin/berkas', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': encodeURIComponent(file.name), 'X-CSRF-Token': csrf, 'X-Purpose': purpose },
+        body: file
+      })
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok) throw new Error(data.error || 'Gagal mengunggah (kode ' + res.status + ').');
+            return data;
+          });
+        })
+        .then(function (data) {
+          target.value = data.url;
+          status.textContent = 'Terunggah: ' + data.name + '. Klik Simpan untuk menerapkan.';
+          if (preview) { preview.src = data.url; preview.hidden = false; }
+        })
+        .catch(function (err) { status.textContent = err.message; status.classList.add('err'); })
+        .then(function () { input.disabled = false; input.value = ''; text.textContent = 'Unggah File'; });
+    });
+  });
+  document.querySelectorAll('[data-clear]').forEach(function (box) {
+    var target = document.getElementById(box.getAttribute('data-clear') || '');
+    if (!target) return;
+    var original = target.value;
+    box.addEventListener('change', function () { target.value = box.checked ? '' : original; });
+  });
+
   // ---- Cetak / Simpan PDF ----
   document.querySelectorAll('[data-print]').forEach(function (btn) {
     btn.hidden = false;

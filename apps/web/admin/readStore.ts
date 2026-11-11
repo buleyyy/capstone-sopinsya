@@ -102,6 +102,7 @@ export interface TrainingResourceRow {
 export interface TrainingTestRow {
   id: number; programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string;
   isActive: boolean; questionCount: number; attemptCount: number;
+  instructions: string | null; shuffleQuestions: boolean;
 }
 export interface TrainingQuestionRow { id: number; testId: number; programSlug: string; meetingNo: number; testType: ParticipantTestKind; text: string; isActive: boolean; answerCount: number; }
 /** Satu percobaan Pre/Post-test peserta, lengkap dengan nilai. HANYA untuk Admin; tidak pernah dikirim ke peserta. */
@@ -114,6 +115,9 @@ export interface TrainingAttemptRow {
   type: ParticipantTestKind;
   participantName: string;
   participantInstitution: string;
+  participantEmail: string | null;
+  participantPosition: string | null;
+  participantPhone: string | null;
   correctCount: number;
   totalQuestions: number;
   score: number;
@@ -136,6 +140,9 @@ export interface ProgramListRow {
   code: string;
   title: string;
   category: string;
+  trainer: string;
+  summary: string;
+  coverUrl: string | null;
   status: ProgramStatus;
   isPublished: boolean;
   sortOrder: number;
@@ -181,6 +188,7 @@ export interface ProgramDetailRow {
   sortOrder: number;
   isPublished: boolean;
   status: ProgramStatus;
+  coverUrl: string | null;
   meetings: ProgramMeetingRow[];
 }
 
@@ -198,6 +206,7 @@ export interface ProgramInput {
   category: string;
   tone: string;
   sortOrder: number;
+  coverUrl: string | null;
 }
 
 export interface MeetingInput {
@@ -257,6 +266,27 @@ export interface SessionAuditRegister {
   rows: AuditRegisterRow[];
 }
 
+// ---------- Ulasan, studi kasus, dan berkas unggahan ----------
+
+export type StoredFilePurpose = "COVER" | "MATERIAL" | "CASE_STUDY";
+export interface StoredFileRecord { id: number; purpose: StoredFilePurpose; fileName: string; contentType: string; data: Buffer }
+
+export interface ReviewRow {
+  id: number; programId: number; programTitle: string; programSlug: string; category: string;
+  reviewerName: string; rating: number; comment: string; isVisible: boolean; createdAt: Date;
+}
+export interface ReviewInput { reviewerName: string; rating: number; comment: string; clientRequestId: string }
+
+export interface CaseStudyRow {
+  id: number; programId: number; programTitle: string; programSlug: string; meetingNo: number;
+  participantName: string; participantInstitution: string; participantEmail: string | null;
+  fileId: number; fileName: string; submittedAt: Date;
+}
+export interface CaseStudyInput {
+  meetingNo: number; participantName: string; participantInstitution: string; participantEmail: string | null;
+  file: { fileName: string; contentType: string; data: Buffer };
+}
+
 export interface AdminReadStore {
   listDepartments(): Promise<DepartmentRow[]>;
   listStandards(): Promise<StandardRow[]>;
@@ -293,12 +323,29 @@ export interface AdminReadStore {
   setTrainingResourcePublished(id: number, isPublished: boolean): Promise<boolean>;
   listTrainingTests(): Promise<TrainingTestRow[]>;
   listTrainingQuestions(): Promise<TrainingQuestionRow[]>;
-  saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void>;
+  saveTrainingTest(data: {
+    programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean;
+    instructions?: string | null; shuffleQuestions?: boolean;
+  }): Promise<void>;
   saveTrainingTestStatus(testId: number, isActive: boolean): Promise<boolean>;
   addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void>;
   setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean>;
   /** Percobaan tes terbaru lebih dulu, dibatasi (default 2000) agar halaman tetap ringan. */
   listTrainingAttempts(limit?: number): Promise<TrainingAttemptRow[]>;
+  /** Menghapus percobaan dari rekap Admin (soft delete; jawaban tetap tersimpan). */
+  deleteTrainingAttempt(id: number): Promise<boolean>;
+
+  // ---------- Berkas, ulasan, studi kasus ----------
+  saveFile(data: { purpose: StoredFilePurpose; fileName: string; contentType: string; data: Buffer }): Promise<{ id: number }>;
+  getFile(id: number): Promise<StoredFileRecord | null>;
+  listReviews(programId?: number): Promise<ReviewRow[]>;
+  setReviewVisible(id: number, isVisible: boolean): Promise<boolean>;
+  /** Ulasan baru dari peserta; idempoten per clientRequestId. null bila program tidak tampil di katalog. */
+  createReview(programSlug: string, data: ReviewInput): Promise<ReviewRow | null>;
+  listCaseStudies(): Promise<CaseStudyRow[]>;
+  deleteCaseStudy(id: number): Promise<boolean>;
+  /** null bila program tidak tampil di katalog. */
+  createCaseStudy(programSlug: string, data: CaseStudyInput): Promise<{ id: number } | null>;
 
   // ---------- Kelola Program ----------
   listPrograms(): Promise<ProgramListRow[]>;
@@ -313,6 +360,7 @@ export interface AdminReadStore {
   updateMeeting(programId: number, meetingId: number, data: MeetingInput): Promise<boolean>;
   /** Menolak (AppError 409 MEETING_HAS_RESOURCES) bila pertemuan masih punya konten. */
   deleteMeeting(programId: number, meetingId: number): Promise<boolean>;
+  setMeetingPublished(programId: number, meetingId: number, isPublished: boolean): Promise<boolean>;
   swapMeetingOrder(programId: number, meetingId: number, direction: "up" | "down"): Promise<boolean>;
   createResource(programId: number, meetingId: number, data: ResourceInput): Promise<ProgramResourceRow | null>;
   updateResource(programId: number, meetingId: number, resourceId: number, data: ResourceInput): Promise<boolean>;
@@ -664,6 +712,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
     return rows.map((r) => ({
       id: r.id, programSlug: r.programSlug, meetingNo: r.meetingNo, type: r.type, title: r.title,
       isActive: r.isActive, questionCount: r._count.questions, attemptCount: r._count.attempts,
+      instructions: r.instructions, shuffleQuestions: r.shuffleQuestions,
     }));
   }
 
@@ -678,11 +727,19 @@ export class PrismaAdminReadStore implements AdminReadStore {
     }));
   }
 
-  async saveTrainingTest(data: { programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean }): Promise<void> {
+  async saveTrainingTest(data: {
+    programSlug: string; meetingNo: number; type: ParticipantTestKind; title: string; isActive: boolean;
+    instructions?: string | null; shuffleQuestions?: boolean;
+  }): Promise<void> {
+    const extra = {
+      ...(data.instructions !== undefined ? { instructions: data.instructions } : {}),
+      ...(data.shuffleQuestions !== undefined ? { shuffleQuestions: data.shuffleQuestions } : {}),
+    };
+    const base = { programSlug: data.programSlug, meetingNo: data.meetingNo, type: data.type, title: data.title, isActive: data.isActive };
     await this.db.test.upsert({
       where: { programSlug_meetingNo_type: { programSlug: data.programSlug, meetingNo: data.meetingNo, type: data.type } },
-      create: data,
-      update: { title: data.title, isActive: data.isActive },
+      create: { ...base, ...extra },
+      update: { title: data.title, isActive: data.isActive, ...extra },
     });
   }
 
@@ -710,6 +767,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
 
   async listTrainingAttempts(limit = 2000): Promise<TrainingAttemptRow[]> {
     const rows = await this.db.testAttempt.findMany({
+      where: { deletedAt: null },
       orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
       take: Math.min(Math.max(limit, 1), 5000),
       select: {
@@ -717,6 +775,9 @@ export class PrismaAdminReadStore implements AdminReadStore {
         testId: true,
         participantName: true,
         participantInstitution: true,
+        participantEmail: true,
+        participantPosition: true,
+        participantPhone: true,
         correctCount: true,
         totalQuestions: true,
         score: true,
@@ -733,6 +794,9 @@ export class PrismaAdminReadStore implements AdminReadStore {
       type: r.test.type,
       participantName: r.participantName,
       participantInstitution: r.participantInstitution,
+      participantEmail: r.participantEmail,
+      participantPosition: r.participantPosition,
+      participantPhone: r.participantPhone,
       correctCount: r.correctCount,
       totalQuestions: r.totalQuestions,
       score: r.score,
@@ -772,6 +836,9 @@ export class PrismaAdminReadStore implements AdminReadStore {
       code: r.code,
       title: r.title,
       category: r.category,
+      trainer: r.trainer,
+      summary: r.summary,
+      coverUrl: r.coverUrl,
       status: r.status,
       isPublished: r.isPublished,
       sortOrder: r.sortOrder,
@@ -795,7 +862,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
     return {
       id: p.id, slug: p.slug, code: p.code, title: p.title, fullTitle: p.fullTitle, subtitle: p.subtitle,
       summary: p.summary, description: p.description, duration: p.duration, mode: p.mode, trainer: p.trainer,
-      category: p.category, tone: p.tone, sortOrder: p.sortOrder, isPublished: p.isPublished, status: p.status,
+      category: p.category, tone: p.tone, sortOrder: p.sortOrder, isPublished: p.isPublished, status: p.status, coverUrl: p.coverUrl,
       meetings: p.meetings.map((m) => this.toMeetingRow(m)),
     };
   }
@@ -814,7 +881,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
     return {
       id: p.id, slug: p.slug, code: p.code, title: p.title, fullTitle: p.fullTitle, subtitle: p.subtitle,
       summary: p.summary, description: p.description, duration: p.duration, mode: p.mode, trainer: p.trainer,
-      category: p.category, tone: p.tone, sortOrder: p.sortOrder, isPublished: p.isPublished, status: p.status,
+      category: p.category, tone: p.tone, sortOrder: p.sortOrder, isPublished: p.isPublished, status: p.status, coverUrl: p.coverUrl,
       meetings: [],
     };
   }
@@ -868,6 +935,11 @@ export class PrismaAdminReadStore implements AdminReadStore {
     const resourceCount = await this.db.meetingResource.count({ where: { meetingId } });
     if (resourceCount > 0) throw new AppError(409, "MEETING_HAS_RESOURCES", "Hapus semua konten pertemuan ini terlebih dahulu");
     const r = await this.db.programMeeting.deleteMany({ where: { id: meetingId, programId } });
+    return r.count > 0;
+  }
+
+  async setMeetingPublished(programId: number, meetingId: number, isPublished: boolean): Promise<boolean> {
+    const r = await this.db.programMeeting.updateMany({ where: { id: meetingId, programId }, data: { isPublished } });
     return r.count > 0;
   }
 
@@ -951,5 +1023,143 @@ export class PrismaAdminReadStore implements AdminReadStore {
 
   async saveSiteContent(key: string, value: Prisma.InputJsonValue): Promise<void> {
     await this.db.siteContent.upsert({ where: { key }, create: { key, value }, update: { value } });
+  }
+
+  // ---------- Hasil evaluasi: hapus dari rekap ----------
+
+  async deleteTrainingAttempt(id: number): Promise<boolean> {
+    const r = await this.db.testAttempt.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+    return r.count > 0;
+  }
+
+  // ---------- Berkas unggahan ----------
+
+  async saveFile(data: { purpose: StoredFilePurpose; fileName: string; contentType: string; data: Buffer }): Promise<{ id: number }> {
+    const row = await this.db.storedFile.create({
+      data: {
+        purpose: data.purpose,
+        fileName: data.fileName,
+        contentType: data.contentType,
+        sizeBytes: data.data.length,
+        data: new Uint8Array(data.data),
+      },
+      select: { id: true },
+    });
+    return { id: row.id };
+  }
+
+  async getFile(id: number): Promise<StoredFileRecord | null> {
+    const r = await this.db.storedFile.findUnique({ where: { id } });
+    if (!r) return null;
+    const purpose = (["COVER", "MATERIAL", "CASE_STUDY"] as const).find((p) => p === r.purpose);
+    if (!purpose) return null;
+    return { id: r.id, purpose, fileName: r.fileName, contentType: r.contentType, data: Buffer.from(r.data) };
+  }
+
+  // ---------- Rating & ulasan ----------
+
+  private toReviewRow(r: {
+    id: number; programId: number; reviewerName: string; rating: number; comment: string; isVisible: boolean; createdAt: Date;
+    program: { title: string; slug: string; category: string };
+  }): ReviewRow {
+    return {
+      id: r.id, programId: r.programId, programTitle: r.program.title, programSlug: r.program.slug, category: r.program.category,
+      reviewerName: r.reviewerName, rating: r.rating, comment: r.comment, isVisible: r.isVisible, createdAt: r.createdAt,
+    };
+  }
+
+  async listReviews(programId?: number): Promise<ReviewRow[]> {
+    const rows = await this.db.programReview.findMany({
+      where: programId ? { programId } : {},
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 2000,
+      include: { program: { select: { title: true, slug: true, category: true } } },
+    });
+    return rows.map((r) => this.toReviewRow(r));
+  }
+
+  async setReviewVisible(id: number, isVisible: boolean): Promise<boolean> {
+    const r = await this.db.programReview.updateMany({ where: { id }, data: { isVisible } });
+    return r.count > 0;
+  }
+
+  private async liveProgramId(slug: string): Promise<number | null> {
+    const p = await this.db.trainingProgram.findFirst({
+      where: { slug, isPublished: true, status: "PUBLISHED" },
+      select: { id: true },
+    });
+    return p?.id ?? null;
+  }
+
+  async createReview(programSlug: string, data: ReviewInput): Promise<ReviewRow | null> {
+    const programId = await this.liveProgramId(programSlug);
+    if (!programId) return null;
+    const include = { program: { select: { title: true, slug: true, category: true } } } as const;
+    try {
+      const r = await this.db.programReview.create({
+        data: { programId, reviewerName: data.reviewerName, rating: data.rating, comment: data.comment, clientRequestId: data.clientRequestId },
+        include,
+      });
+      return this.toReviewRow(r);
+    } catch (err) {
+      // Kirim ganda (klik dua kali / muat ulang): kembalikan ulasan yang sudah ada.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const r = await this.db.programReview.findUnique({
+          where: { programId_clientRequestId: { programId, clientRequestId: data.clientRequestId } },
+          include,
+        });
+        if (r) return this.toReviewRow(r);
+      }
+      throw err;
+    }
+  }
+
+  // ---------- Studi kasus peserta ----------
+
+  async listCaseStudies(): Promise<CaseStudyRow[]> {
+    const rows = await this.db.caseStudySubmission.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
+      take: 2000,
+      include: { program: { select: { title: true, slug: true } }, file: { select: { fileName: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id, programId: r.programId, programTitle: r.program.title, programSlug: r.program.slug, meetingNo: r.meetingNo,
+      participantName: r.participantName, participantInstitution: r.participantInstitution, participantEmail: r.participantEmail,
+      fileId: r.fileId, fileName: r.file.fileName, submittedAt: r.submittedAt,
+    }));
+  }
+
+  async deleteCaseStudy(id: number): Promise<boolean> {
+    const r = await this.db.caseStudySubmission.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+    return r.count > 0;
+  }
+
+  async createCaseStudy(programSlug: string, data: CaseStudyInput): Promise<{ id: number } | null> {
+    const programId = await this.liveProgramId(programSlug);
+    if (!programId) return null;
+    return this.db.$transaction(async (tx) => {
+      const file = await tx.storedFile.create({
+        data: {
+          purpose: "CASE_STUDY",
+          fileName: data.file.fileName,
+          contentType: data.file.contentType,
+          sizeBytes: data.file.data.length,
+          data: new Uint8Array(data.file.data),
+        },
+        select: { id: true },
+      });
+      return tx.caseStudySubmission.create({
+        data: {
+          programId,
+          meetingNo: data.meetingNo,
+          participantName: data.participantName,
+          participantInstitution: data.participantInstitution,
+          participantEmail: data.participantEmail,
+          fileId: file.id,
+        },
+        select: { id: true },
+      });
+    });
   }
 }

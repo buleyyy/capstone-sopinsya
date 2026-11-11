@@ -1,4 +1,8 @@
 <%- include('_head') %>
+<%
+  var stars = function (avg) { var full = Math.round(avg); var out = ''; for (var i = 1; i <= 5; i++) out += '<svg class="ico star' + (i <= full ? '' : ' off') + '" width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg>'; return out; };
+  var ago = function (d) { var days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000); if (days < 1) return 'hari ini'; if (days < 7) return days + ' hari lalu'; if (days < 30) return Math.floor(days / 7) + ' minggu lalu'; if (days < 365) return Math.floor(days / 30) + ' bulan lalu'; return Math.floor(days / 365) + ' tahun lalu'; };
+%>
 <section class="hero-band" aria-labelledby="hero-title">
   <div class="container hero-grid">
     <div>
@@ -13,7 +17,7 @@
       <div class="hero-dots" aria-hidden="true"></div>
     </div>
     <div class="hero-visual" aria-hidden="true">
-      <div class="hero-phone"><img src="/static/images/maskot.svg" alt="" width="300" height="360"></div>
+      <div class="hero-phone"><img src="/static/images/maskot.gif" alt="" width="400" height="500"></div>
       <p class="hero-chip hero-chip-1"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-person"/></svg></span>Instruktur<br>Profesional</p>
       <p class="hero-chip hero-chip-2"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-award"/></svg></span>Sertifikat<br>Kompetensi</p>
       <p class="hero-chip hero-chip-3"><span class="chip-ico"><svg class="ico" width="22" height="22"><use href="#i-check"/></svg></span>Praktik<br>Langsung</p>
@@ -45,11 +49,13 @@
       <% programs.forEach(function (p) { %>
         <li class="pcard" data-slug="<%= p.slug %>">
           <a class="pcard-a" href="/peserta/program/<%= p.slug %>">
-            <span class="pcard-media" aria-hidden="true"></span>
+            <% if (p.coverUrl) { %><img class="pcard-media pcard-cover" src="<%= p.coverUrl %>" alt="" loading="lazy"><% } else { %><span class="pcard-media" aria-hidden="true"></span><% } %>
             <span class="pcard-body">
               <h3><%= p.fullTitle %></h3>
               <span class="pcard-sub"><%= p.subtitle %></span>
-              <span class="pcard-rate">Belum ada ulasan</span>
+              <% var rt = ratings[p.slug]; if (rt && rt.count > 0) { %>
+                <span class="pcard-rate has"><span class="stars" aria-label="Rating <%= rt.average %> dari 5"><%- stars(rt.average) %></span><b><%= rt.average.toFixed(1) %></b> (<%= rt.count %> ulasan)</span>
+              <% } else { %><span class="pcard-rate">Belum ada ulasan</span><% } %>
             </span>
           </a>
         </li>
@@ -59,12 +65,30 @@
 </section>
 
 <section class="container section pd-reviews" aria-labelledby="ulasan-title">
-  <div class="pd-reviews-head">
-    <h2 id="ulasan-title">Ulasan Peserta</h2>
-    <p>Apa kata peserta yang telah mengikuti pelatihan</p>
+  <div class="pd-reviews-top">
+    <div class="pd-reviews-head">
+      <h2 id="ulasan-title">Ulasan Peserta</h2>
+      <p>Apa kata peserta yang telah mengikuti pelatihan</p>
+    </div>
+    <% if (reviewSummary.count > 0) { %>
+      <div class="rv-summary"><b><%= reviewSummary.average.toFixed(1) %></b><span><span class="stars"><%- stars(reviewSummary.average) %></span><small><%= reviewSummary.count.toLocaleString('id-ID') %> ulasan</small></span></div>
+    <% } %>
   </div>
-  <div class="pd-reviews-empty" role="status">
-    Rating dan ulasan akan ditampilkan di sini setelah fitur penyimpanan ulasan tersedia. Belum ada ulasan.
-  </div>
+  <% if (latestReviews.length === 0) { %>
+    <div class="pd-reviews-empty" role="status">Belum ada ulasan. Ulasan peserta akan tampil di sini setelah dikirim dari halaman program.</div>
+  <% } else { %>
+    <ul class="rv-grid">
+      <% latestReviews.forEach(function (r) { %>
+        <li class="rv-card">
+          <div class="rv-head">
+            <span class="rv-avatar" aria-hidden="true"><svg class="ico" width="20" height="20"><use href="#i-user"/></svg></span>
+            <span class="rv-who"><b><%= r.reviewerName %></b><small>Peserta <%= r.programTitle %> · <%= ago(r.createdAt) %></small></span>
+            <span class="stars" aria-label="<%= r.rating %> dari 5 bintang"><%- stars(r.rating) %></span>
+          </div>
+          <p><%= r.comment.length > 220 ? r.comment.slice(0, 220) + '…' : r.comment %></p>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
 </section>
 <%- include('_foot') %>

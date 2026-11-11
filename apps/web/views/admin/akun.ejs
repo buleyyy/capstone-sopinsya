@@ -1,71 +1,131 @@
 <%- include('../partials/header') %>
-<h1>Kelola Akun Auditor</h1>
-<p class="muted">Akun Auditor dibuat dan dikelola di sini, lalu ditugaskan ke sesi audit lewat halaman sesi. Kata sandi disimpan sebagai hash (bcrypt) dan tidak pernah dapat dilihat kembali.</p>
-<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
+<div class="ad-pagehead">
+  <div>
+    <h1>Akun &amp; Hak Akses</h1>
+    <p>Hanya Admin &amp; Auditor internal yang memiliki akun. Peserta mengakses situs tanpa login.</p>
+  </div>
+</div>
 
+<% if (saved) { %><div class="alert ok">Tersimpan.</div><% } %>
 <% if (generated) { %>
   <div class="alert info">
-    <strong>Kata sandi sementara untuk <%= generated.name %> (<%= generated.email %>)</strong>
-    <p>Salin dan sampaikan sekarang lewat saluran aman. Kata sandi ini <strong>tidak akan ditampilkan lagi</strong> setelah halaman ini ditutup; bila hilang, gunakan "Reset kata sandi".</p>
-    <div class="link-box"><%= generated.password %></div>
+    <div>
+      <strong>Kata sandi sementara untuk <%= generated.name %> (<%= generated.email %>)</strong>
+      <p>Salin dan sampaikan sekarang lewat saluran aman. Kata sandi ini <strong>tidak akan ditampilkan lagi</strong>.</p>
+      <div class="link-box"><%= generated.password %></div>
+    </div>
   </div>
 <% } %>
 
-<div class="card tablewrap">
-  <table>
-    <thead><tr><th>Nama</th><th>Email</th><th>Status</th><th>Login terakhir</th><th>Aksi</th></tr></thead>
-    <tbody>
-      <% accounts.forEach(function (a) { %>
-        <tr>
-          <td><%= a.name %></td>
-          <td><%= a.email %></td>
-          <td><span class="badge <%= a.isActive ? 'active' : 'closed' %>"><%= a.isActive ? 'Aktif' : 'Nonaktif' %></span></td>
-          <td><%= a.lastLoginAt ? fmt(a.lastLoginAt) : 'Belum pernah' %></td>
-          <td class="nowrap">
-            <form class="inline" method="post" action="/admin/akun/<%= a.id %>/status">
-              <input type="hidden" name="_csrf" value="<%= csrf %>">
-              <input type="hidden" name="value" value="<%= a.isActive ? '0' : '1' %>">
-              <button class="btn small <%= a.isActive ? 'danger' : 'secondary' %>" type="submit"><%= a.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button>
-            </form>
-          </td>
-        </tr>
-        <tr>
-          <td colspan="5">
-            <details>
-              <summary>Ubah data atau reset kata sandi: <%= a.name %></summary>
-              <form method="post" action="/admin/akun/<%= a.id %>" class="row">
-                <input type="hidden" name="_csrf" value="<%= csrf %>">
-                <div><label for="n<%= a.id %>">Nama</label><input id="n<%= a.id %>" type="text" name="name" required maxlength="120" value="<%= a.name %>"></div>
-                <div><label for="e<%= a.id %>">Email</label><input id="e<%= a.id %>" type="text" name="email" required maxlength="160" value="<%= a.email %>" autocomplete="off"></div>
-                <button class="btn small" type="submit">Simpan</button>
-              </form>
-              <form method="post" action="/admin/akun/<%= a.id %>/reset-password" class="row">
-                <input type="hidden" name="_csrf" value="<%= csrf %>">
-                <div>
-                  <label for="p<%= a.id %>">Kata sandi baru (kosong = dibuatkan otomatis)</label>
-                  <input id="p<%= a.id %>" type="password" name="password" minlength="10" maxlength="72" autocomplete="new-password">
+<div class="ad-two">
+  <div class="ad-card" id="daftar-akun">
+    <div class="ad-card-head light">
+      <div><h2>Daftar Akun</h2><p>Akun yang terdaftar (<%= accountTotal %>)</p></div>
+      <% if (!showAll && accountTotal > accounts.length) { %><a class="au-more-link" href="/admin/akun?semua=1#daftar-akun">Buka Tabel Lengkap<svg class="icon sm" aria-hidden="true"><use href="#i-chevron"/></svg></a><% } %>
+      <% if (showAll && accountTotal > 5) { %><a class="au-more-link" href="/admin/akun#daftar-akun">Ringkas tabel</a><% } %>
+    </div>
+    <div class="tablewrap">
+      <table class="au-table ad-table">
+        <thead><tr><th>No</th><th>Nama</th><th>Email</th><th>Kata sandi</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody>
+          <% if (accounts.length === 0) { %><tr><td colspan="7" class="au-empty">Belum ada akun.</td></tr><% } %>
+          <% accounts.forEach(function (a, i) { var self = a.id === selfId; %>
+            <tr<%- editing && editing.id === a.id ? ' class="ad-row-active"' : '' %>>
+              <td><%= i + 1 %></td>
+              <td><b class="ad-name"><%= a.name %></b><% if (self) { %><div class="muted small">(Anda)</div><% } %></td>
+              <td class="clip"><%= a.email %></td>
+              <td class="muted" title="Kata sandi disimpan terenkripsi (hash) dan tidak dapat ditampilkan. Gunakan ubah akun untuk mereset.">••••••••</td>
+              <td><span class="ad-pill role <%= a.role === 'ADMIN' ? 'admin' : '' %>"><%= a.role === 'ADMIN' ? 'Admin' : 'Auditor' %></span></td>
+              <td><span class="ad-pill <%= a.isActive ? 'on' : 'off' %>"><%= a.isActive ? 'Aktif' : 'Tidak Aktif' %></span></td>
+              <td class="nowrap">
+                <div class="ad-actions ad-icons">
+                  <a class="au-icon-btn" href="/admin/akun?ubah=<%= a.id %><%= showAll ? '&semua=1' : '' %>" aria-label="Ubah akun <%= a.name %>" title="Ubah / reset kata sandi"><svg class="icon sm"><use href="#i-edit"/></svg></a>
+                  <% if (!self) { %>
+                    <form method="post" action="/admin/akun/<%= a.id %>/status">
+                      <input type="hidden" name="_csrf" value="<%= csrf %>">
+                      <input type="hidden" name="value" value="<%= a.isActive ? '0' : '1' %>">
+                      <button class="au-icon-btn <%= a.isActive ? 'danger' : 'ok' %>" type="submit" aria-label="<%= a.isActive ? 'Nonaktifkan' : 'Aktifkan' %> <%= a.name %>" title="<%= a.isActive ? 'Nonaktifkan akun' : 'Aktifkan akun' %>"><svg class="icon sm"><use href="#i-<%= a.isActive ? 'ban' : 'check' %>"/></svg></button>
+                    </form>
+                  <% } %>
                 </div>
-                <button class="btn small secondary" type="submit">Reset kata sandi</button>
-              </form>
-            </details>
-          </td>
-        </tr>
-      <% }) %>
-      <% if (accounts.length === 0) { %><tr><td colspan="5" class="muted">Belum ada akun Auditor.</td></tr><% } %>
-    </tbody>
-  </table>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <% if (editing) { %>
+    <div class="ad-card">
+      <div class="ad-card-head"><div><h2>Ubah Akun</h2><p><%= editing.name %> · <%= editing.role === 'ADMIN' ? 'Admin' : 'Auditor' %></p></div></div>
+      <div class="ad-card-body ad-form">
+        <form method="post" action="/admin/akun/<%= editing.id %>">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label for="e_name">Nama <span class="req">*</span></label>
+          <input id="e_name" type="text" name="name" required maxlength="120" value="<%= editing.name %>">
+          <label for="e_email">Email <span class="req">*</span></label>
+          <input id="e_email" type="text" name="email" required maxlength="160" value="<%= editing.email %>" autocomplete="off">
+          <div class="ad-form-actions"><a class="btn outline small" href="/admin/akun">Batal</a><button class="btn small ad-primary" type="submit">Simpan</button></div>
+        </form>
+        <form method="post" action="/admin/akun/<%= editing.id %>/reset-password" class="ad-sub">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label for="e_pw">Kata sandi baru (min. 10 karakter, kosong = dibuatkan otomatis)</label>
+          <input id="e_pw" type="password" name="password" minlength="10" maxlength="72" autocomplete="new-password">
+          <div class="ad-form-actions"><button class="btn outline small" type="submit">Reset kata sandi</button></div>
+        </form>
+      </div>
+    </div>
+  <% } else { %>
+    <form method="post" action="/admin/akun" class="ad-card">
+      <div class="ad-card-head"><div><h2>Tambah Akun</h2><p>Akun untuk mengakses situs Admin &amp; Auditor</p></div></div>
+      <div class="ad-card-body ad-form">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label for="name">Nama <span class="req">*</span></label>
+        <input id="name" type="text" name="name" required maxlength="120">
+        <label for="email">Email <span class="req">*</span></label>
+        <input id="email" type="text" name="email" required maxlength="160" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <label for="password">Kata sandi awal (min. 10 karakter) <span class="req">*</span></label>
+        <input id="password" type="password" name="password" required minlength="10" maxlength="72" autocomplete="new-password">
+        <label for="role">Role</label>
+        <select id="role" name="role"><option value="AUDITOR" selected>Auditor</option><option value="ADMIN">Admin</option></select>
+        <div class="ad-form-actions"><button class="btn outline small" type="reset">Batal</button><button class="btn small ad-primary" type="submit">Buat Akun</button></div>
+      </div>
+    </form>
+  <% } %>
 </div>
 
-<h2>Buat akun Auditor</h2>
-<form method="post" action="/admin/akun" class="card">
-  <input type="hidden" name="_csrf" value="<%= csrf %>">
-  <label for="name">Nama</label>
-  <input id="name" type="text" name="name" required maxlength="120">
-  <label for="email">Email (dipakai untuk masuk)</label>
-  <input id="email" type="text" name="email" required maxlength="160" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <label for="password">Kata sandi awal (opsional, minimal 10 karakter)</label>
-  <input id="password" type="password" name="password" minlength="10" maxlength="72" autocomplete="new-password">
-  <p class="muted small">Kosongkan agar sistem membuat kata sandi sementara yang ditampilkan sekali setelah akun dibuat.</p>
-  <p><button class="btn" type="submit">Buat akun</button></p>
+<div class="ad-pagehead ad-pagehead-sub" id="pengaturan-situs">
+  <div>
+    <h2>Pengaturan Situs</h2>
+    <p>Informasi footer yang akan tampil di sisi peserta</p>
+  </div>
+  <a class="au-more-link" href="/admin/pengaturan">Ubah halaman Tentang Kami / Visi &amp; Misi<svg class="icon sm" aria-hidden="true"><use href="#i-chevron"/></svg></a>
+</div>
+<% if (siteSaved) { %><div class="alert ok">Pengaturan situs tersimpan dan sudah tampil di halaman peserta.</div><% } %>
+<form method="post" action="/admin/pengaturan/situs" class="ad-card">
+  <div class="ad-card-head"><div><h2>Identitas &amp; Kontak</h2></div></div>
+  <div class="ad-card-body ad-form ad-site">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="ad-site-row two">
+      <div><label for="s_name">Nama situs</label><input id="s_name" type="text" name="siteName" required maxlength="80" value="<%= site.siteName %>"></div>
+      <div><label for="s_tag">Tagline</label><input id="s_tag" type="text" name="tagline" maxlength="160" value="<%= site.tagline %>"></div>
+    </div>
+    <div class="ad-site-row three">
+      <div><label for="s_wa">Nomor WhatsApp (Konsultasi)</label><input id="s_wa" type="text" name="whatsapp" maxlength="30" value="<%= site.whatsapp %>" placeholder="0812-3456-7890"></div>
+      <div><label for="s_mail">Email</label><input id="s_mail" type="text" name="email" maxlength="160" value="<%= site.email %>"></div>
+      <div><label for="s_hours">Jam operasional</label><input id="s_hours" type="text" name="hours" maxlength="120" value="<%= site.hours %>"></div>
+    </div>
+    <div><label for="s_addr">Alamat</label><input id="s_addr" type="text" name="address" maxlength="300" value="<%= site.address %>"></div>
+    <div class="ad-site-row two">
+      <div><label for="s_ig">Link Instagram</label><input id="s_ig" type="text" name="instagram" maxlength="300" value="<%= site.instagram %>" placeholder="https://instagram.com/..."></div>
+      <div><label for="s_li">Link LinkedIn</label><input id="s_li" type="text" name="linkedin" maxlength="300" value="<%= site.linkedin %>" placeholder="https://linkedin.com/..."></div>
+    </div>
+    <div class="ad-site-row two">
+      <div><label for="s_yt">Link Youtube</label><input id="s_yt" type="text" name="youtube" maxlength="300" value="<%= site.youtube %>" placeholder="https://youtube.com/..."></div>
+      <div><label for="s_fb">Link Facebook</label><input id="s_fb" type="text" name="facebook" maxlength="300" value="<%= site.facebook %>" placeholder="https://facebook.com/..."></div>
+    </div>
+    <div><button class="btn small ad-primary" type="submit">Simpan Perubahan</button></div>
+  </div>
 </form>
 <%- include('../partials/footer') %>

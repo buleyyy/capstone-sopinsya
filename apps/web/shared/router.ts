@@ -5,6 +5,7 @@ import { createAdminRouter } from "../admin/routes.js";
 import { createAuditorRouter } from "../audit/routes.js";
 import { createPesertaRouter } from "../peserta/routes.js";
 import type { WebDeps } from "./deps.js";
+import { createFileRouter } from "./files.js";
 import { createLoginRouter } from "./loginRoutes.js";
 import { WEB_ROOT } from "./paths.js";
 
@@ -92,6 +93,7 @@ export function createWebRouter(deps: WebDeps): Router {
 
   // Gerbang masuk bersama dipasang lebih dulu; "/" mengarah ke area staf (bila sudah masuk) atau /peserta.
   router.use(createLoginRouter(deps));
+  router.use(createFileRouter(deps)); // /berkas/:id (sampul & materi publik)
   router.use(createPesertaRouter(deps));
   router.use(createAuditorRouter(deps));
   router.use(createAdminRouter(deps));

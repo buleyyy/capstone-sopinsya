@@ -1,0 +1,203 @@
+<%- include('../partials/header') %>
+<%
+  var p = program;
+  var ST = { PUBLISHED: ['on', 'Terbit'], ARCHIVED: ['off', 'Nonaktif'], DRAFT: ['draft', 'Draft'] };
+  var KIND = { SYLLABUS: 'Silabus', MATERIAL: 'Materi', CASE_STUDY: 'Studi Kasus', VIDEO: 'Video Referensi', BLOOKET: 'Quiz Game', SOP: 'SOP' };
+  var KIND_ORDER = ['MATERIAL', 'SYLLABUS', 'CASE_STUDY', 'VIDEO', 'BLOOKET', 'SOP'];
+  var st = p ? (ST[p.status] || ST.DRAFT) : ST.DRAFT;
+  var meetings = p ? p.meetings : [];
+  var rows = [];
+  meetings.forEach(function (m) { m.resources.forEach(function (r) { rows.push({ m: m, r: r }); }); });
+  var meetingNos = meetings.length ? meetings.map(function (m) { return m.number; }) : [1, 2];
+  var testFor = function (type, no) { return tests.find(function (t) { return t.type === type && t.meetingNo === no; }); };
+%>
+<div class="ad-pagehead">
+  <div>
+    <h1><%= p ? p.title : 'Program Baru' %></h1>
+    <p><%= p ? (p.category || 'Tanpa kategori') : 'Isi informasi program, lalu tambahkan materi dan evaluasi.' %></p>
+    <% if (p) { %><span class="ad-pill <%= st[0] %> ad-pill-head"><%= st[1] %></span><% } %>
+  </div>
+  <div class="ad-pagehead-actions">
+    <% if (p) { %><a class="btn outline small" href="/peserta/program/<%= p.slug %>" target="_blank" rel="noopener">Lihat di Situs</a><% } %>
+    <a class="btn small ad-primary" href="/admin/program-training">Daftar Program</a>
+  </div>
+</div>
+
+<% if (saved) { %><div class="alert ok">Perubahan berhasil disimpan.</div><% } %>
+<% if (notice) { %><div class="alert info"><%= notice %></div><% } %>
+<% if (p && p.status !== 'PUBLISHED' && readiness && !readiness.ready) { %>
+  <div class="alert warn"><div><strong>Belum bisa diterbitkan:</strong> <%= readiness.reasons.join('; ') %>.</div></div>
+<% } %>
+
+<!-- Informasi Program -->
+<form class="ad-card" method="post" action="<%= p ? '/admin/program/' + p.id : '/admin/program' %>">
+  <div class="ad-card-head"><div><h2>Informasi Program</h2><p>Katalog program pelatihan</p></div></div>
+  <div class="ad-card-body ad-form ad-grid">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div><label for="p_title">Nama Program <span class="req">*</span></label>
+      <input id="p_title" type="text" name="title" required maxlength="160" value="<%= p ? p.title : '' %>" placeholder="ISO 37001:2025"></div>
+    <div><label for="p_category">Kategori</label>
+      <input id="p_category" type="text" name="category" maxlength="160" value="<%= p ? p.category : '' %>" placeholder="Sistem Manajemen Mutu"></div>
+    <div class="wide"><label for="p_desc">Deskripsi</label>
+      <textarea id="p_desc" name="description" rows="3" maxlength="8000" placeholder="Contoh: standar internasional yang dirancang untuk membantu organisasi membangun, ..."><%= p ? p.description : '' %></textarea></div>
+    <div><label for="p_trainer">Nama Trainer <span class="req">*</span></label>
+      <input id="p_trainer" type="text" name="trainer" required maxlength="160" value="<%= p ? p.trainer : '' %>"></div>
+    <div><label for="p_status">Status Publikasi</label>
+      <select id="p_status" name="status">
+        <option value="PUBLISHED"<%- p && p.status === 'PUBLISHED' ? ' selected' : '' %>>Terbit</option>
+        <option value="ARCHIVED"<%- p && p.status === 'ARCHIVED' ? ' selected' : '' %>>Nonaktifkan</option>
+        <option value="DRAFT"<%- !p || p.status === 'DRAFT' ? ' selected' : '' %>>Draft</option>
+      </select></div>
+    <div class="wide">
+      <label for="p_cover">Unggah Sampul Program</label>
+      <div class="ad-upload">
+        <% if (p && p.coverUrl) { %><img class="ad-cover" src="<%= p.coverUrl %>" alt="Sampul <%= p.title %>" data-upload-preview="p_cover"><% } else { %><img class="ad-cover" alt="" data-upload-preview="p_cover" hidden><% } %>
+        <input id="p_cover" type="text" name="coverUrl" maxlength="255" value="<%= p && p.coverUrl ? p.coverUrl : '' %>" readonly placeholder="Belum ada sampul" class="ad-upload-path">
+        <span class="ad-upload-btn" data-upload="p_cover" data-purpose="COVER" data-accept=".png,.jpg,.jpeg,.webp" data-csrf="<%= csrf %>" hidden></span>
+        <% if (p && p.coverUrl) { %><label class="ad-check ad-inline"><input type="checkbox" data-clear="p_cover"> Hapus sampul</label><% } %>
+      </div>
+      <p class="muted small ad-nojs">Unggah sampul membutuhkan JavaScript aktif. JPG/PNG/WEBP, maks. 5 MB.</p>
+    </div>
+    <details class="wide ad-advanced">
+      <summary>Pengaturan lanjutan (slug, kode, durasi, mode, urutan)</summary>
+      <div class="ad-grid">
+        <div><label for="p_slug">Slug URL</label><input id="p_slug" type="text" name="slug" maxlength="80" pattern="[a-z0-9-]*" value="<%= p ? p.slug : '' %>" placeholder="otomatis dari nama program"></div>
+        <div><label for="p_code">Kode</label><input id="p_code" type="text" name="code" maxlength="40" value="<%= p ? p.code : '' %>" placeholder="ISO 37001"></div>
+        <div><label for="p_sub">Subjudul kartu</label><input id="p_sub" type="text" name="subtitle" maxlength="200" value="<%= p ? p.subtitle : '' %>" placeholder="sama dengan kategori"></div>
+        <div><label for="p_sort">Urutan di katalog</label><input id="p_sort" type="number" name="sortOrder" min="0" max="100000" value="<%= p ? p.sortOrder : 0 %>"></div>
+        <div><label for="p_dur">Durasi</label><input id="p_dur" type="text" name="duration" maxlength="80" value="<%= p ? p.duration : '' %>" placeholder="2 pertemuan"></div>
+        <div><label for="p_mode">Mode</label><input id="p_mode" type="text" name="mode" maxlength="80" value="<%= p ? p.mode : '' %>" placeholder="Daring"></div>
+        <div class="wide"><label for="p_sum">Ringkasan</label><textarea id="p_sum" name="summary" rows="2" maxlength="1000" placeholder="otomatis dari deskripsi"><%= p ? p.summary : '' %></textarea></div>
+      </div>
+    </details>
+    <div class="wide"><button class="btn small ad-primary" type="submit">Simpan</button></div>
+  </div>
+</form>
+
+<% if (p) { %>
+<!-- Materi & Konten Pembelajaran -->
+<div class="ad-card" id="materi">
+  <div class="ad-card-head"><div><h2>Materi &amp; Konten Pembelajaran</h2><p><%= meetings.length %> pertemuan · <%= rows.length %> konten</p></div></div>
+  <% if (meetings.length > 0) { %>
+    <div class="ad-meetings">
+      <% meetings.forEach(function (m) { %>
+        <form method="post" action="/admin/program/<%= p.id %>/pertemuan/<%= m.id %>/publikasi" class="ad-meeting">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= m.isPublished ? '0' : '1' %>">
+          <span><%= m.title || ('Pertemuan ' + m.number) %></span>
+          <button type="submit" class="ad-tampil<%= m.isPublished ? '' : ' off' %>" title="<%= m.isPublished ? 'Sembunyikan pertemuan dari peserta' : 'Tampilkan pertemuan ke peserta' %>"><%= m.isPublished ? 'Tampil' : 'Tersembunyi' %></button>
+        </form>
+      <% }) %>
+    </div>
+  <% } %>
+  <ul class="ad-resources">
+    <% if (rows.length === 0) { %><li class="au-empty">Belum ada materi. Tambahkan silabus, materi, studi kasus, video, atau quiz game di bawah.</li><% } %>
+    <% rows.forEach(function (x) { var r = x.r; %>
+      <li>
+        <span class="ad-kind"><%= KIND[r.type] || r.type %></span>
+        <span class="ad-res-title">
+          <% if (/^https:\/\//.test(r.title)) { %><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer"><%= r.title %></a><% } else { %><a href="<%= r.url %>" target="_blank" rel="noopener noreferrer" class="plain"><%= r.title %></a><% } %>
+          <small><%= x.m.title || ('Pertemuan ' + x.m.number) %> · urutan <%= r.sortOrder %></small>
+        </span>
+        <form method="post" action="/admin/program/<%= p.id %>/konten/<%= x.m.id %>/<%= r.id %>/publikasi">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= r.isPublished ? '0' : '1' %>">
+          <button type="submit" class="ad-tampil<%= r.isPublished ? '' : ' off' %>" title="<%= r.isPublished ? 'Sembunyikan dari peserta' : 'Tampilkan ke peserta' %>"><%= r.isPublished ? 'Tampil' : 'Tersembunyi' %></button>
+        </form>
+        <form method="post" action="/admin/program/<%= p.id %>/konten/<%= x.m.id %>/<%= r.id %>/hapus" class="ad-res-del">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button type="submit" class="ad-x" aria-label="Hapus <%= r.title %>" title="Hapus konten"><svg class="icon sm"><use href="#i-x"/></svg></button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+  <form method="post" action="/admin/program/<%= p.id %>/konten" class="ad-card-body ad-form ad-grid ad-grid-3">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div><label for="r_type">Jenis Konten</label>
+      <select id="r_type" name="type"><% KIND_ORDER.forEach(function (k) { %><option value="<%= k %>"<%- k === 'VIDEO' ? ' selected' : '' %>><%= KIND[k] %></option><% }) %></select></div>
+    <div><label for="r_title">Judul <span class="req">*</span></label>
+      <input id="r_title" type="text" name="title" required maxlength="255"></div>
+    <div><label for="r_sort">Urutan <span class="req">*</span></label>
+      <input id="r_sort" type="number" name="sortOrder" min="0" max="100000" value="<%= rows.length + 1 %>" required></div>
+    <div><label for="r_meeting">Pertemuan</label>
+      <select id="r_meeting" name="meeting">
+        <% meetings.forEach(function (m) { %><option value="<%= m.id %>"><%= m.title || ('Pertemuan ' + m.number) %></option><% }) %>
+        <option value="new"<%- meetings.length === 0 ? ' selected' : '' %>>+ Pertemuan baru</option>
+      </select></div>
+    <div class="span2"><label for="r_url">Tautan (Youtube, Google Drive, PDF) <span class="req">*</span></label>
+      <div class="ad-upload">
+        <input id="r_url" type="text" name="url" required maxlength="1024" placeholder="https://" class="ad-upload-path grow">
+        <span class="ad-upload-btn" data-upload="r_url" data-purpose="MATERIAL" data-accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp" data-csrf="<%= csrf %>" hidden></span>
+      </div></div>
+    <div class="wide"><button class="btn small ad-primary" type="submit">Tambah Materi</button></div>
+  </form>
+</div>
+
+<!-- Pre-test & Post-test -->
+<% [['PRE', 'pre', 'Pre-test'], ['POST', 'post', 'Post-test']].forEach(function (t) { var type = t[0], key = t[1], label = t[2]; var list = tests.filter(function (x) { return x.type === type; }); var first = testFor(type, meetingNos[0]); %>
+  <div class="ad-card" id="<%= key %>-test">
+    <div class="ad-card-head"><div><h2><%= label %></h2><p>Evaluasi &amp; bank soal</p></div></div>
+    <% if (list.length > 0) { %>
+      <ul class="ad-testlist">
+        <% list.forEach(function (x) { %>
+          <li><b><%= x.title %></b><span>Pertemuan <%= x.meetingNo %> · <%= questions.filter(function (q) { return q.testId === x.id && q.isActive; }).length %> soal aktif · <%= x.attemptCount %> percobaan</span><span class="ad-pill <%= x.isActive ? 'on' : 'draft' %>"><%= x.isActive ? 'Terbit' : 'Belum terbit' %></span></li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <form method="post" action="/admin/program/<%= p.id %>/tes/<%= key %>" class="ad-card-body ad-form ad-grid">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div><label for="<%= key %>_title">Judul Evaluasi <span class="req">*</span></label>
+        <input id="<%= key %>_title" type="text" name="title" required maxlength="160" value="<%= first ? first.title : '' %>" placeholder="<%= label %> <%= p.title %>"></div>
+      <div><label for="<%= key %>_meeting">Pertemuan</label>
+        <select id="<%= key %>_meeting" name="meetingNo"><% meetingNos.forEach(function (n) { %><option value="<%= n %>">Pertemuan <%= n %></option><% }) %></select></div>
+      <div class="wide"><label for="<%= key %>_instr">Intruksi (Petunjuk Pengerjaan)</label>
+        <textarea id="<%= key %>_instr" name="instructions" rows="2" maxlength="4000" placeholder="Kerjakan soal secara mandiri. Pilih satu jawaban yang paling tepat."><%= first && first.instructions ? first.instructions : '' %></textarea></div>
+      <label class="wide ad-check"><input type="checkbox" name="isActive" value="1"<%- !first || first.isActive ? ' checked' : '' %>> Terbitkan evaluasi</label>
+      <label class="wide ad-check"><input type="checkbox" name="shuffle" value="1"<%- first && first.shuffleQuestions ? ' checked' : '' %>> Acak urutan soal</label>
+      <div class="wide"><button class="btn small ad-primary" type="submit">Simpan pengaturan</button></div>
+    </form>
+    <form method="post" action="/admin/program/<%= p.id %>/tes/<%= key %>/impor" class="ad-import ad-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h3><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Impor soal manual (Excel/Word - CSV)</h3>
+      <p class="muted small">Satu soal per baris, kolom dipisah <code>|</code> atau TAB: pertanyaan | opsi A | opsi B | opsi C | opsi D | kunci. Simpan berkas Excel/Word sebagai CSV/TXT, lalu tempel isinya di sini.</p>
+      <label for="<%= key %>_imeeting">Pertemuan</label>
+      <select id="<%= key %>_imeeting" name="meetingNo"><% meetingNos.forEach(function (n) { %><option value="<%= n %>">Pertemuan <%= n %></option><% }) %></select>
+      <label for="<%= key %>_content">Isi Berkas</label>
+      <textarea id="<%= key %>_content" name="content" rows="4" required maxlength="190000" placeholder="Apa tujuan ISO 37001? | Mencegah penyuapan | Mengatur keuangan | Mengelola SDM | Audit pajak | A"></textarea>
+      <label class="ad-check"><input type="checkbox" name="replace" value="1"> Ganti seluruh soal yang ada (soal lama dinonaktifkan, riwayat jawaban tetap tersimpan)</label>
+      <div><button class="btn small ad-primary" type="submit">Impor soal</button></div>
+    </form>
+  </div>
+<% }) %>
+
+<!-- Rating & Ulasan -->
+<div class="ad-card" id="ulasan">
+  <div class="ad-card-head light"><div><h2>Rating &amp; Ulasan</h2><p><%= reviews.length %> ulasan · ikon mata menampilkan/menyembunyikan ulasan di halaman peserta</p></div></div>
+  <div class="tablewrap">
+    <table class="au-table ad-table">
+      <thead><tr><th>No</th><th>Nama Program</th><th>Kategori</th><th>Rating</th><th>Ulasan</th><th>Tanggal</th><th></th></tr></thead>
+      <tbody>
+        <% if (reviews.length === 0) { %><tr><td colspan="7" class="au-empty">Belum ada ulasan dari peserta.</td></tr><% } %>
+        <% reviews.forEach(function (r, i) { %>
+          <tr<%- r.isVisible ? '' : ' class="ad-row-hidden"' %>>
+            <td><%= i + 1 %></td>
+            <td><b class="ad-name"><%= r.programTitle %></b></td>
+            <td class="muted"><%= r.category || '-' %></td>
+            <td class="nowrap"><span class="ad-stars" aria-label="<%= r.rating %> dari 5 bintang"><%= '★'.repeat(r.rating) %><span class="off"><%= '★'.repeat(5 - r.rating) %></span></span></td>
+            <td class="ad-review">
+              <% if (r.comment.length > 140) { %><details><summary><%= r.comment.slice(0, 140) %>… <span class="ad-more">Lihat selengkapnya...</span></summary><p><%= r.comment %></p></details><% } else { %><%= r.comment %><% } %>
+              <div class="muted small">oleh <%= r.reviewerName %></div>
+            </td>
+            <td class="nowrap"><%= fmtDate(r.createdAt.toISOString().slice(0, 10)) %></td>
+            <td>
+              <form method="post" action="/admin/program/<%= p.id %>/ulasan/<%= r.id %>/tampil">
+                <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= r.isVisible ? '0' : '1' %>">
+                <button type="submit" class="au-icon-btn<%= r.isVisible ? '' : ' danger' %>" aria-label="<%= r.isVisible ? 'Sembunyikan' : 'Tampilkan' %> ulasan" title="<%= r.isVisible ? 'Tampil di situs, klik untuk menyembunyikan' : 'Tersembunyi, klik untuk menampilkan' %>"><svg class="icon sm"><use href="#i-<%= r.isVisible ? 'eye' : 'eye-off' %>"/></svg></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

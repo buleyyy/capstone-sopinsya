@@ -111,9 +111,12 @@ model TrainingProgram {
   sortOrder   Int                   @default(0)
   isPublished Boolean               @default(false)
   status      TrainingProgramStatus @default(DRAFT)
+  coverUrl    String?               @db.VarChar(255) // /berkas/<id>/<nama> (unggahan Admin) atau https://
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   meetings    ProgramMeeting[]
+  reviews     ProgramReview[]
+  caseStudies CaseStudySubmission[]
 
   @@index([isPublished, sortOrder])
   @@index([status, sortOrder])
@@ -157,6 +160,8 @@ model Test {
   meetingNo   Int
   type        TestType
   title       String         @db.VarChar(160)
+  instructions String?       @db.Text // petunjuk pengerjaan untuk peserta
+  shuffleQuestions Boolean   @default(false) // acak urutan soal setiap kali peserta membuka tes
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -199,6 +204,10 @@ model TestAttempt {
   testId                 Int
   participantName        String              @db.VarChar(120)
   participantInstitution String              @db.VarChar(160)
+  participantEmail       String?             @db.VarChar(160)
+  participantPosition    String?             @db.VarChar(120) // jabatan
+  participantPhone       String?             @db.VarChar(30)
+  deletedAt              DateTime? // dihapus Admin dari rekap (jawaban tetap tersimpan)
   clientRequestId        String              @db.VarChar(64) // kunci idempotensi: klik Selesai ganda = satu percobaan
   correctCount           Int
   totalQuestions         Int
@@ -246,6 +255,54 @@ model TrainingResource {
 
 // ---------- Konten situs (diedit Admin lewat /admin/pengaturan) ----------
 // key "about" = halaman Tentang Kami peserta. Migrasi 20261111120000_site_content (aditif).
+/// Berkas unggahan situs pelatihan: sampul program & materi (publik), serta tugas studi kasus peserta (hanya Admin).
+model StoredFile {
+  id          Int      @id @default(autoincrement())
+  purpose     String   @db.VarChar(20) // COVER | MATERIAL | CASE_STUDY
+  fileName    String   @db.VarChar(200)
+  contentType String   @db.VarChar(100)
+  sizeBytes   Int
+  data        Bytes    @db.LongBlob
+  createdAt   DateTime @default(now())
+  caseStudies CaseStudySubmission[]
+
+  @@index([purpose])
+}
+
+/// Rating & ulasan peserta untuk satu program. Admin dapat menyembunyikan ulasan (isVisible=false).
+model ProgramReview {
+  id              Int             @id @default(autoincrement())
+  programId       Int
+  reviewerName    String          @db.VarChar(120)
+  rating          Int // 1..5
+  comment         String          @db.Text
+  isVisible       Boolean         @default(true)
+  clientRequestId String          @db.VarChar(64)
+  createdAt       DateTime        @default(now())
+  program         TrainingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, clientRequestId])
+  @@index([programId, isVisible, createdAt])
+}
+
+/// Tugas studi kasus yang diunggah peserta untuk satu pertemuan program.
+model CaseStudySubmission {
+  id                     Int             @id @default(autoincrement())
+  programId              Int
+  meetingNo              Int
+  participantName        String          @db.VarChar(120)
+  participantInstitution String          @db.VarChar(160)
+  participantEmail       String?         @db.VarChar(160)
+  fileId                 Int
+  submittedAt            DateTime        @default(now())
+  deletedAt              DateTime?
+  program                TrainingProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+  file                   StoredFile      @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([programId, submittedAt])
+  @@index([fileId])
+}
+
 model SiteContent {
   key       String   @id @db.VarChar(60)
   value     Json
