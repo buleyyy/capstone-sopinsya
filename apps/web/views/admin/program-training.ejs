@@ -14,7 +14,7 @@
     <% if (tab === 'tes') { %><a class="btn small ad-primary" href="#tambah-tes"><svg class="icon sm"><use href="#i-plus"/></svg>Tambah Tes</a><% } %>
   </div>
 </div>
-<% if (saved) { %><div class="alert ok">Perubahan berhasil disimpan.</div><% } %>
+<% if (notice) { %><div class="alert ok"><%= notice %></div><% } else if (saved) { %><div class="alert ok">Perubahan berhasil disimpan.</div><% } %>
 
 <nav class="au-tabs ad-subtabs" aria-label="Bagian manajemen program">
   <a href="/admin/program-training?tab=program"<%- tab === 'program' ? ' class="active" aria-current="page"' : '' %>>Daftar Program</a>
@@ -45,9 +45,7 @@
               <td class="nowrap">
                 <div class="ad-actions ad-icons">
                   <a class="ad-manage" href="/admin/program/<%= p.id %>">Kelola</a>
-                  <% if (p.meetingCount === 0) { %>
-                    <form method="post" action="/admin/program/<%= p.id %>/hapus"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="au-icon-btn danger" type="submit" aria-label="Hapus program <%= p.title %>" title="Hapus program"><svg class="icon sm"><use href="#i-trash"/></svg></button></form>
-                  <% } %>
+                  <form method="post" action="/admin/program/<%= p.id %>/hapus" data-confirm="Hapus program <%= p.title %>? Seluruh pertemuan dan kontennya (<%= p.meetingCount %> pertemuan, <%= p.resourceCount %> konten) ikut terhapus dan program hilang dari katalog peserta. Tindakan ini tidak dapat dibatalkan."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="au-icon-btn danger" type="submit" aria-label="Hapus program <%= p.title %>" title="Hapus program"><svg class="icon sm"><use href="#i-trash"/></svg></button></form>
                 </div>
               </td>
             </tr>
@@ -55,7 +53,7 @@
         </tbody>
       </table>
     </div>
-    <div class="au-card-foot"><span>Program berstatus Terbit tampil di katalog peserta. Program hanya bisa dihapus bila belum punya pertemuan.</span></div>
+    <div class="au-card-foot"><span>Program berstatus Terbit tampil di katalog peserta. Menghapus program ikut menghapus pertemuan dan kontennya. Program yang sudah menerima studi kasus peserta tidak bisa dihapus; ubah statusnya menjadi Nonaktif.</span></div>
   </div>
 <% } else if (tab === 'program') { %>
   <div class="ad-card">
@@ -188,27 +186,70 @@
     </div>
   </form>
 
-  <div class="ad-card">
-    <div class="ad-card-head light"><div><h2>Bank Soal</h2><p><%= questions.length %> soal</p></div></div>
+  <%
+    var meetingNos = Array.from(new Set(questions.map(function (q) { return q.meetingNo; }))).sort(function (a, b) { return a - b; });
+  %>
+  <div class="ad-card bs-card" id="bank-soal" data-bank-soal>
+    <div class="ad-card-head light bs-head">
+      <div><h2>Bank Soal <span class="bs-count"><%= questions.length %> soal</span></h2><p>Kelola daftar pertanyaan Pre-test dan Post-test untuk setiap sesi pelatihan.</p></div>
+      <% if (tests.length > 0) { %><div class="ad-pagehead-actions"><a class="btn small ad-primary" href="#tambah-soal"><svg class="icon sm"><use href="#i-plus"/></svg>Tambah soal</a></div><% } %>
+    </div>
+    <% if (questions.length > 0) { %>
+    <div class="bs-toolbar" data-bs-toolbar hidden>
+      <div class="au-search"><svg class="icon sm"><use href="#i-search"/></svg><input type="search" placeholder="Cari teks pertanyaan..." aria-label="Cari teks pertanyaan" autocomplete="off" data-bs-q></div>
+      <select aria-label="Filter tes" data-bs-program><option value="">Semua Tes</option><% programs.forEach(function (p) { %><option value="<%= p.slug %>"><%= p.label %></option><% }) %></select>
+      <select aria-label="Filter pertemuan" data-bs-meeting><option value="">Semua Pertemuan</option><% meetingNos.forEach(function (n) { %><option value="<%= n %>">Pertemuan <%= n %></option><% }) %></select>
+      <select aria-label="Filter jenis tes" data-bs-type><option value="">Semua Jenis</option><option value="PRE">Pre-test</option><option value="POST">Post-test</option></select>
+      <select aria-label="Filter status" data-bs-status><option value="">Semua Status</option><option value="1">Aktif</option><option value="0">Nonaktif</option></select>
+      <button type="button" class="btn outline small" data-bs-reset><svg class="icon sm"><use href="#i-refresh"/></svg>Reset filter</button>
+    </div>
+    <form method="post" action="/admin/program-training/question/bulk" id="bs-bulk" class="bs-bulk" data-bs-bulk hidden>
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <span><b data-bs-selected>0</b> soal dipilih <button type="button" class="bs-link" data-bs-select-filtered hidden>Pilih semua <span data-bs-filtered-total></span> soal hasil filter</button></span>
+      <div class="ad-actions">
+        <button class="btn outline small" type="submit" name="action" value="nonaktifkan">Nonaktifkan terpilih</button>
+        <button class="btn outline small" type="submit" name="action" value="aktifkan">Aktifkan terpilih</button>
+        <button class="btn danger small" type="submit" name="action" value="hapus">Hapus terpilih</button>
+        <button class="bs-link" type="button" data-bs-clear>Batal pilih</button>
+      </div>
+    </form>
+    <% } %>
     <div class="tablewrap">
-      <table class="au-table ad-table">
-        <thead><tr><th>No</th><th>Tes</th><th>Pertanyaan</th><th>Jawaban tersimpan</th><th>Status</th><th>Aksi</th></tr></thead>
+      <table class="au-table ad-table bs-table">
+        <thead><tr><th class="bs-check"><input type="checkbox" aria-label="Pilih semua soal pada halaman ini" data-bs-all hidden></th><th>No</th><th>Pertanyaan</th><th>Tes &amp; Sesi</th><th>Status</th><th>Aksi</th></tr></thead>
         <tbody>
           <% if (questions.length === 0) { %><tr><td colspan="6" class="au-empty">Belum ada soal.</td></tr><% } %>
+          <tr data-bs-empty hidden><td colspan="6" class="au-empty">Tidak ada soal yang cocok dengan filter. <button type="button" class="bs-link" data-bs-reset>Reset filter</button></td></tr>
           <% questions.forEach(function (q, i) { %>
-            <tr>
-              <td><%= i + 1 %></td>
+            <tr data-bs-row data-program="<%= q.programSlug %>" data-meeting="<%= q.meetingNo %>" data-type="<%= q.testType %>" data-active="<%= q.isActive ? '1' : '0' %>">
+              <td class="bs-check"><input type="checkbox" name="ids" value="<%= q.id %>" form="bs-bulk" aria-label="Pilih soal nomor <%= i + 1 %>" data-bs-pick hidden></td>
+              <td class="bs-no"><%= i + 1 %></td>
+              <td class="bs-q"><div class="bs-qwrap"><span class="bs-text" title="<%= q.text %>"><%= q.text %></span></div></td>
               <td><b class="ad-name"><%= progLabel(q.programSlug) %></b><div class="muted small">Pertemuan <%= q.meetingNo %> · <%= q.testType === 'PRE' ? 'Pre-test' : 'Post-test' %></div></td>
-              <td class="clip"><%= q.text %></td>
-              <td><%= q.answerCount %></td>
               <td><span class="ad-pill <%= q.isActive ? 'on' : 'off' %>"><%= q.isActive ? 'Aktif' : 'Nonaktif' %></span></td>
-              <td><form method="post" action="/admin/program-training/question/<%= q.id %>/status"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= q.isActive ? '0' : '1' %>"><button class="btn outline small" type="submit"><%= q.isActive ? 'Nonaktifkan' : 'Aktifkan' %></button></form></td>
+              <td class="nowrap">
+                <div class="ad-actions ad-icons">
+                  <form method="post" action="/admin/program-training/question/<%= q.id %>/status"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="value" value="<%= q.isActive ? '0' : '1' %>"><button class="bs-switch<%= q.isActive ? ' on' : '' %>" type="submit" role="switch" aria-checked="<%= q.isActive ? 'true' : 'false' %>" aria-label="<%= q.isActive ? 'Nonaktifkan' : 'Aktifkan' %> soal nomor <%= i + 1 %>" title="<%= q.isActive ? 'Nonaktifkan soal' : 'Aktifkan soal' %>"></button></form>
+                  <% if (q.answerCount === 0) { %>
+                    <form method="post" action="/admin/program-training/question/<%= q.id %>/hapus" data-confirm="Hapus soal nomor <%= i + 1 %> secara permanen? Tindakan ini tidak dapat dibatalkan."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="au-icon-btn danger" type="submit" aria-label="Hapus soal nomor <%= i + 1 %>" title="Hapus soal"><svg class="icon sm"><use href="#i-trash"/></svg></button></form>
+                  <% } else { %>
+                    <button class="au-icon-btn danger" type="button" disabled aria-label="Soal nomor <%= i + 1 %> tidak bisa dihapus" title="Sudah dijawab peserta (<%= q.answerCount %> jawaban). Nonaktifkan saja agar riwayat nilai tetap utuh."><svg class="icon sm"><use href="#i-trash"/></svg></button>
+                  <% } %>
+                </div>
+              </td>
             </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
+    <div class="bs-foot" data-bs-foot hidden>
+      <div class="bs-per"><span>Tampilkan</span><select aria-label="Jumlah soal per halaman" data-bs-per><option value="10">10</option><option value="20">20</option><option value="50">50</option></select><span>per halaman</span></div>
+      <span class="bs-range" data-bs-range></span>
+      <nav class="bs-pages" aria-label="Halaman Bank Soal" data-bs-pages></nav>
+    </div>
+    <div class="au-card-foot" data-bs-static><span><%= questions.length %> soal ditampilkan seluruhnya.</span></div>
   </div>
+  <script src="/static/bank-soal.js?v=<%= locals.assetVersion || '' %>" defer></script>
 
   <% if (tests.length === 0) { %><div class="alert info">Buat tes terlebih dahulu sebelum menambahkan soal.</div><% } else { var chosen = tests.find(function (t) { return t.id === selectedTestId; }) || tests[0]; %>
     <form method="post" action="/admin/program-training/test/<%= chosen.id %>/question" class="ad-card" id="tambah-soal">

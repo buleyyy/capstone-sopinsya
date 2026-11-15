@@ -3,8 +3,11 @@ import { AppError } from "../utils/errors.js";
 /** Batas ukuran satu berkas bukti. */
 export const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 
-/** Tautan lokal ke berkas yang diunggah, mis. /auditor/bukti/12/foto.jpg (nama di ujung hanya hiasan). */
-export const LOCAL_EVIDENCE_PATH = /^\/auditor\/bukti\/\d{1,9}(\/[^\s/?#]{1,200})?$/;
+/**
+ * Tautan lokal ke berkas yang diunggah, mis. /audit/bukti/12/foto.jpg (nama di ujung hanya hiasan).
+ * Awalan lama /auditor/ tetap diterima agar tautan bukti yang sudah tersimpan tidak ditolak.
+ */
+export const LOCAL_EVIDENCE_PATH = /^\/audit(?:or)?\/bukti\/\d{1,9}(\/[^\s/?#]{1,200})?$/;
 
 export interface EvidenceFileRecord {
   id: number;

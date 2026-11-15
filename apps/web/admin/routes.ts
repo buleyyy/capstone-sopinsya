@@ -205,7 +205,11 @@ export function createAdminRouter(deps: WebDeps): Router {
     const asked = intParam(typeof req.query["sesi"] === "string" ? req.query["sesi"] : undefined);
     const selected = sessions.find((s) => s.id === asked) ?? sessions.find((s) => s.status === "ACTIVE") ?? sessions[0] ?? null;
     const data = selected ? await admin.getSessionAuditRegister(selected.id) : null;
-    const rows = data?.rows ?? [];
+    // Pratinjau per auditor: ?auditor=<id>. Kosong/tidak valid = gabungan semua auditor pada sesi ini.
+    const auditorList = data?.auditorList ?? [];
+    const askedAuditor = intParam(typeof req.query["auditor"] === "string" ? req.query["auditor"] : undefined);
+    const selectedAuditor = auditorList.find((a) => a.id === askedAuditor) ?? null;
+    const rows = selectedAuditor ? (data?.rows ?? []).filter((r) => r.auditorId === selectedAuditor.id) : (data?.rows ?? []);
     res.render("admin/beranda", {
       title: "Dashboard Audit",
       nav: "dashboard",
@@ -213,6 +217,8 @@ export function createAdminRouter(deps: WebDeps): Router {
       selected,
       header: data?.header ?? DEFAULT_DOCUMENT_HEADER,
       auditors: data?.auditors ?? [],
+      auditorList,
+      selectedAuditor,
       register: rows,
       stats: registerStats(rows),
     });
@@ -500,8 +506,18 @@ export function createAdminRouter(deps: WebDeps): Router {
       return mine.length ? { average: Math.round((mine.reduce((n, r) => n + r.rating, 0) / mine.length) * 10) / 10, count: mine.length } : null;
     };
     const tab = ["program", "materi", "tes"].includes(String(req.query["tab"])) ? String(req.query["tab"]) : "program";
+    // Ringkasan hasil aksi massal Bank Soal (dikirim lewat query oleh rute /question/bulk; hanya angka dan aksi yang dikenal).
+    const BULK_VERB = new Map([["aktifkan", "diaktifkan"], ["nonaktifkan", "dinonaktifkan"], ["hapus", "dihapus"]]);
+    const bulkVerb = BULK_VERB.get(String(req.query["bulk"] ?? ""));
+    const bulkDone = Number(req.query["n"]);
+    const bulkSkipped = Number(req.query["skip"]);
+    const notice =
+      bulkVerb && Number.isInteger(bulkDone) && bulkDone >= 0 && bulkDone <= 500 && Number.isInteger(bulkSkipped) && bulkSkipped >= 0 && bulkSkipped <= 500
+        ? `${bulkDone} soal berhasil ${bulkVerb}.${bulkSkipped > 0 ? ` ${bulkSkipped} soal dilewati karena sudah dijawab peserta; nonaktifkan saja agar riwayat nilai tetap utuh.` : ""}`
+        : "";
     res.render("admin/program-training", {
       title: "Manajemen Program Training",
+      notice,
       nav: "program-training",
       tab,
       selectedTestId: Number(req.query["testId"]) || null,
@@ -563,7 +579,7 @@ export function createAdminRouter(deps: WebDeps): Router {
       isActive: trimmed(req, "isActive") === "1",
     });
     await requireAdminStore(deps).saveTrainingTest(data);
-    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+    res.redirect(303, `/admin/program-training?tab=tes&ok=1`);
   });
 
   router.post("/admin/program-training/test/:id/question", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
@@ -599,13 +615,46 @@ export function createAdminRouter(deps: WebDeps): Router {
     const active = trimmed(req, "value") === "1";
     const found = await requireAdminStore(deps).saveTrainingTestStatus(testId, active);
     if (!found) throw new AppError(404, "NOT_FOUND", "Tes tidak ditemukan");
-    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+    res.redirect(303, `/admin/program-training?tab=tes&ok=1`);
+  });
+
+  // Aksi massal Bank Soal (kotak centang): aktifkan, nonaktifkan, atau hapus banyak soal sekaligus.
+  // Hapus melewati soal yang sudah dijawab peserta (riwayat nilai harus utuh); soal itu hanya bisa dinonaktifkan.
+  router.post("/admin/program-training/question/bulk", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const action = trimmed(req, "action");
+    if (action !== "aktifkan" && action !== "nonaktifkan" && action !== "hapus") throw new AppError(422, "VALIDATION_ERROR", "Aksi massal tidak dikenal");
+    const ids = [...new Set(intList(req, "ids"))];
+    if (ids.length === 0) throw new AppError(422, "VALIDATION_ERROR", "Pilih minimal satu soal");
+    if (ids.length > 500) throw new AppError(422, "VALIDATION_ERROR", "Maksimal 500 soal per aksi massal");
+    const admin = requireAdminStore(deps);
+    let done = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      if (action === "hapus") {
+        try {
+          if (await admin.deleteTrainingQuestion(id)) done += 1;
+        } catch (err) {
+          if (err instanceof AppError && err.code === "QUESTION_HAS_ANSWERS") skipped += 1;
+          else throw err;
+        }
+      } else if (await admin.setTrainingQuestionActive(id, action === "aktifkan")) {
+        done += 1;
+      }
+    }
+    res.redirect(303, `/admin/program-training?tab=tes&ok=1&bulk=${action}&n=${done}&skip=${skipped}`);
   });
 
   router.post("/admin/program-training/question/:id/status", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
     const found = await requireAdminStore(deps).setTrainingQuestionActive(intParam(req.params["id"]), trimmed(req, "value") === "1");
     if (!found) throw new AppError(404, "NOT_FOUND", "Soal tidak ditemukan");
-    res.redirect(303, `/admin/program-training?tab=tes${ok}`);
+    res.redirect(303, `/admin/program-training?tab=tes&ok=1`);
+  });
+
+  // Hapus permanen satu soal (ikon sampah di Bank Soal). Soal yang sudah dijawab peserta ditolak oleh store (409).
+  router.post("/admin/program-training/question/:id/hapus", sec.checkOrigin, sec.requireCsrf, async (req, res) => {
+    const found = await requireAdminStore(deps).deleteTrainingQuestion(intParam(req.params["id"]));
+    if (!found) throw new AppError(404, "NOT_FOUND", "Soal tidak ditemukan");
+    res.redirect(303, `/admin/program-training?tab=tes&ok=1`);
   });
 
   // ---------- Peserta & Hasil Evaluasi (hanya Admin): lihat evaluationRoutes.ts ----------

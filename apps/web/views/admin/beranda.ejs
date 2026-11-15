@@ -31,7 +31,14 @@
 </section>
 
 <form class="au-toolbar" method="get" action="/admin/audit">
-  <label for="sesi">Sesi audit</label>
+  <label for="auditor">Auditor</label>
+  <select id="auditor" name="auditor" class="au-sesi-select">
+    <option value=""<%- selectedAuditor ? '' : ' selected' %>>Semua auditor</option>
+    <% auditorList.forEach(function (a) { %>
+      <option value="<%= a.id %>"<%- selectedAuditor && a.id === selectedAuditor.id ? ' selected' : '' %>><%= a.name %></option>
+    <% }) %>
+  </select>
+  <label for="sesi">Sesi</label>
   <select id="sesi" name="sesi" class="au-sesi-select">
     <% sessions.forEach(function (s) { %>
       <option value="<%= s.id %>"<%- s.id === selected.id ? ' selected' : '' %>><%= s.title %> (<%= sessionLabel[s.status] %>)</option>
@@ -54,7 +61,13 @@
   </div>
 <% } %>
 
-<%- include('../partials/audit-ringkasan', { reporterLabel: auditors.length ? auditors.join(', ') : '-', fullLink: '/admin/sesi/' + selected.id }) %>
+<% if (auditorList.length === 0) { %>
+  <div class="alert warn" role="status"><svg class="icon"><use href="#i-alert"/></svg><div>Sesi ini belum memiliki auditor. Tugaskan akun Auditor lewat <a href="/admin/sesi/<%= selected.id %>">Kelola sesi</a>.</div></div>
+<% } else if (selectedAuditor) { %>
+  <div class="alert" role="status"><svg class="icon"><use href="#i-eye"/></svg><div>Pratinjau dashboard <strong><%= selectedAuditor.name %></strong>. <a href="/admin/audit?sesi=<%= selected.id %>">Tampilkan semua auditor</a></div></div>
+<% } %>
+
+<%- include('../partials/audit-ringkasan', { reporterLabel: selectedAuditor ? selectedAuditor.name : (auditors.length ? auditors.join(', ') : '-'), fullLink: '/admin/sesi/' + selected.id }) %>
 
 <% } %>
 <%- include('../partials/footer') %>

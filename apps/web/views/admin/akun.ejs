@@ -71,7 +71,10 @@
         <form method="post" action="/admin/akun/<%= editing.id %>/reset-password" class="ad-sub">
           <input type="hidden" name="_csrf" value="<%= csrf %>">
           <label for="e_pw">Kata sandi baru (min. 10 karakter, kosong = dibuatkan otomatis)</label>
-          <input id="e_pw" type="password" name="password" minlength="10" maxlength="72" autocomplete="new-password">
+          <div class="ad-pw">
+            <input id="e_pw" type="password" name="password" minlength="10" maxlength="72" autocomplete="new-password">
+            <button type="button" class="ad-eye" data-toggle-password="e_pw" data-eye-swap aria-label="Tampilkan kata sandi" aria-pressed="false" title="Tampilkan / sembunyikan kata sandi" hidden><svg class="icon sm" aria-hidden="true"><use href="#i-eye"/></svg></button>
+          </div>
           <div class="ad-form-actions"><button class="btn outline small" type="submit">Reset kata sandi</button></div>
         </form>
       </div>
@@ -86,7 +89,10 @@
         <label for="email">Email <span class="req">*</span></label>
         <input id="email" type="text" name="email" required maxlength="160" autocomplete="off" autocapitalize="off" spellcheck="false">
         <label for="password">Kata sandi awal (min. 10 karakter) <span class="req">*</span></label>
-        <input id="password" type="password" name="password" required minlength="10" maxlength="72" autocomplete="new-password">
+        <div class="ad-pw">
+          <input id="password" type="password" name="password" required minlength="10" maxlength="72" autocomplete="new-password">
+          <button type="button" class="ad-eye" data-toggle-password="password" data-eye-swap aria-label="Tampilkan kata sandi" aria-pressed="false" title="Tampilkan / sembunyikan kata sandi" hidden><svg class="icon sm" aria-hidden="true"><use href="#i-eye"/></svg></button>
+        </div>
         <label for="role">Role</label>
         <select id="role" name="role"><option value="AUDITOR" selected>Auditor</option><option value="ADMIN">Admin</option></select>
         <div class="ad-form-actions"><button class="btn outline small" type="reset">Batal</button><button class="btn small ad-primary" type="submit">Buat Akun</button></div>

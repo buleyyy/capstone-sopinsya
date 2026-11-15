@@ -423,6 +423,7 @@ body.role-auditor, body.role-admin { background: #f3f6fc; }
 .ad-edit[open] { flex-basis: 100%; }
 .ad-edit .compact-form { margin-top: .5rem; padding: .75rem; border: 1px solid #e2e8f2; border-radius: 8px; background: #f8fafc; display: grid; gap: .5rem; min-width: 260px; }
 .au-icon-btn { border: 0; cursor: pointer; }
+.au-icon-btn:disabled, .au-icon-btn:disabled:hover { opacity: .4; cursor: not-allowed; background: #fee2e2; }
 .au-icon-btn.ok { background: #dcfce7; color: #15803d; }
 
 .ad-two { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
@@ -433,6 +434,13 @@ body.role-auditor, body.role-admin { background: #f3f6fc; }
 .ad-form .req { color: #dc2626; }
 .ad-form-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.1rem; }
 .ad-sub { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e2e8f2; }
+
+/* Input kata sandi dengan tombol tampil/sembunyi. Tombol dimunculkan audit.js; tanpa JS input tetap tersamar. */
+.ad-pw { position: relative; display: block; }
+.ad-form .ad-pw input { display: block; padding-right: 2.6rem; }
+.ad-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #94a3b8; cursor: pointer; }
+.ad-eye:hover, .ad-eye[aria-pressed="true"] { color: #362fc2; background: #eef2ff; }
+.ad-eye:focus-visible { outline: 2px solid #362fc2; outline-offset: 1px; }
 .ad-grid { display: grid; gap: .9rem 1.25rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ad-grid .wide { grid-column: 1 / -1; }
 .ad-grid label { margin-top: .6rem; }
@@ -555,3 +563,45 @@ body.gate, .gate-main { background: #f3f6fd; }
 .login-submit:hover { background: #2c26a3; }
 .login-legacy { margin: 1.25rem 0 0; padding: .65rem .8rem; border-radius: 8px; background: #f8fafc; font-size: 11.5px; color: #64748b; }
 .login-card .alert { margin-bottom: 1rem; }
+
+/* ============ Bank Soal (Admin > Pre/Post-test): peringatan, filter, tabel ringkas, paginasi, aksi massal ============ */
+/* Toolbar, paginasi, dan kotak centang dimunculkan public/bank-soal.js; tanpa JS semua soal tetap tampil di satu tabel. */
+.bs-head h2 { display: flex; align-items: center; gap: .5rem; }
+.bs-count { padding: 2px 9px; border-radius: 999px; background: #e0e7ff; color: #312e81; font-size: 11px; font-weight: 600; }
+
+.bs-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: 1rem 1.25rem; }
+.bs-toolbar .au-search { flex: 1 1 240px; max-width: 340px; }
+.bs-toolbar .au-search input { width: 100%; background: #fff; border: 1px solid #e2e8f2; }
+.bs-toolbar select { width: auto; min-width: 130px; max-width: 200px; background: #fff; border: 1px solid #e2e8f2; }
+.bs-toolbar .btn { display: inline-flex; align-items: center; gap: .35rem; }
+.bs-link { padding: 0; border: 0; background: none; color: #362fc2; font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.bs-link:hover { color: #2a24a0; }
+
+.bs-bulk { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 1.25rem .75rem; padding: .6rem .9rem; border: 1px solid #c7d2fe; border-radius: 10px; background: #eef2ff; color: #1e1b6e; font-size: 12px; }
+.bs-bulk .ad-actions { gap: .5rem; }
+
+.bs-table th.bs-check, .bs-table td.bs-check { width: 36px; padding-right: 0; }
+.bs-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: #362fc2; cursor: pointer; vertical-align: middle; }
+.bs-table td { padding-top: .6rem; padding-bottom: .6rem; }
+.bs-no { color: #94a3b8; }
+.bs-q { width: 46%; min-width: 220px; }
+.bs-qwrap { display: flex; align-items: flex-start; gap: .5rem; }
+.bs-text { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Saklar aktif/nonaktif: tetap tombol di dalam form, jadi berfungsi tanpa JavaScript. */
+.bs-switch { position: relative; flex: none; width: 36px; height: 20px; padding: 0; border: 0; border-radius: 999px; background: #cbd5e1; cursor: pointer; transition: background .15s; }
+.bs-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s; }
+.bs-switch.on { background: #16a34a; }
+.bs-switch.on::after { transform: translateX(16px); }
+.bs-switch:focus-visible { outline: 2px solid #362fc2; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .bs-switch, .bs-switch::after { transition: none; } }
+
+.bs-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.25rem; padding: .8rem 1.25rem; border-top: 1px solid #e2e8f2; background: rgba(241, 244, 248, .5); font-size: 12px; color: #64748b; }
+.bs-per { display: flex; align-items: center; gap: .5rem; }
+.bs-per select { width: auto; min-width: 64px; background: #fff; border: 1px solid #e2e8f2; }
+.bs-pages { display: flex; align-items: center; gap: .3rem; }
+.bs-pg { min-width: 32px; height: 32px; padding: 0 .5rem; border: 1px solid #e2e8f2; border-radius: 8px; background: #fff; color: #334155; font-size: 12px; font-weight: 600; cursor: pointer; }
+.bs-pg:hover:not(:disabled) { background: #eef2ff; }
+.bs-pg.active { border-color: #362fc2; background: #362fc2; color: #fff; }
+.bs-pg:disabled { opacity: .45; cursor: not-allowed; }
+.bs-gap { padding: 0 .15rem; color: #94a3b8; }

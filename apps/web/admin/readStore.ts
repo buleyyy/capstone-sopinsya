@@ -252,6 +252,7 @@ export interface AuditRegisterRow {
   code: string;
   assignmentId: number;
   departmentName: string;
+  auditorId: number;
   auditorName: string;
   finding: { classification: FindingClass; status: FindingStatus; reference: string; problem: string };
   followUp: FindingFollowUp;
@@ -262,6 +263,8 @@ export interface SessionAuditRegister {
   header: DocumentHeader | null;
   /** Nama auditor yang penugasannya belum dicabut pada sesi ini. */
   auditors: string[];
+  /** Auditor (id + nama) yang penugasannya belum dicabut; dipakai untuk pratinjau dashboard per auditor. */
+  auditorList: { id: number; name: string }[];
   /** Temuan yang belum dihapus lunak, urut menurut nomor temuan. */
   rows: AuditRegisterRow[];
 }
@@ -330,6 +333,8 @@ export interface AdminReadStore {
   saveTrainingTestStatus(testId: number, isActive: boolean): Promise<boolean>;
   addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void>;
   setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean>;
+  /** Hapus permanen satu soal beserta pilihannya. Menolak (AppError 409 QUESTION_HAS_ANSWERS) bila sudah dijawab peserta. */
+  deleteTrainingQuestion(questionId: number): Promise<boolean>;
   /** Percobaan tes terbaru lebih dulu, dibatasi (default 2000) agar halaman tetap ringan. */
   listTrainingAttempts(limit?: number): Promise<TrainingAttemptRow[]>;
   /** Menghapus percobaan dari rekap Admin (soft delete; jawaban tetap tersimpan). */
@@ -353,7 +358,10 @@ export interface AdminReadStore {
   findProgramBySlug(slug: string, excludeId?: number): Promise<{ id: number } | null>;
   createProgram(data: ProgramInput): Promise<ProgramDetailRow>;
   updateProgram(programId: number, data: ProgramInput): Promise<boolean>;
-  /** Menolak (AppError 409 PROGRAM_HAS_MEETINGS) bila program masih punya pertemuan. */
+  /**
+   * Menghapus program beserta pertemuan dan kontennya (ulasan ikut terhapus). Menolak (AppError 409 PROGRAM_HAS_SUBMISSIONS)
+   * bila program sudah menerima studi kasus peserta; gunakan status Nonaktif untuk kasus itu. Pre/Post-test tidak disentuh.
+   */
   deleteProgram(programId: number): Promise<boolean>;
   setProgramStatus(programId: number, status: ProgramStatus): Promise<boolean>;
   createMeeting(programId: number, data: MeetingInput): Promise<ProgramMeetingRow | null>;
@@ -562,7 +570,7 @@ export class PrismaAdminReadStore implements AdminReadStore {
   async getSessionAuditRegister(sessionId: number): Promise<SessionAuditRegister> {
     const [header, auditors, findings] = await Promise.all([
       this.db.auditDocumentHeader.findUnique({ where: { sessionId } }),
-      this.db.auditor.findMany({ where: { sessionId, revokedAt: null }, orderBy: { id: "asc" }, select: { name: true } }),
+      this.db.auditor.findMany({ where: { sessionId, revokedAt: null }, orderBy: { id: "asc" }, select: { id: true, name: true } }),
       this.db.finding.findMany({
         where: { sessionId, deletedAt: null },
         orderBy: { seq: "asc" },
@@ -581,11 +589,13 @@ export class PrismaAdminReadStore implements AdminReadStore {
           }
         : null,
       auditors: [...new Set(auditors.map((a) => a.name))],
+      auditorList: auditors.map((a) => ({ id: a.id, name: a.name })),
       rows: findings.map((f) => ({
         id: f.id,
         code: `T-${f.sessionId}-${f.seq}`,
         assignmentId: f.assignmentId,
         departmentName: f.assignment.department.name,
+        auditorId: f.assignment.auditorId,
         auditorName: f.assignment.auditor.name,
         finding: { classification: f.classification, status: f.status, reference: f.reference, problem: f.problem },
         followUp: {
@@ -750,8 +760,10 @@ export class PrismaAdminReadStore implements AdminReadStore {
 
   async addTrainingQuestion(testId: number, data: TrainingQuestionInput): Promise<void> {
     await this.db.$transaction(async (tx) => {
+      // max+1 (bukan count+1) agar nomor urut tidak bentrok setelah ada soal yang dihapus.
+      const last = await tx.testQuestion.aggregate({ where: { testId }, _max: { orderNo: true } });
       const question = await tx.testQuestion.create({
-        data: { testId, text: data.text, orderNo: await tx.testQuestion.count({ where: { testId } }) + 1 },
+        data: { testId, text: data.text, orderNo: (last._max.orderNo ?? 0) + 1 },
         select: { id: true },
       });
       await tx.testOption.createMany({
@@ -763,6 +775,23 @@ export class PrismaAdminReadStore implements AdminReadStore {
   async setTrainingQuestionActive(questionId: number, isActive: boolean): Promise<boolean> {
     const r = await this.db.testQuestion.updateMany({ where: { id: questionId }, data: { isActive } });
     return r.count > 0;
+  }
+
+  async deleteTrainingQuestion(questionId: number): Promise<boolean> {
+    return this.db.$transaction(async (tx) => {
+      const q = await tx.testQuestion.findUnique({ where: { id: questionId }, select: { _count: { select: { answers: true } } } });
+      if (!q) return false;
+      if (q._count.answers > 0) {
+        throw new AppError(
+          409,
+          "QUESTION_HAS_ANSWERS",
+          "Soal ini sudah dijawab peserta sehingga tidak bisa dihapus. Nonaktifkan saja agar riwayat nilai tetap utuh.",
+        );
+      }
+      await tx.testOption.deleteMany({ where: { questionId } });
+      const r = await tx.testQuestion.deleteMany({ where: { id: questionId } });
+      return r.count > 0;
+    });
   }
 
   async listTrainingAttempts(limit = 2000): Promise<TrainingAttemptRow[]> {
@@ -894,10 +923,22 @@ export class PrismaAdminReadStore implements AdminReadStore {
   }
 
   async deleteProgram(programId: number): Promise<boolean> {
-    const meetingCount = await this.db.programMeeting.count({ where: { programId } });
-    if (meetingCount > 0) throw new AppError(409, "PROGRAM_HAS_MEETINGS", "Hapus semua pertemuan program ini terlebih dahulu");
-    const r = await this.db.trainingProgram.deleteMany({ where: { id: programId } });
-    return r.count > 0;
+    // Studi kasus peserta menunjuk program dengan onDelete: Restrict; jangan hapus data kiriman peserta.
+    const submissions = await this.db.caseStudySubmission.count({ where: { programId } });
+    if (submissions > 0) {
+      throw new AppError(
+        409,
+        "PROGRAM_HAS_SUBMISSIONS",
+        "Program ini sudah menerima studi kasus peserta sehingga tidak bisa dihapus. Ubah statusnya menjadi Nonaktif agar tidak tampil di katalog.",
+      );
+    }
+    // Relasi memakai Restrict, jadi hapus berurutan dari anak ke induk dalam satu transaksi (ulasan ikut terhapus via Cascade).
+    return this.db.$transaction(async (tx) => {
+      await tx.meetingResource.deleteMany({ where: { meeting: { programId } } });
+      await tx.programMeeting.deleteMany({ where: { programId } });
+      const r = await tx.trainingProgram.deleteMany({ where: { id: programId } });
+      return r.count > 0;
+    });
   }
 
   async setProgramStatus(programId: number, status: ProgramStatus): Promise<boolean> {

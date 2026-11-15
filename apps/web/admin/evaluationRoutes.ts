@@ -4,11 +4,13 @@ import { requireAdminStore, type WebDeps } from "../shared/deps.js";
 import { sendFile } from "../shared/files.js";
 import { intParam, trimmed } from "../shared/helpers.js";
 import type { CaseStudyRow, TrainingAttemptRow } from "./readStore.js";
+import { XLSX_CONTENT_TYPE, buildTestResultsWorkbook, testExportFileName } from "./evaluationXlsx.js";
 
 /**
  * Peserta & Hasil Evaluasi (mockup "Hasil Evaluasi"): rekap Pre/Post-test dan tugas Studi Kasus peserta.
- * Filter "Semua Kategori" berupa centang ganda (jenis test & nama program), Ekspor ke CSV mengikuti filter
- * yang aktif, dan hapus menyembunyikan baris dari rekap (soft delete). Nilai hanya untuk Admin.
+ * Filter "Semua Kategori" berupa centang ganda (jenis test & nama program), Ekspor mengikuti filter yang aktif
+ * (Pre/Post-test ke Excel .xlsx lewat evaluationXlsx.ts, Studi Kasus ke CSV), dan hapus menyembunyikan baris dari
+ * rekap (soft delete). Nilai hanya untuk Admin.
  */
 
 /** Nilai query ganda (?type=PRE&type=POST) sebagai daftar string. */
@@ -35,6 +37,11 @@ export const timeWib = (d: Date): string => wibTime.format(d).replace(/\./g, ":"
 
 const sendCsv = (res: Response, name: string, body: string) => {
   res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
+  res.send(body);
+};
+
+const sendXlsx = (res: Response, name: string, body: Buffer) => {
+  res.set({ "Content-Type": XLSX_CONTENT_TYPE, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
   res.send(body);
 };
 
@@ -103,19 +110,20 @@ export function registerEvaluationRoutes(router: Router, deps: WebDeps, fallback
     });
   });
 
-  router.get("/admin/nilai-evaluasi/hasil-test.csv", async (req, res) => {
+  /** Ekspor Excel rekap Pre/Post-test: baris yang sama dengan tabel di halaman (filter yang sama), tanpa hitung ulang. */
+  router.get("/admin/nilai-evaluasi/hasil-test.xlsx", async (req, res) => {
     const programs = await programOptions();
     const label = new Map(programs.map((p) => [p.slug, p.label]));
     const rows = filterAttempts(await store().listTrainingAttempts(), readFilters(req, programs));
-    const body = toCsv(
-      ["No", "Nama Program", "Pertemuan", "Email", "Nama Peserta", "Jabatan", "Nama Instansi", "Nomor HP", "Benar", "Total Soal", "Nilai", "Jenis Test", "Tanggal", "Waktu Kirim"],
-      rows.map((a, i) => [
-        i + 1, label.get(a.programSlug) ?? a.programSlug, a.meetingNo, a.participantEmail, a.participantName, a.participantPosition,
-        a.participantInstitution, a.participantPhone, a.correctCount, a.totalQuestions, a.score, a.type === "PRE" ? "Pre-test" : "Post-test",
-        dateWib(a.submittedAt), timeWib(a.submittedAt),
-      ]),
-    );
-    sendCsv(res, "hasil-pre-post-test.csv", body);
+    const now = new Date();
+    const body = await buildTestResultsWorkbook(rows, (slug) => label.get(slug) ?? slug, now);
+    sendXlsx(res, testExportFileName(now), body);
+  });
+
+  /** Tautan CSV lama (tab/bookmark yang masih terbuka) dialihkan ke ekspor Excel dengan filter yang sama. */
+  router.get("/admin/nilai-evaluasi/hasil-test.csv", (req, res) => {
+    const i = req.originalUrl.indexOf("?");
+    res.redirect(302, `/admin/nilai-evaluasi/hasil-test.xlsx${i === -1 ? "" : req.originalUrl.slice(i)}`);
   });
 
   router.get("/admin/nilai-evaluasi/studi-kasus.csv", async (req, res) => {

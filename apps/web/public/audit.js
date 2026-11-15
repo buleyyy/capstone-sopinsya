@@ -5,16 +5,31 @@
 
   document.documentElement.classList.add('js');
 
-  // ---- Tampilkan/sembunyikan kata sandi (halaman Masuk) ----
+  // ---- Tampilkan/sembunyikan kata sandi (halaman Masuk dan form akun Admin) ----
+  // Tombol bertanda data-eye-swap memakai ikon Eye (tersembunyi) dan EyeOff (terlihat).
   document.querySelectorAll('[data-toggle-password]').forEach(function (btn) {
     var input = document.getElementById(btn.getAttribute('data-toggle-password') || '');
     if (!input) return;
-    btn.hidden = false;
-    btn.addEventListener('click', function () {
-      var show = input.type === 'password';
+    var icon = btn.hasAttribute('data-eye-swap') ? btn.querySelector('use') : null;
+    function setVisible(show) {
       input.type = show ? 'text' : 'password';
       btn.setAttribute('aria-pressed', show ? 'true' : 'false');
       btn.setAttribute('aria-label', show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
+      if (icon) icon.setAttribute('href', show ? '#i-eye-off' : '#i-eye');
+    }
+    btn.hidden = false;
+    btn.addEventListener('click', function () {
+      setVisible(input.type === 'password');
+    });
+    // Tombol Batal (reset form) dan kembali lewat cache peramban selalu menyamarkan kata sandi lagi.
+    if (input.form) input.form.addEventListener('reset', function () { setVisible(false); });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) setVisible(false); });
+  });
+
+  // ---- Konfirmasi sebelum aksi yang tidak bisa dibatalkan (form bertanda data-confirm, mis. hapus program/soal) ----
+  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (!window.confirm(form.getAttribute('data-confirm') || 'Lanjutkan?')) e.preventDefault();
     });
   });
 
@@ -136,7 +151,7 @@
 
       status.textContent = 'Mengunggah ' + file.name + '...';
       picker.disabled = true;
-      fetch('/auditor/bukti', {
+      fetch('/audit/bukti', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
