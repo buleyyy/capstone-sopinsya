@@ -20,9 +20,14 @@ function bootEnv() {
 
 async function main() {
   const env = bootEnv();
-  const port = Number(process.env["WEB_PORT"] ?? 5000);
+  const port = Number(
+    process.env["PORT"] ??
+    process.env["WEB_PORT"] ??
+    5000
+  );
+
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    console.error("[web] WEB_PORT tidak valid.");
+    console.error("[web] PORT/WEB_PORT tidak valid.");
     process.exit(1);
   }
 
@@ -66,14 +71,15 @@ async function main() {
     ...(audit ? { audit } : {}),
   });
 
-  const server = app.listen(port, () => {
-    console.log(`[web] listening on http://localhost:${port} (${env.NODE_ENV})`);
-    console.log(`[web] database: ${db.configured ? "configured" : "not configured"}`);
-    console.log("[web] area: /peserta, /admin, /audit (masuk lewat /masuk)");
-    if (env.LEGACY_ENV_LOGIN) {
-      console.warn("[web] PERINGATAN: LEGACY_ENV_LOGIN=true (fallback kata sandi environment aktif). Hanya untuk transisi development.");
-    }
-  });
+const server = app.listen(port, "0.0.0.0", () => {
+  console.log(`[web] listening on http://0.0.0.0:${port} (${env.NODE_ENV})`);
+  console.log(`[web] database: ${db.configured ? "configured" : "not configured"}`);
+  console.log("[web] area: /peserta, /admin, /audit (masuk lewat /masuk)");
+
+  if (env.LEGACY_ENV_LOGIN) {
+    console.warn("[web] PERINGATAN: LEGACY_ENV_LOGIN=true (fallback kata sandi environment aktif). Hanya untuk transisi development.");
+  }
+});
 
   let shuttingDown = false;
   async function shutdown(signal: string) {
