@@ -447,7 +447,36 @@
     });
   }
 
-  function init() { initProgram(); initCaseUpload(); }
+  // ---------- menu navigasi mobile ----------
+
+  function initNav() {
+    var header = document.querySelector(".site-header");
+    var btn = header && header.querySelector(".nav-toggle");
+    if (!btn) return;
+    var mq = window.matchMedia ? window.matchMedia("(max-width: 48rem)") : null;
+
+    function set(open) {
+      header.classList.toggle("is-open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.setAttribute("aria-label", open ? "Tutup menu" : "Buka menu");
+    }
+
+    btn.addEventListener("click", function () { set(!header.classList.contains("is-open")); });
+    header.addEventListener("click", function (e) {
+      var a = e.target && e.target.closest ? e.target.closest("a") : null;
+      if (a && a.closest(".nav")) set(false);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && header.classList.contains("is-open")) { set(false); btn.focus(); }
+    });
+    if (mq) {
+      var onChange = function () { if (!mq.matches) set(false); };
+      if (mq.addEventListener) mq.addEventListener("change", onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+  }
+
+  function init() { initNav(); initProgram(); initCaseUpload(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();

@@ -12,11 +12,11 @@
   --line: #dfe4ee;
   --soft: #eef5fb;
   --bad-bg: #d91f1f;
-  --indigo: #3a2fc4;
+  --indigo: #362fc2;
   --indigo-deep: #1b1767;
   --action: #2563eb;
   --action-dark: #1d4fd0;
-  --page: #f3f6fd;
+  --page: #f3f6fc;
   --card-line: #e3e9f4;
   --chip: #eaf0fe;
   --chip-ink: #1e3a8a;
@@ -54,14 +54,14 @@ img { max-width: 100%; }
 /* Header */
 .site-header { background: #fff; border-bottom: 1px solid var(--card-line); }
 .header-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: 0.8rem; }
-.brand { display: flex; align-items: center; gap: 0.65rem; color: #111827; text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 0.65rem; color: #0f172a; text-decoration: none; }
 .brand-logo { width: 2.5rem; height: 2.5rem; object-fit: contain; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
-.brand-name { font-weight: 700; font-size: 1.05rem; }
-.brand-sub { font-size: 0.7rem; color: #6b7280; font-weight: 500; }
+.brand-name { font-weight: 700; font-size: 0.9375rem; }
+.brand-sub { font-size: 0.7rem; color: #64748b; font-weight: 500; }
 .nav { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.nav-group { display: flex; gap: 0.2rem; background: #eef2fa; padding: 0.3rem; border-radius: 14px; }
-.nav-group a { padding: 0.5rem 1.1rem; border-radius: 10px; font-size: 0.85rem; font-weight: 500; color: #374151; text-decoration: none; }
+.nav-group { display: flex; gap: 0.2rem; background: #f1f5f9; padding: 0.3rem; border-radius: 14px; }
+.nav-group a { padding: 0.5rem 1.1rem; border-radius: 10px; font-size: 0.85rem; font-weight: 500; color: #334155; text-decoration: none; }
 .nav-group a.active { background: #fff; color: var(--indigo); font-weight: 600; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1); }
 .nav-group a:hover { color: var(--indigo); }
 .nav .pill { background: var(--indigo); color: #fff; border-radius: 10px; padding: 0.65rem 1.1rem; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
@@ -201,7 +201,7 @@ img { max-width: 100%; }
 .site-footer::after { content: "SopinsyaEducenter"; position: absolute; left: -1%; bottom: -1.6rem; font-weight: 800; font-size: clamp(4.5rem, 15vw, 12rem); line-height: 1; color: rgba(255, 255, 255, 0.06); white-space: nowrap; pointer-events: none; }
 .footer-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2rem; align-items: start; }
 .footer-brand-block { display: flex; align-items: center; gap: 0.75rem; }
-.footer-logo { width: 2.75rem; height: 2.75rem; object-fit: contain; }
+.footer-logo { width: 2.5rem; height: 2.5rem; object-fit: contain; }
 .footer-brand { font-weight: 700; font-size: 1.4rem; }
 .footer-tagline { font-size: 0.7rem; color: rgba(255, 255, 255, 0.75); }
 .footer-about { margin: 1.6rem 0 1.2rem; max-width: 22rem; line-height: 1.6; }
@@ -343,3 +343,201 @@ img.pd-cover-img { width: 100%; object-fit: cover; }
 .js .cs-nojs { display: none; }
 .dlg-instructions { padding: 0.75rem 1rem; border-radius: 10px; background: #eef5fb; display: grid; gap: 0.25rem; font-size: 0.9rem; }
 .dlg-instructions p { white-space: pre-line; }
+
+/* ============ Penyempurnaan responsif: desktop, tablet, mobile 390 / 360 ============
+ * Acuan mockup mobile: frame 390x844 (Android 360x800), latar #F3F6FC, tepi halaman 16px,
+ * kartu konfirmasi 358px (radius 20, padding 16, jarak 16). Blok ini sengaja di akhir berkas
+ * agar menimpa aturan lama dengan spesifisitas yang sama.
+ */
+html { -webkit-text-size-adjust: 100%; }
+body { overflow-x: clip; }
+.nav-toggle { display: none; }
+.nav { flex-wrap: nowrap; }
+.pd-row span { min-width: 0; overflow-wrap: anywhere; }
+.rv-head { flex-wrap: wrap; }
+.rv-who { flex: 1 1 9rem; }
+
+/* Tablet dan desktop sempit */
+@media (max-width: 64rem) {
+  .container { padding-inline: 1.5rem; }
+  .hero-band { padding-block: 3rem 3.5rem; }
+  .hero-grid { gap: 1.5rem; }
+  .hero-chip { font-size: 0.95rem; padding-right: 1rem; }
+  .chip-ico { width: 2.2rem; height: 2.2rem; }
+  .hero-chip-1 { right: -6%; }
+  .hero-chip-2 { left: -10%; }
+  .hero-chip-3 { right: -4%; }
+  .pd-hero { grid-template-columns: minmax(0, 17rem) 1fr; gap: 1.5rem; padding: 1.5rem; }
+  .vm { gap: 2rem; }
+  .vm-chip-top { right: -1rem; }
+  .vm-chip-bottom { left: -1rem; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .footer-brand-col { grid-column: 1 / -1; }
+}
+
+/* Mobile */
+@media (max-width: 48rem) {
+  html { scroll-padding-top: 4.5rem; }
+  .program-catalog { scroll-margin-top: 4.5rem; }
+  .container { padding-inline: 1rem; }
+  .section { padding-block: 1.25rem; }
+  .sec-title { font-size: 1.4rem; margin-bottom: 1rem; }
+
+  /* Header + menu hamburger (mockup "Menu terbuka") */
+  .site-header { position: sticky; top: 0; z-index: 40; }
+  .header-row { padding-block: 0.6rem; gap: 0.75rem; }
+  .js .header-row { flex-wrap: nowrap; }
+  .brand { min-width: 0; }
+  .brand-logo { width: 2.25rem; height: 2.25rem; }
+  .brand-name { font-size: 1rem; }
+  .js .nav-toggle { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 2.75rem; height: 2.75rem; padding: 0; border: 1px solid var(--card-line); border-radius: 12px; background: #fff; color: var(--navy); }
+  .nav-toggle .ico-close { display: none; }
+  .site-header.is-open .nav-toggle .ico-menu { display: none; }
+  .site-header.is-open .nav-toggle .ico-close { display: inline; }
+  .js .nav { display: none; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; align-items: stretch; gap: 0.75rem; padding: 0.75rem 1rem 1rem; background: #fff; border-top: 1px solid var(--card-line); box-shadow: 0 16px 32px rgba(19, 33, 63, 0.12); }
+  .js .site-header.is-open .nav { display: flex; }
+  .nav-group { flex-direction: column; gap: 0.25rem; padding: 0; background: transparent; }
+  .nav-group a { padding: 0.8rem 1rem; font-size: 0.95rem; border-radius: 12px; }
+  .nav-group a.active { background: var(--chip); box-shadow: none; }
+  .nav .pill { text-align: center; padding: 0.85rem 1rem; font-size: 0.9rem; border-radius: 12px; }
+
+  /* Tombol dan target sentuh */
+  .btn { min-height: 2.75rem; }
+  .btn-action { width: 100%; }
+
+  /* Beranda */
+  .hero-band { padding-block: 2.25rem 2.75rem; }
+  .hero-badge { font-size: 0.85rem; padding: 0.35rem 0.9rem; margin-bottom: 1rem; }
+  .hero-band h1 { font-size: 2rem; margin-bottom: 0.9rem; }
+  .hero-lead { font-size: 1rem; margin-bottom: 1.5rem; }
+  .search { max-width: none; }
+  .hero-dots { display: none; }
+  .hero-visual { width: min(100%, 15.5rem); margin-top: 1.25rem; }
+  .hero-chip { font-size: 0.78rem; padding: 0.3rem 0.8rem 0.3rem 0.3rem; gap: 0.5rem; }
+  .chip-ico { width: 1.9rem; height: 1.9rem; }
+  .chip-ico .ico { width: 1.1rem; height: 1.1rem; }
+  .hero-chip-1 { top: 6%; right: -6%; }
+  .hero-chip-2 { top: 44%; left: -8%; }
+  .hero-chip-3 { bottom: 6%; right: -6%; }
+  .pgrid { grid-template-columns: 1fr; gap: 1rem; }
+  .pcard h3 { font-size: 1.1rem; }
+
+  /* Detail program */
+  .pd { padding-block: 1.25rem 3rem; }
+  .pd-hero { grid-template-columns: 1fr; gap: 1.25rem; padding: 1rem; border-radius: 20px; }
+  .pd-cover { aspect-ratio: 16 / 10; border-radius: 16px; }
+  .pd-title { font-size: 1.6rem; }
+  .pd-desc { margin-block: 0.9rem 1.1rem; }
+  .pd-gate { margin-top: 1rem; padding: 0.9rem 1rem; }
+  .pd-acc { gap: 0.75rem; margin-top: 1.25rem; }
+  .pd-sec { border-radius: 16px; }
+  .pd-sec summary { gap: 0.75rem; }
+  .pd-ico { width: 2.5rem; height: 2.5rem; border-radius: 10px; }
+  .pd-chev { width: 2rem; height: 2rem; }
+  .pd-icon { width: 1.6rem; height: 1.6rem; }
+  .pd-row { gap: 0.75rem; min-height: 3rem; }
+  .pd-reviews { margin-top: 2rem; }
+  .pd-reviews-head h2 { font-size: 1.4rem; }
+  .pd-reviews-top { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .rv-summary { width: 100%; }
+  .rv-grid { grid-template-columns: 1fr; gap: 0.75rem; margin-top: 1rem; }
+  .rv-form { padding: 1rem; max-width: none; }
+  .rv-form .btn, .cs-form .btn { justify-self: stretch; }
+  .cs-upload { padding: 1rem; margin-top: 1.5rem; }
+
+  /* Studi kasus, video, tentang kami */
+  .page-head h1 { font-size: 1.6rem; }
+  .file-card { max-width: none; }
+  .file-card-text { padding: 1rem; }
+  .videos { gap: 1rem; padding-bottom: 2.5rem; }
+  .about-hero { padding-block: 2rem 1rem; }
+  .about-logo { width: 9rem; }
+  .about-hero p { font-size: 1rem; }
+  .vm { gap: 1.5rem; padding-block: 1.75rem; }
+  .vm h2 { font-size: 1.35rem; }
+  .vm-list li { font-size: 1rem; }
+  .vm-media { width: min(calc(100% - 2rem), 17rem); }
+  .vm-media::after { inset: 0.8rem -0.8rem -0.8rem 0.8rem; }
+  .vm-chip-top { right: -0.5rem; }
+  .vm-chip-bottom { left: -0.5rem; }
+  .about-contact { padding-block: 1.5rem 3rem; }
+
+  /* Footer */
+  .site-footer { padding-block: 2.5rem 4.5rem; }
+  .footer-grid { grid-template-columns: 1fr; gap: 1.75rem; }
+  .footer-brand { font-size: 1.2rem; }
+  .site-footer h2 { font-size: 1.1rem; }
+  .footer-bottom { flex-direction: column; margin-top: 2rem; }
+
+  /* Pop up Pre-test / Post-test: layar penuh seperti mockup halaman 390x844 */
+  .dlg { width: 100%; max-width: 100%; height: 100vh; height: 100dvh; max-height: none; margin: 0; border-radius: 0; }
+  .dlg-tall { height: 100vh; height: 100dvh; max-height: none; }
+  .dlg-head { padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem 0.5rem; }
+  .dlg-head h2 { font-size: 1.35rem; }
+  .dlg-head .icon-btn { width: 2.75rem; height: 2.75rem; }
+  .dlg-progress { margin: 0 1rem 0.5rem; padding: 0.75rem 1rem; }
+  .dlg-body { padding: 0.5rem 1rem; }
+  .dlg-form { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; padding: 0.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+  .dlg-foot { align-items: stretch; padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--card-line); }
+  .dlg-foot .dlg-actions, .dlg-form .dlg-actions { width: 100%; }
+  .dlg-actions .btn { flex: 1; }
+  .confirm-box { justify-items: stretch; }
+  .q-text { font-size: 1rem; }
+  .option { padding-block: 1rem; }
+  .option.selected { padding-block: calc(1rem - 1px); }
+  .option-text { font-size: 0.95rem; }
+  .dlg-confirm-layer { padding: 1rem; }
+  .dlg-confirm { width: min(358px, 100%); padding: 1rem; gap: 1rem; border-radius: 20px; }
+}
+
+/* ============ Halaman Tentang Kami + header/footer peserta (mockup desktop 1440px) ============
+ * Ukuran diambil dari mockup: logo 216px, judul 24px, paragraf 20px/24px (maks. 740px), foto 302x386 dengan
+ * panel abu-abu + bingkai biru bergeser, chip melayang, daftar poin dengan ikon centang 40px, footer 3 kolom.
+ * Aturan desktop dibatasi >= 1025px agar tablet dan mobile tetap memakai blok di atas.
+ */
+.about-page { background: linear-gradient(180deg, #eff6ff 0, #eff6ff 4rem, var(--page) 14rem); }
+/* Foto gedung: satu PNG transparan yang sudah memuat foto, panel abu-abu, bingkai biru, dan dua chip. */
+.vm-media::after { content: none; }
+.vm-media { width: min(100%, 21rem); justify-self: center; }
+.vm-art { display: block; width: 100%; height: auto; }
+
+@media (min-width: 64.0625rem) {
+  /* Header */
+  .site-header .container { max-width: 90rem; padding-inline: 3.5rem; }
+  .header-row { min-height: calc(5rem - 1px); padding-block: 0; }
+
+  /* Profil */
+  .about-hero { padding-block: 11.65rem 4.6rem; }
+  .about-logo { width: 13.5rem; height: auto; }
+  .about-hero h1 { font-size: 1.5rem; color: #0f172a; margin-top: 2rem; }
+  .about-hero p { max-width: 46.25rem; margin-top: 1rem; font-size: 1.25rem; line-height: 1.2; color: #64748b; }
+
+  /* Visi (foto kiri) dan Misi (foto kanan) */
+  #visi-misi { padding-bottom: 12.6rem; }
+  .vm.container { max-width: 79.5rem; padding-inline: 4rem; padding-block: 5rem; grid-template-columns: 20rem minmax(0, 1fr); gap: 4.8rem; align-items: start; }
+  .vm-rev.container { grid-template-columns: minmax(0, 1fr) 20rem; }
+  .vm-tag { font-size: 1rem; padding: 0.32rem 0.95rem; }
+  .vm h2 { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0.6rem 0 2rem; }
+  .vm-list { max-width: 38rem; }
+  .vm-list li { align-items: center; gap: 1.3rem; font-size: 1.25rem; line-height: 1.2; color: #64748b; margin-bottom: 0.95rem; }
+  .vm-check { width: 2.5rem; height: 2.5rem; }
+  .vm-check .ico { width: 1.4rem; height: 1.4rem; }
+
+  /* PNG 420x473: foto mulai x=68, y=45. Kolom 20rem diisi mulai dari tepi foto; chip kiri menjorok ke luar. */
+  .vm-media { width: 20rem; justify-self: start; }
+  .vm-art { width: 26.25rem; max-width: none; margin: -2.8rem 0 0 -4.25rem; }
+
+  /* Footer */
+  .site-footer { background: linear-gradient(100deg, #1a175d, #352ec1); font-size: 0.9375rem; padding-block: 3.75rem 1.9rem; }
+  .site-footer::after { font-size: clamp(6rem, 19.5vw, 19rem); bottom: -0.3em; left: -0.5%; }
+  .site-footer .container { max-width: 73.75rem; width: calc(100% - 3rem); padding-inline: 0; }
+  .footer-grid { grid-template-columns: 562fr 288fr 330fr; gap: 0; }
+  .footer-brand-col { padding-left: 1.6rem; }
+  .footer-brand { font-size: 1.25rem; line-height: 1.3; }
+  .footer-tagline { font-size: 0.875rem; color: rgba(255, 255, 255, 0.92); }
+  .footer-about { margin: 1.2rem 0 1.6rem; max-width: 24rem; line-height: 1.4; }
+  .site-footer a { font-size: 0.9375rem; }
+  .site-footer nav li { margin-bottom: 0.2rem; }
+  .footer-social { gap: 1.35rem; margin-top: 1.5rem; }
+  .footer-bottom { margin-top: 1.9rem; }
+}

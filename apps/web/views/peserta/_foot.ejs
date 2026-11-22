@@ -8,7 +8,7 @@
   <div class="container footer-grid">
     <div class="footer-brand-col">
       <div class="footer-brand-block">
-        <img src="/static/logo.svg" alt="" width="44" height="44" class="footer-logo">
+        <img src="/static/logo.svg" alt="" width="41" height="34" class="footer-logo">
         <div>
           <p class="footer-brand"><%= site.siteName %></p>
           <% if (site.tagline) { %><p class="footer-tagline"><%= site.tagline %></p><% } %>
@@ -24,16 +24,16 @@
     <nav aria-label="Menu utama">
       <h2>Menu Utama</h2>
       <ul>
-        <li><a href="/peserta/#program">Program Pelatihan</a></li>
-        <li><a href="/peserta/#program">Jadwal Kelas</a></li>
+        <li><a href="/peserta/#program">Program</a></li>
+        <li><a href="/peserta/tentang-kami">Tentang Kami</a></li>
       </ul>
     </nav>
 
-    <div>
+    <div id="kontak">
       <h2>Kontak &amp; Layanan</h2>
       <ul class="footer-contact">
         <% if (site.whatsapp) { %><li>
-          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-phone"/></svg>
+          <svg class="ico" width="22" height="22" aria-hidden="true"><use href="#i-whatsapp"/></svg>
           <a href="<%= waHref %>"<%- waExt ? ' target="_blank" rel="noopener noreferrer"' : '' %>><%= site.whatsapp %></a>
         </li><% } %>
         <% if (site.email) { %><li>

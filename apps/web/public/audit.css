@@ -605,3 +605,90 @@ body.gate, .gate-main { background: #f3f6fd; }
 .bs-pg.active { border-color: #362fc2; background: #362fc2; color: #fff; }
 .bs-pg:disabled { opacity: .45; cursor: not-allowed; }
 .bs-gap { padding: 0 .15rem; color: #94a3b8; }
+
+/* ============ Perapihan tombol dan tata letak (Admin & Audit) ============
+ * Hanya gaya: markup, atribut data-*, form, dan skrip tidak diubah.
+ * Ditaruh di akhir berkas ini (dimuat paling akhir) agar menimpa aturan lama yang bentrok.
+ * Patokan tinggi: kontrol sebaris dengan kolom isian = 40px; tombol kecil di baris tabel = 32px.
+ */
+button { font-family: inherit; }
+.btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+
+/* 1. Aturan global `details > summary` (app.css) memberi margin-bawah 6px ke SEMUA summary,
+ *    sehingga tab "Lainnya", dropdown filter, tombol "Kelola", dan tombol beralih dashboard
+ *    tampil naik/turun 3px dari saudaranya. Tab navbar juga jadi lebih tinggi dari tab lain. */
+.au-more summary, .ad-filter summary, .au-switch-menu summary, summary.ad-manage, summary.au-switch-btn { margin-bottom: 0; }
+.au-tabs { align-items: center; }
+.au-tabs a, .au-more summary { display: inline-flex; align-items: center; }
+
+/* 2. Tombol "Kelola" (tautan/summary) disamakan dengan .btn.small di sebelahnya. */
+.ad-manage { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; border-radius: 8px; box-sizing: border-box; font-size: 12px; line-height: 16px; white-space: nowrap; }
+.au-icon-btn { flex: none; padding: 0; }
+
+/* 3. Baris alat: label tidak lagi mewarisi margin label formulir (1rem atas), kontrol seragam 40px. */
+.au-toolbar label, .au-printbar label { margin: 0; white-space: nowrap; }
+.au-toolbar .btn, .au-printbar .btn, .ad-filterbar .btn, .bs-toolbar .btn { height: 40px; }
+.ad-filter summary { box-sizing: border-box; align-items: center; min-height: 40px; font-weight: 400; }
+.ad-filter[data-active] summary { font-weight: 600; }
+.au-toolbar, .au-printbar, .ad-filterbar, .bs-toolbar { align-items: center; }
+.ad-pagehead-actions, .au-toolbar-end, .ad-filterbar-end, .au-printhead .actions { align-items: center; }
+
+/* 4. Aksi di tabel register temuan sejajar mendatar seperti tabel admin (sebelumnya menumpuk ke bawah). */
+.au-actions { flex-direction: row; flex-wrap: nowrap; align-items: center; }
+
+/* 5. Tab unit auditor: blok "Manajemen Program" lama di app.css menimpa .tabs (padding bawah 10px + garis bawah)
+ *    sehingga kapsul tab tidak simetris. Kembalikan ke kapsul tersegmentasi. */
+.tabs { gap: .25rem; margin: 0 0 1.5rem; padding: 4px; border-bottom: 0; }
+
+/* 6. Kartu lama: hilangkan jarak ganda di bawah (margin <p> terakhir + padding kartu). */
+.card > :last-child { margin-bottom: 0; }
+
+/* 7. Dua kotak centang berurutan di formulir admin tidak lagi berjarak lebih lebar dari jarak antarkolom. */
+.ad-grid > label.ad-check { margin: 0; }
+
+/* 8. Dashboard Admin: kartu "Konten yang dikelola" dan "Rating" sama tinggi. */
+.ad-split { align-items: stretch; }
+
+/* 9. Lima kartu statistik: tidak ada kartu yatim di baris terakhir. */
+@media (max-width: 1100px) {
+  .au-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .au-stats > .au-stat { grid-column: span 2; }
+  .au-stats > .au-stat:nth-child(n + 4) { grid-column: span 3; }
+}
+@media (max-width: 640px) {
+  .au-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .au-stats > .au-stat, .au-stats > .au-stat:nth-child(n + 4) { grid-column: auto; }
+  .au-stats > .au-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* 10. Tombol di pojok hero tidak menimpa teks pada layar sempit. */
+@media (max-width: 900px) {
+  .au-hero .au-hero-action { position: static; transform: none; align-self: flex-start; margin-top: 1rem; }
+}
+
+/* 11. Navbar atas: tab Admin panjang (5 item) lebih awal dilipat ke baris kedua. Tinggi tetap 80px dari
+ *     aturan mockup sebelumnya membuat baris tab meluber keluar dari bilah saat dilipat. */
+@media (max-width: 1080px) {
+  .app-top .topbar { position: static; height: auto; }
+  .app-top .topbar-in { height: auto; flex-wrap: wrap; padding: .6rem 1rem; gap: .6rem; }
+  .au-tabs { order: 5; width: 100%; margin-left: 0; overflow-x: auto; }
+  .au-tabs-admin { flex-wrap: wrap; overflow: visible; }
+  .app-top .main { padding: 1rem; }
+}
+
+/* 12. Mobile: grup tombol memenuhi lebar, kolom filter satu baris penuh, target sentuh >= 40px. */
+@media (max-width: 640px) {
+  .ad-pagehead { align-items: stretch; }
+  .ad-pagehead-actions, .au-toolbar-end, .ad-filterbar-end, .au-printhead .actions { width: 100%; }
+  .ad-pagehead-actions .btn, .au-toolbar-end .btn, .ad-filterbar-end .btn, .au-printhead .actions .btn { flex: 1 1 auto; width: auto; }
+  .au-toolbar select, .au-toolbar .au-sesi-select, .bs-toolbar select { flex: 1 1 100%; width: 100%; min-width: 0; max-width: none; }
+  .au-search, .ad-filterbar .au-search, .bs-toolbar .au-search { flex: 1 1 100%; max-width: none; }
+  .ad-filter { flex: 1 1 100%; }
+  .ad-filter summary { width: 100%; }
+  .btn.small, .ad-manage, .au-icon-btn { min-height: 40px; }
+  .au-icon-btn { min-width: 40px; }
+  .au-modal { padding: .5rem; }
+  .au-modal-head, .au-modal-body, .au-modal-extra, .au-modal-foot { padding-left: 1rem; padding-right: 1rem; }
+  .au-modal-foot .btn { flex: 1 1 auto; width: auto; }
+  .au-toast { left: 1rem; right: 1rem; bottom: 1rem; }
+}

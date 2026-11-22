@@ -1,6 +1,7 @@
 <%- include('_head') %>
+<div class="about-page">
 <section id="profil" class="container about-hero" aria-labelledby="about-title">
-  <img src="/static/logo.svg" alt="" width="200" height="200" class="about-logo">
+  <img src="/static/logo.svg" alt="" width="216" height="177" class="about-logo">
   <h1 id="about-title">Apa itu Sopinsya Educenter?</h1>
   <p><%= about.intro %></p>
 </section>
@@ -8,6 +9,9 @@
 <div id="visi-misi">
   <% [{ key: 'visi', tag: 'Visi Kami', data: about.vision, rev: false }, { key: 'misi', tag: 'Misi Kami', data: about.mission, rev: true }].forEach(function (b) { %>
     <section id="<%= b.key %>" class="container vm<%= b.rev ? ' vm-rev' : '' %>" aria-labelledby="<%= b.key %>-title">
+      <div class="vm-media" aria-hidden="true">
+        <img class="vm-art" src="/static/images/gedung.svg" alt="" width="420" height="473" loading="lazy" decoding="async">
+      </div>
       <div class="vm-text">
         <p class="vm-tag"><%= b.tag %></p>
         <h2 id="<%= b.key %>-title"><%= b.data.title %></h2>
@@ -17,21 +21,8 @@
           <% }) %>
         </ul>
       </div>
-      <div class="vm-media" aria-hidden="true">
-        <div class="vm-photo"></div>
-        <p class="vm-chip vm-chip-top"><span class="chip-ico"><svg class="ico" width="16" height="16"><use href="#i-person"/></svg></span>Industry<br>Ready Skills</p>
-        <p class="vm-chip vm-chip-bottom"><span class="chip-ico chip-ico-blue"><svg class="ico" width="16" height="16"><use href="#i-award"/></svg></span>National<br>Competency Standards</p>
-      </div>
     </section>
   <% }) %>
 </div>
-
-<section id="kontak" class="container about-contact" aria-labelledby="kontak-title">
-  <h2 id="kontak-title">Hubungi Kami</h2>
-  <% if (locals.whatsappUrl) { %>
-    <a class="btn btn-primary" href="<%= whatsappUrl %>" target="_blank" rel="noopener noreferrer">Konsultasi via WhatsApp</a>
-  <% } else { %>
-    <p class="note">Hubungi kami melalui <a href="mailto:info@sopinsyaeducenter.com">info@sopinsyaeducenter.com</a>.</p>
-  <% } %>
-</section>
+</div>
 <%- include('_foot') %>
